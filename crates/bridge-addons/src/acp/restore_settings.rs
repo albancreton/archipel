@@ -10,7 +10,7 @@
 //! The daemon's log has every settings update the session ever sent, so the last one is what
 //! the user last saw. This addon adds it to the `session/resume` that wakes the session.
 
-use bridge_addon_api::{Addon, Agent, Info, Kind, Request, Verdict};
+use bridge_addon_api::{Addon, Agent, Cx, Info, Kind, Request, Verdict};
 use serde_json::{Value, json};
 
 pub struct RestoreSettings;
@@ -37,7 +37,7 @@ impl Addon for RestoreSettings {
             .is_some_and(|capabilities| capabilities.pointer("/session/options").is_some())
     }
 
-    fn request(&mut self, request: &mut Request<'_>) -> Verdict {
+    fn request(&mut self, cx: &mut Cx<'_>, request: &mut Request<'_>) -> Verdict {
         if request.method != "session/resume"
             // Whoever sent settings of their own knows better.
             || request.params.get("configOptions").is_some_and(|sent| !sent.is_null())
@@ -45,8 +45,10 @@ impl Addon for RestoreSettings {
             return Verdict::Pass;
         }
         let logged = request
-            .history
-            .and_then(|history| history.last_update("config_option_update"));
+            .params
+            .get("sessionId")
+            .and_then(Value::as_str)
+            .and_then(|session| cx.last_update(session, "config_option_update"));
         let entries = entries(
             logged
                 .as_ref()
@@ -87,13 +89,13 @@ fn entries(options: Option<&Value>) -> Vec<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bridge_addon_api::History;
+    use bridge_addon_api::Sessions;
 
     struct Log(Option<Value>);
 
-    impl History for Log {
-        fn last_update(&self, kind: &str) -> Option<Value> {
-            assert_eq!(kind, "config_option_update");
+    impl Sessions for Log {
+        fn last_update(&self, session_id: &str, kind: &str) -> Option<Value> {
+            assert_eq!((session_id, kind), ("s1", "config_option_update"));
             self.0.clone()
         }
     }
@@ -116,12 +118,17 @@ mod tests {
             |options| json!({"sessionUpdate": "config_option_update", "configOptions": options}),
         ));
         let mut request = Request {
+            id: 1,
             agent: agent(&capabilities),
             method,
             params: &mut params,
-            history: Some(&log),
         };
-        assert_eq!(RestoreSettings.request(&mut request), Verdict::Pass);
+        let mut cx = Cx::new(&log, 1);
+        assert_eq!(
+            RestoreSettings.request(&mut cx, &mut request),
+            Verdict::Pass
+        );
+        assert_eq!(cx.effects(), [], "it only edits the request");
         params
     }
 

@@ -116,12 +116,15 @@ pub struct BridgeMeta {
     pub root_session_id: Option<String>,
 }
 
-/// Under `_meta.bridge` inside an update body that the daemon wrote itself, not the agent.
+/// Under `_meta.bridge` inside an update body that did not come from the agent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateOrigin {
-    /// Always `daemon`.
+    /// Who wrote it: `daemon`, `extension` or `addon`.
     pub origin: String,
+    /// The id of the addon, when `origin` is `addon`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub addon: Option<String>,
 }
 
 /// Under `_meta.bridge` in the params of `session/new`.

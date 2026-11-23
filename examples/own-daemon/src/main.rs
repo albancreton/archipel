@@ -9,11 +9,16 @@
 //! cargo run -p own-daemon -- --home DIR  # runs the daemon
 //! ```
 //!
+//! The addon below uses one hook. There are more: an addon can also change answers, answer
+//! approvals in the user's place, send requests of its own, add updates to a session and
+//! serve methods. `docs/design/addons.md` lists them, and
+//! `crates/bridge-server/tests/addons.rs` has a short test for each.
+//!
 //! The addon below is a house rule, not a fix: sessions may not be switched to the mode that
 //! skips every approval. It is a `Feature`, so it is off until `config.json` says
 //! `{"addons": {"example.no-bypass": true}}`.
 
-use bridge_addon_api::{Addon, Agent, Info, Kind, Request, Verdict};
+use bridge_addon_api::{Addon, Agent, Cx, Info, Kind, Request, Verdict};
 use serde_json::Value;
 
 struct NoBypass;
@@ -35,7 +40,7 @@ impl Addon for NoBypass {
         agent.harness == Some("claude")
     }
 
-    fn request(&mut self, request: &mut Request<'_>) -> Verdict {
+    fn request(&mut self, _cx: &mut Cx<'_>, request: &mut Request<'_>) -> Verdict {
         let sets_mode =
             |entry: &Value| entry["configId"] == "mode" && entry["value"] == "bypassPermissions";
         let asked = match request.method {
@@ -66,7 +71,16 @@ async fn main() -> std::process::ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bridge_addon_api::Sessions;
     use serde_json::json;
+
+    struct NoLog;
+
+    impl Sessions for NoLog {
+        fn last_update(&self, _session_id: &str, _kind: &str) -> Option<Value> {
+            None
+        }
+    }
 
     fn verdict(method: &str, mut params: Value) -> Verdict {
         let agent = Agent {
@@ -77,12 +91,13 @@ mod tests {
             capabilities: None,
             os: "macos",
         };
-        NoBypass.request(&mut Request {
+        let mut request = Request {
+            id: 1,
             agent,
             method,
             params: &mut params,
-            history: None,
-        })
+        };
+        NoBypass.request(&mut Cx::new(&NoLog, 1), &mut request)
     }
 
     #[test]

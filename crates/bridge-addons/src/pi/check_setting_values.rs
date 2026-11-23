@@ -5,7 +5,7 @@
 //! ACP asks for an invalid-params error instead, which is what Claude's adapter gives. This
 //! addon checks the value against the choices the session last reported and refuses the rest.
 
-use bridge_addon_api::{Addon, Agent, Info, Kind, Request, Verdict};
+use bridge_addon_api::{Addon, Agent, Cx, Info, Kind, Request, Verdict};
 use serde_json::Value;
 
 pub struct CheckSettingValues;
@@ -27,7 +27,7 @@ impl Addon for CheckSettingValues {
         agent.harness == Some("pi")
     }
 
-    fn request(&mut self, request: &mut Request<'_>) -> Verdict {
+    fn request(&mut self, cx: &mut Cx<'_>, request: &mut Request<'_>) -> Verdict {
         if request.method != "session/set_config_option" {
             return Verdict::Pass;
         }
@@ -38,8 +38,10 @@ impl Addon for CheckSettingValues {
             return Verdict::Pass;
         };
         let reported = request
-            .history
-            .and_then(|history| history.last_update("config_option_update"));
+            .params
+            .get("sessionId")
+            .and_then(Value::as_str)
+            .and_then(|session| cx.last_update(session, "config_option_update"));
         let offered = reported
             .as_ref()
             .and_then(|update| update.get("configOptions")?.as_array())
@@ -77,13 +79,13 @@ fn values(choices: &[Value]) -> Vec<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bridge_addon_api::History;
+    use bridge_addon_api::Sessions;
     use serde_json::json;
 
     struct Log(Option<Value>);
 
-    impl History for Log {
-        fn last_update(&self, _kind: &str) -> Option<Value> {
+    impl Sessions for Log {
+        fn last_update(&self, _session_id: &str, _kind: &str) -> Option<Value> {
             self.0.clone()
         }
     }
@@ -98,12 +100,13 @@ mod tests {
             capabilities: None,
             os: "macos",
         };
-        CheckSettingValues.request(&mut Request {
+        let mut request = Request {
+            id: 1,
             agent,
             method,
             params: &mut params,
-            history: Some(log),
-        })
+        };
+        CheckSettingValues.request(&mut Cx::new(log, 1), &mut request)
     }
 
     #[test]

@@ -107,12 +107,19 @@
       ]
     },
     "UpdateOrigin": {
-      "description": "Under `_meta.bridge` inside an update body that the daemon wrote itself, not the agent.",
+      "description": "Under `_meta.bridge` inside an update body that did not come from the agent.",
       "type": "object",
       "properties": {
         "origin": {
-          "description": "Always `daemon`.",
+          "description": "Who wrote it: `daemon`, `extension` or `addon`.",
           "type": "string"
+        },
+        "addon": {
+          "description": "The id of the addon, when `origin` is `addon`.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [

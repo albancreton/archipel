@@ -60,16 +60,20 @@ export interface BridgeMeta {
   rootSessionId?: string | null;
 }
 /**
- * Under `_meta.bridge` inside an update body that the daemon wrote itself, not the agent.
+ * Under `_meta.bridge` inside an update body that did not come from the agent.
  *
  * This interface was referenced by `BridgeExtensionsToACPV2Draft`'s JSON-Schema
  * via the `definition` "UpdateOrigin".
  */
 export interface UpdateOrigin {
   /**
-   * Always `daemon`.
+   * Who wrote it: `daemon`, `extension` or `addon`.
    */
   origin: string;
+  /**
+   * The id of the addon, when `origin` is `addon`.
+   */
+  addon?: string | null;
 }
 /**
  * Under `_meta.bridge` in the params of `session/new`.
