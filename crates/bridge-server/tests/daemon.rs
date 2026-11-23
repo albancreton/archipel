@@ -91,6 +91,7 @@ fn fake(transcript: &Transcript) -> AgentSpec {
     AgentSpec {
         id: "claude".into(),
         name: "Fake Claude".into(),
+        harness: Some("claude".into()),
         launcher: Arc::new(Fake {
             transcript: transcript.clone(),
             speed: 0.0,
@@ -686,6 +687,7 @@ async fn when_the_adapter_dies_its_sessions_are_closed_cleanly_and_the_next_requ
     let spec = AgentSpec {
         id: "claude".into(),
         name: "Scripted".into(),
+        harness: None,
         launcher: Arc::new(Scripted(launched)),
     };
     let server = Server::builder().agent(spec).start();
@@ -1177,6 +1179,7 @@ async fn a_session_open_in_another_process_is_not_acted_on_but_can_be_forked() {
     let spec = |elsewhere: &Arc<std::sync::Mutex<Option<String>>>| AgentSpec {
         id: "claude".into(),
         name: "Fake".into(),
+        harness: None,
         launcher: Arc::new(Shared {
             fake: Fake {
                 transcript: transcript.clone(),

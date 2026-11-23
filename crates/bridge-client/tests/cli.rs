@@ -39,6 +39,7 @@ async fn the_command_line_client_creates_prompts_watches_and_shows_a_session() {
         .agent(AgentSpec {
             id: "claude".into(),
             name: "Fake".into(),
+            harness: None,
             launcher: Arc::new(Fake {
                 transcript,
                 speed: 0.0,

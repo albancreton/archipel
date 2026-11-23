@@ -32,6 +32,8 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
+pub use bridge_addon_api as addon;
+pub use bridge_addon_api::Addon;
 pub use bridge_schema::ext::Scope;
 pub use bridge_store_sqlite::SqliteStore;
 
@@ -46,6 +48,7 @@ impl Server {
             store: Box::new(MemoryStore::default()),
             retention: None,
             share: false,
+            addons: Vec::new(),
         }
     }
 }
@@ -56,6 +59,7 @@ pub struct Builder {
     store: Box<dyn Store>,
     retention: Option<Duration>,
     share: bool,
+    addons: Vec<Box<dyn Addon>>,
 }
 
 impl Builder {
@@ -91,6 +95,21 @@ impl Builder {
         self
     }
 
+    /// Adds an addon: code that sees the messages between the daemon and the adapters and may
+    /// change them. Addons see a message in the order they were added. See [`addon`].
+    #[must_use]
+    pub fn addon(mut self, addon: impl Addon) -> Self {
+        self.addons.push(Box::new(addon));
+        self
+    }
+
+    /// Adds several addons, such as `bridge_addons::recommended()`.
+    #[must_use]
+    pub fn addons(mut self, addons: impl IntoIterator<Item = Box<dyn Addon>>) -> Self {
+        self.addons.extend(addons);
+        self
+    }
+
     /// Starts the daemon on the current tokio runtime.
     #[must_use]
     pub fn start(self) -> Handle {
@@ -102,6 +121,7 @@ impl Builder {
             events.clone(),
             retention,
             self.share,
+            self.addons,
         );
         tokio::spawn(daemon.run(inbox));
         if retention.is_some() {

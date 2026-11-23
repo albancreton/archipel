@@ -61,6 +61,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "bridge-addon-api"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
+name = "bridge-addons"
+version = "0.0.0"
+dependencies = [
+ "bridge-addon-api",
+ "serde_json",
+]
+
+[[package]]
 name = "bridge-agents"
 version = "0.0.0"
 dependencies = [
@@ -112,6 +127,7 @@ dependencies = [
 name = "bridge-server"
 version = "0.0.0"
 dependencies = [
+ "bridge-addon-api",
  "bridge-agents",
  "bridge-core",
  "bridge-schema",
@@ -146,6 +162,7 @@ dependencies = [
 name = "bridged"
 version = "0.0.0"
 dependencies = [
+ "bridge-addons",
  "bridge-agents",
  "bridge-core",
  "bridge-server",
@@ -841,6 +858,17 @@ dependencies = [
  "libc",
  "pkg-config",
  "vcpkg",
+]
+
+[[package]]
+name = "own-daemon"
+version = "0.0.0"
+dependencies = [
+ "bridge-addon-api",
+ "bridge-addons",
+ "bridged",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

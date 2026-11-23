@@ -7,6 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+bridge-addons = { path = "../bridge-addons" }
 bridge-agents = { path = "../bridge-agents" }
 bridge-core = { path = "../bridge-core" }
 bridge-server = { path = "../bridge-server" }

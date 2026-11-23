@@ -1,0 +1,19 @@
+[package]
+name = "own-daemon"
+description = "Example: a daemon with an addon of one's own, without forking the library."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+# An addon needs only this.
+bridge-addon-api = { path = "../../crates/bridge-addon-api" }
+serde_json = "1.0.154"
+# The program around it.
+bridge-addons = { path = "../../crates/bridge-addons" }
+bridged = { path = "../../crates/bridged" }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true

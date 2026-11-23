@@ -67,6 +67,7 @@ impl Pi {
         AgentSpec {
             id: "pi".to_owned(),
             name: "Pi".to_owned(),
+            harness: Some("pi".to_owned()),
             launcher: Arc::new(self),
         }
     }

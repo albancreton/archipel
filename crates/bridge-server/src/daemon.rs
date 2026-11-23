@@ -26,6 +26,7 @@
 //! stores and carries both without knowing what they mean.
 
 use crate::wire;
+use bridge_addon_api as addon;
 use bridge_agents::{AgentSpec, initialize_params};
 use bridge_core::{
     log::{LogEntry, Record, condense},
@@ -106,6 +107,24 @@ pub(crate) struct Daemon {
     /// Requests passed to an extension: our id to the extension, the asking app and its id.
     extension_calls: HashMap<String, (u64, u64, Value)>,
     next_extension_call: u64,
+    /// Code between the daemon and the adapters, in the order it was added. See [`addon`].
+    addons: Vec<Box<dyn addon::Addon>>,
+}
+
+/// One session's log, as an addon may read it.
+struct Logged<'a> {
+    store: &'a dyn Store,
+    root: &'a str,
+}
+
+impl addon::History for Logged<'_> {
+    fn last_update(&self, kind: &str) -> Option<Value> {
+        let entries = self.store.after(self.root, 0).ok()?;
+        entries.iter().rev().find_map(|entry| {
+            let update = entry.update().filter(|_| entry.session_id == self.root)?;
+            (text(update, "/sessionUpdate") == Some(kind)).then(|| update.clone())
+        })
+    }
 }
 
 /// A session only the harness knows, as its adapter listed it.
@@ -238,6 +257,7 @@ impl Daemon {
         events: mpsc::Sender<Event>,
         retention: Option<u64>,
         share: bool,
+        addons: Vec<Box<dyn addon::Addon>>,
     ) -> Self {
         Self {
             rules: RuleSet::pinned(),
@@ -267,6 +287,7 @@ impl Daemon {
             extensions: HashMap::new(),
             extension_calls: HashMap::new(),
             next_extension_call: 0,
+            addons,
         }
     }
 
@@ -1559,8 +1580,93 @@ impl Daemon {
         Ok(())
     }
 
+    /// The agent as an addon sees it.
+    fn agent_view<'a>(agents: &'a IndexMap<String, Agent>, agent_id: &'a str) -> addon::Agent<'a> {
+        let agent = agents.get(agent_id);
+        let info = agent
+            .and_then(|agent| agent.running.as_ref())
+            .and_then(|adapter| adapter.initialized.as_ref());
+        addon::Agent {
+            id: agent_id,
+            harness: agent.and_then(|agent| agent.spec.harness.as_deref()),
+            adapter: info.and_then(|result| text(result, "/info/name")),
+            version: info.and_then(|result| text(result, "/info/version")),
+            capabilities: info.and_then(|result| result.get("capabilities")),
+            os: std::env::consts::OS,
+        }
+    }
+
+    /// Shows a request to the addons before it goes to an adapter. They may change its params.
+    /// The first one to refuse stops it: the error to answer with is returned.
+    fn addons_on_request(
+        &mut self,
+        agent_id: &str,
+        method: &str,
+        params: &mut Value,
+    ) -> Result<(), Value> {
+        if self.addons.is_empty() {
+            return Ok(());
+        }
+        let agent = Self::agent_view(&self.agents, agent_id);
+        let root = text(params, "/sessionId")
+            .and_then(|id| self.roots.get(id))
+            .cloned();
+        let logged = root.as_deref().map(|root| Logged {
+            store: self.store.as_ref(),
+            root,
+        });
+        for addon in &mut self.addons {
+            if !addon.applies(&agent) {
+                continue;
+            }
+            let mut request = addon::Request {
+                agent,
+                method,
+                params,
+                history: logged.as_ref().map(|logged| logged as &dyn addon::History),
+            };
+            if let addon::Verdict::Refuse { code, message } = addon.request(&mut request) {
+                return Err(json!({
+                    "code": code,
+                    "message": message,
+                    "data": {"addon": addon.info().id},
+                }));
+            }
+        }
+        Ok(())
+    }
+
+    /// Shows an adapter's update to the addons before it is logged. They may change it.
+    /// Returns whether to keep it.
+    fn addons_on_update(&mut self, agent_id: &str, session_id: &str, update: &mut Value) -> bool {
+        let agent = Self::agent_view(&self.agents, agent_id);
+        for addon in &mut self.addons {
+            if !addon.applies(&agent) {
+                continue;
+            }
+            let mut seen = addon::Update {
+                agent,
+                session_id,
+                update,
+            };
+            if addon.update(&mut seen) == addon::Keep::No {
+                return false;
+            }
+        }
+        true
+    }
+
     /// Sends a request to an adapter and remembers what to do with the answer.
-    fn call(&mut self, agent_id: &str, call: Call, method: &str, params: Value) {
+    fn call(&mut self, agent_id: &str, call: Call, method: &str, mut params: Value) {
+        if let Err(error) = self.addons_on_request(agent_id, method, &mut params) {
+            // Handled as if the adapter had refused, so whoever waits gets the answer.
+            let generation = self
+                .agents
+                .get(agent_id)
+                .and_then(|agent| agent.running.as_ref())
+                .map_or(0, |adapter| adapter.generation);
+            return self.agent_answered(agent_id, generation, call, &json!({ "error": error }));
+        }
         let Some(adapter) = self
             .agents
             .get_mut(agent_id)
@@ -1775,10 +1881,11 @@ impl Daemon {
         if text(update, "/sessionUpdate") == Some("replay_complete") {
             return; // The end of the harness's own replay, while adopting. Not content.
         }
-        let record = Record::Update {
-            update: update.clone(),
-        };
-        self.log(&root, session_id, record);
+        let mut update = update.clone();
+        if !self.addons_on_update(agent_id, session_id, &mut update) {
+            return;
+        }
+        self.log(&root, session_id, Record::Update { update });
     }
 
     /// The agent asks the user something. It stays pending until an app answers, however long

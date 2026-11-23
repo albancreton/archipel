@@ -7,6 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+bridge-addon-api = { path = "../bridge-addon-api" }
 bridge-core = { path = "../bridge-core" }
 bridge-store-sqlite = { path = "../bridge-store-sqlite" }
 bridge-agents = { path = "../bridge-agents" }

@@ -52,6 +52,9 @@ pub struct AgentSpec {
     pub id: String,
     /// Name shown to users.
     pub name: String,
+    /// Which harness this is, such as `claude` or `pi`, for addons that are about one harness.
+    /// `None` for a plain ACP adapter.
+    pub harness: Option<String>,
     pub launcher: Arc<dyn Launcher>,
 }
 
@@ -124,6 +127,7 @@ pub fn claude(mut process: Process) -> AgentSpec {
     AgentSpec {
         id: "claude".to_owned(),
         name: "Claude Code".to_owned(),
+        harness: Some("claude".to_owned()),
         launcher: Arc::new(Claude {
             process,
             registry: Claude::default_registry(),
