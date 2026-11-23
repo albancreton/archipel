@@ -1,6 +1,6 @@
 # Daemon design
 
-Draft 7, 2026-11-22: based on ACP v2; milestones 0, 1 and 2 done (`docs/research/11`, `12`, `13`). A first daemon runs. "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
+Draft 8, 2026-11-22: based on ACP v2; milestones 0 to 3 done (`docs/research/11` to `14`). The daemon runs, with scopes and with the harness's own sessions. "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
 
 ## 1. What the daemon is for
 
@@ -81,7 +81,8 @@ ACP reserves `_`-prefixed methods and `_meta` for this.
 | Addition | Purpose |
 |---|---|
 | `_bridge/agents/list` | Which agents the daemon can start, with version and readiness |
-| `_bridge/sessions/list` | Sessions across all agents, live or stored, with state and title |
+| `_bridge/sessions/list` | Sessions across all agents: the daemon's own, and those each harness reports (`logged: false`). Opening one of the latter adopts it (section 4) |
+| `_bridge/sessions/updated` (notification) | A session appeared, or its title, turn state or liveness changed. Sent to every connected app |
 | `_bridge/session/attach {sessionId, afterSeq?}` | Subscribe to a session another app may already be using. The response says whether a delta or a full replay follows |
 | `_bridge/session/detach` | Unsubscribe without closing the session |
 | `_meta.bridge.seq` on every logged message | Position in the session log, for catching up |
@@ -108,7 +109,8 @@ Every canonical (v2) update, every request from the agent and every answer gets 
 - **Condensing:** chunk runs for the same id are merged when replaying, so a replay grows with content, not with token count. Stored entries are not merged yet (to do with retention).
 - **Storage:** one SQLite file, one row per entry, keyed by session and sequence. Write-ahead log with `synchronous = NORMAL`.
 - **The log is a cache.** The harness owns the transcript of record. A lost log is rebuilt from the adapter: Claude replays everything including subagent child sessions; Pi replays messages and tools but not reasoning (tested).
-- **Retention:** configurable by age and size; pruned sessions stay listed if the harness still has them. Not implemented yet.
+- **Adoption:** a session the daemon has never seen (started in the harness's own UI) is listed with `logged: false`. The first app that opens it makes the daemon call `session/resume` with a replay; the replayed updates become its log. A harness replay has no approvals or questions, so an adopted session shows less than one watched live (`docs/research/14`).
+- **Retention:** by age (`retentionDays`); pruned sessions stay listed because the harness still has them, and are adopted again when opened. By size: not implemented.
 
 SQLite revises the earlier "no database" note. That note was about not owning a domain model like T3's orchestrator; a replay log needs ordered reads, an index and crash safety. Append-only files per session are the fallback if a dependency-free daemon matters more.
 
@@ -178,7 +180,7 @@ A second option for Pi is to drop `pi-acp` and have the daemon speak Pi's own RP
 ## 7. Several apps on one session
 
 - Every attached app receives every event. Done.
-- Any app with the right scope may prompt, cancel, or answer. Scopes are not implemented: today every app may do everything.
+- Any app with the `interact` scope may prompt, cancel, or answer. An observer's requests to act are refused (`-32003`); its answers and cancels are ignored. Done.
 - A pending approval or question is shown to all, and `state_update` reports `requires_action`; the first answer wins and every app receives `_bridge/request/resolved`. Done.
 - A pending request survives all apps disconnecting, and is sent again to every app that attaches, since an app can only answer on its current connection. Done. Tested on Claude: still valid after 150 seconds, no timeout seen.
 - Prompts are handed to the adapter in the order the daemon receives them; the adapter queues or steers.
@@ -211,8 +213,8 @@ All three carry the same JSON-RPC messages (one per line, or one per WebSocket t
 
 Implemented in milestone 2: the Unix socket (owner-only file in an owner-only directory) and the WebSocket. The WebSocket requires `Authorization: Bearer <token>`, with the token in a file only the owner can read, and refuses any request that has an `Origin` header: any web page may try to open a WebSocket to a local port, so binding to loopback is not a protection by itself. Browser clients therefore cannot connect yet.
 
-- **Pairing:** the daemon prints a one-time code; the app exchanges it for a long-lived token stored in the platform keychain. Tokens are listed and revocable.
-- **Scopes:** `observe` (read), `interact` (prompt, answer, cancel), `admin` (pair, configure). A wall display gets `observe`.
+- **Pairing:** the daemon prints a one-time code; the app exchanges it for a long-lived token stored in the platform keychain. Tokens are listed and revocable. Until then, `bridged token add NAME --scope …` makes a token by hand; tokens are kept as they are in owner-only files, and should be stored hashed once pairing exists.
+- **Scopes:** `observe` (list and read), `interact` (also create, prompt, answer, cancel, adopt), `admin` (pair, configure; nothing needs it yet). A wall display gets `observe`. The local socket always has every right: whoever can open it is the user. Done.
 - **Browser clients:** origin allow-list on the WebSocket; no cookies.
 - **Logs:** account details and environment values are stripped before storage.
 - **Not built:** an own relay or end-to-end encryption. Tailscale and SSH cover remote access with maintained code. Revisit only if a hosted relay becomes a goal.
@@ -349,7 +351,7 @@ Two rules:
 0. **Close the unknowns.** Done; see `docs/research/11`.
 1. **Schema and core.** Done; see `docs/research/12`.
 2. **Single-session daemon.** Done; see `docs/research/13`. Fan-out to several apps and "first answer wins" came with it.
-3. **Several apps.** What is left: scopes, a named pipe for Windows, the gaps listed in `docs/research/13` (sessions created outside the daemon, remembered `mcpServers`, stale pending tool calls, retention).
+3. **Several apps.** Done except Windows; see `docs/research/14`. Scopes, harness sessions listed and adopted, session-list notifications, remembered setup, retention.
 4. **Adapter profiles for Claude and Pi.** Section 6, with a recorded transcript for each rule, and the full scenario set rerun on v2.
 5. **Extensions.** Namespaced items and extension peers, proven with a toy checkpoint extension.
 6. **Client SDKs and UI kits.** TypeScript and Swift SDKs; a React and a SwiftUI chat view rendering the same session.
@@ -357,9 +359,9 @@ Two rules:
 
 ## 16. Open decisions
 
-1. **Sessions created outside the daemon:** list and adopt what the harness has (ACP `session/list`), or only show the daemon's own.
+1. **Windows local transport:** a named pipe only the owner can open needs the Windows API directly. Allow one audited `unsafe` block, or a small dependency, and test on a Windows machine.
 2. **Pi integration, later:** whether to replace `pi-acp` with a direct Pi RPC bridge (section 8, option 3). The first version keeps `pi-acp`, one process per session, with idle sessions stopped and reloaded.
 3. **How far to go for Pi subagents and Claude command output** in the first version, or accept the adapters' current behaviour.
 4. **Name.** "harness-bridge" is temporary; the copyright line in `LICENSE-MIT` follows it.
 
-Decided (2026-11-22): SQLite for the log, behind a trait. ACP v2 as the canonical form and the protocol apps speak. Rust for the server. Dual licence, MIT OR Apache-2.0: the Rust convention, compatible with every dependency (ACP and its adapters are Apache-2.0; Pi, pi-acp and T3 Code are MIT), and it gives adopters a patent grant or MIT's simplicity as they prefer. Copyleft was ruled out because it would deter embedding the server in commercial apps.
+Decided (2026-11-22): the daemon lists and adopts the harness's own sessions. SQLite for the log, behind a trait. ACP v2 as the canonical form and the protocol apps speak. Rust for the server. Dual licence, MIT OR Apache-2.0: the Rust convention, compatible with every dependency (ACP and its adapters are Apache-2.0; Pi, pi-acp and T3 Code are MIT), and it gives adopters a patent grant or MIT's simplicity as they prefer. Copyleft was ruled out because it would deter embedding the server in commercial apps.

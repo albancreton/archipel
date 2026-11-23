@@ -4,7 +4,7 @@ A library for building apps that render the agent loop of terminal coding harnes
 
 Claude Code and Pi are the main targets. Other harnesses are accessory.
 
-Status: milestone 2 of 7 done. A first daemon runs: it starts the Claude adapter, numbers and logs everything, and lets command-line clients attach, catch up after a disconnect, and answer approvals. Tested against 17 recorded Claude sessions and live.
+Status: milestone 3 of 7 done. The daemon starts the Claude adapter, numbers and logs everything, and lets clients attach, catch up after a disconnect, and answer approvals. It lists the sessions the harness already has and loads one when it is opened. Connections can be limited to reading. Tested against 17 recorded Claude sessions and live.
 
 ## Try it
 
@@ -48,6 +48,7 @@ With the real Claude adapter: put a `config.json` in the daemon's home (see `bri
 | `docs/research/11` | Milestone 0: the unknowns closed, ACP v2 tried, the Rust crate checked |
 | `docs/research/12` | Milestone 1: schema and core, and how the v2 schema drives the reducer |
 | `docs/research/13` | Milestone 2: the first running daemon, what was tested, what is missing |
+| `docs/research/14` | Milestone 3: scopes, listing and adopting the harness's own sessions |
 | `testdata/` | Recorded sessions and readable renderings of what the core makes of them |
 | `spikes/` | The scripts and raw logs behind 05, 06, 09, 10. See `spikes/README.md` |
 | `data/t3-claude-commits-30d.txt` | The 230 Claude-related T3 commits analysed in 03 |
