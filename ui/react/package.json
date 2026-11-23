@@ -1,0 +1,32 @@
+{
+  "name": "@harness-bridge/react",
+  "version": "0.0.0",
+  "description": "React components for a coding agent's session: one per kind of item, and a chat view assembled from them.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/styles.css"
+  },
+  "files": ["src"],
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.tsx",
+    "demo": "node --import tsx demo/render.tsx"
+  },
+  "dependencies": {
+    "@harness-bridge/client": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

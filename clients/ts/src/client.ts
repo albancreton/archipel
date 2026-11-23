@@ -3,7 +3,7 @@
 import { ClosedError, Connection, type Transport } from "./connection.ts";
 import { get, isObject, type Json, type JsonObject } from "./json.ts";
 import { Mirror, rootOf, SESSIONS_UPDATED } from "./mirror.ts";
-import type { ItemRef, Request, SessionState } from "./state.ts";
+import type { Conversation, ItemRef, Request, SessionState } from "./state.ts";
 
 /** One line of the session list. */
 export interface SessionSummary {
@@ -184,6 +184,11 @@ export class Session {
   /** A subagent's child session, by the id in its `subagent` item. */
   child(sessionId: string): SessionState | undefined {
     return this.mirror.conversation.sessions.get(sessionId);
+  }
+
+  /** Every session of the conversation: the user's and its subagents'. */
+  get conversation(): Conversation {
+    return this.mirror.conversation;
   }
 
   /** The whole conversation as JSON, in the shape of `testdata/states`. */

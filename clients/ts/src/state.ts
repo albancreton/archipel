@@ -141,6 +141,21 @@ export class SessionState {
     }
   }
 
+  /** Rebuilds a state from its JSON form, for example to draw a stored session. */
+  static fromJSON(json: Json): SessionState {
+    const state = new SessionState();
+    if (!isObject(json)) return state;
+    for (const [target, entries] of Object.entries(isObject(json["collections"]) ? json["collections"] : {})) {
+      state.collections.set(target, new Map(Object.entries(isObject(entries) ? entries : {})));
+    }
+    state.values = new Map(Object.entries(isObject(json["values"]) ? json["values"] : {}));
+    state.timeline = (Array.isArray(json["timeline"]) ? json["timeline"] : []) as unknown as ItemRef[];
+    state.requests = new Map(Object.entries(isObject(json["requests"]) ? json["requests"] : {})) as unknown as Map<string, Request>;
+    state.events = Array.isArray(json["events"]) ? json["events"] : [];
+    state.unknown = Array.isArray(json["unknown"]) ? json["unknown"] : [];
+    return state;
+  }
+
   /** The state as plain JSON, in the shape of `testdata/states`. */
   toJSON(): Json {
     const collections: JsonObject = {};
@@ -300,6 +315,14 @@ export class Conversation {
       const session = sent.sessionId ?? (isObject(result) && typeof result["sessionId"] === "string" ? result["sessionId"] : undefined);
       if (session !== undefined) this.session(session).applyResponse(sent.method, result, rules);
     }
+  }
+
+  /** Rebuilds a conversation from its JSON form. */
+  static fromJSON(json: Json): Conversation {
+    const conversation = new Conversation();
+    const sessions = isObject(json) && isObject(json["sessions"]) ? json["sessions"] : {};
+    for (const [id, state] of Object.entries(sessions)) conversation.sessions.set(id, SessionState.fromJSON(state));
+    return conversation;
   }
 
   toJSON(): Json {

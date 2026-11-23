@@ -1,0 +1,46 @@
+/* Default look for @harness-bridge/react. Every class starts with `hb-`; override freely. */
+.hb-chat {
+  --hb-fg: #1c1c1e; --hb-muted: #6b6b70; --hb-bg: #ffffff; --hb-soft: #f4f4f6; --hb-line: #e2e2e7;
+  --hb-accent: #2f6feb; --hb-ok: #1a7f4b; --hb-bad: #c2362b; --hb-run: #9a6700;
+  display: flex; flex-direction: column; gap: 12px; max-width: 760px; margin: 0 auto; padding: 16px;
+  color: var(--hb-fg); background: var(--hb-bg);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  .hb-chat { --hb-fg: #ececf1; --hb-muted: #9a9aa3; --hb-bg: #1b1b1f; --hb-soft: #26262c; --hb-line: #36363e; --hb-accent: #6ea0ff; --hb-ok: #4cc38a; --hb-bad: #ff7b72; --hb-run: #e3b341; }
+}
+.hb-status { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--hb-line); }
+.hb-status-title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-status-usage { color: var(--hb-muted); font-size: 12px; }
+.hb-timeline { display: flex; flex-direction: column; gap: 10px; }
+.hb-item { white-space: pre-wrap; overflow-wrap: anywhere; }
+.hb-user { align-self: flex-end; max-width: 85%; margin-left: auto; padding: 8px 12px; border-radius: 14px; background: var(--hb-accent); color: #fff; }
+.hb-row:has(.hb-user) { display: flex; }
+.hb-thought, .hb-compaction, .hb-fallback { color: var(--hb-muted); font-size: 13px; }
+.hb-thought summary, .hb-compaction summary, .hb-fallback summary, .hb-subagent summary { cursor: pointer; }
+.hb-thought > div, .hb-compaction > div { margin-top: 4px; padding-left: 12px; border-left: 2px solid var(--hb-line); }
+.hb-tool, .hb-plan, .hb-request, .hb-subagent, .hb-session-message { border: 1px solid var(--hb-line); border-radius: 10px; padding: 8px 10px; background: var(--hb-soft); white-space: normal; }
+.hb-tool-head, .hb-terminal-command { display: flex; align-items: center; gap: 8px; }
+.hb-tool-kind, .hb-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--hb-muted); }
+.hb-tool-title { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-terminal-command code { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.hb-ok { color: var(--hb-ok); } .hb-failed { color: var(--hb-bad); } .hb-running { color: var(--hb-run); }
+.hb-chat pre { margin: 6px 0 0; padding: 8px; border-radius: 6px; background: var(--hb-bg); border: 1px solid var(--hb-line); font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; }
+.hb-diff-file { margin-top: 6px; font-size: 12px; color: var(--hb-muted); }
+.hb-added { color: var(--hb-ok); } .hb-removed { color: var(--hb-bad); }
+.hb-plan ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.hb-plan-mark { display: inline-block; width: 1.4em; }
+.hb-plan-completed { color: var(--hb-muted); text-decoration: line-through; }
+.hb-subagent-body { margin-top: 8px; padding-left: 10px; border-left: 2px solid var(--hb-line); }
+.hb-subagent summary { display: flex; align-items: center; gap: 8px; }
+.hb-pending { border-color: var(--hb-run); }
+.hb-request-title { font-weight: 600; margin: 2px 0 6px; }
+.hb-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.hb-chat button { font: inherit; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--hb-line); background: var(--hb-bg); color: var(--hb-fg); cursor: pointer; }
+.hb-chat button:first-child, .hb-composer button[type="submit"] { background: var(--hb-accent); border-color: var(--hb-accent); color: #fff; }
+.hb-answer { color: var(--hb-muted); }
+.hb-field { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.hb-field input, .hb-field select, .hb-composer textarea { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--hb-line); background: var(--hb-bg); color: var(--hb-fg); }
+.hb-composer { display: flex; gap: 8px; align-items: flex-end; padding-top: 10px; border-top: 1px solid var(--hb-line); }
+.hb-composer textarea { flex: 1; min-height: 40px; resize: vertical; }
