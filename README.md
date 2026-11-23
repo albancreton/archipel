@@ -56,3 +56,11 @@ Live runs on 2026-11-22. Claude: `claude` 2.1.330, Haiku, adapter `@agentclientp
 ## Reference projects
 
 Paseo (daemon + WebSocket API + client SDK), acpx (headless ACP client), Rivet Sandbox Agent (one HTTP API over several harnesses), Happy (relay + native apps), T3 Code (adapters and recorded transcripts). herdr is a terminal workspace manager and does not carry structured content. Details and links in `docs/research/08`.
+
+## Licence
+
+Licensed under either of Apache License, Version 2.0 (`LICENSE-APACHE`) or MIT licence (`LICENSE-MIT`), at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this work, as defined in the Apache-2.0 licence, shall be dual licensed as above, without any additional terms or conditions.
+
+Files derived from other projects keep their own notices. Scenario prompts in `spikes/acp-probe/scenarios.json` are taken from or modelled on T3 Code's replay fixtures (MIT, Copyright (c) 2026 T3 Tools Inc.).

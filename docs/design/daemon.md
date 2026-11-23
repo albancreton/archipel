@@ -300,6 +300,6 @@ Two rules:
 1. **Log storage:** SQLite (recommended) or append-only files.
 2. **ACP v1 or v2 as the base:** v1 is stable; v2 is in preview since 2026-11-20 and already covers state and prompting during work. Recommended: build on v1, shape the internals like v2, decide after milestone 0.
 3. **How far to go for Pi subagents and Claude command output** in the first version, or accept the adapters' current behaviour.
-4. **Licence and name.**
+4. **Name.** "harness-bridge" is temporary; the copyright line in `LICENSE-MIT` follows it.
 
-Decided: Rust for the server (2026-11-22).
+Decided (2026-11-22): Rust for the server. Dual licence, MIT OR Apache-2.0: the Rust convention, compatible with every dependency (ACP and its adapters are Apache-2.0; Pi, pi-acp and T3 Code are MIT), and it gives adopters a patent grant or MIT's simplicity as they prefer. Copyleft was ruled out because it would deter embedding the server in commercial apps.
