@@ -7,6 +7,12 @@
     "meta": {
       "$ref": "#/$defs/BridgeMeta"
     },
+    "updateOrigin": {
+      "$ref": "#/$defs/UpdateOrigin"
+    },
+    "newSessionMeta": {
+      "$ref": "#/$defs/NewSessionMeta"
+    },
     "listAgentsRequest": {
       "$ref": "#/$defs/ListAgentsRequest"
     },
@@ -37,6 +43,8 @@
   },
   "required": [
     "meta",
+    "updateOrigin",
+    "newSessionMeta",
     "listAgentsRequest",
     "listAgentsResponse",
     "listSessionsRequest",
@@ -58,8 +66,8 @@
           "format": "uint64",
           "minimum": 0
         },
-        "itemId": {
-          "description": "Set only when the update carries no usable id of its own.",
+        "rootSessionId": {
+          "description": "The session whose log this is, when the message belongs to a subagent's child session.\nAbsent when it equals the message's own `sessionId`.",
           "type": [
             "string",
             "null"
@@ -69,6 +77,32 @@
       "required": [
         "seq"
       ]
+    },
+    "UpdateOrigin": {
+      "description": "Under `_meta.bridge` inside an update body that the daemon wrote itself, not the agent.",
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "Always `daemon`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "origin"
+      ]
+    },
+    "NewSessionMeta": {
+      "description": "Under `_meta.bridge` in the params of `session/new`.",
+      "type": "object",
+      "properties": {
+        "agentId": {
+          "description": "The agent to create the session with. Absent for the daemon's first agent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     },
     "ListAgentsRequest": {
       "description": "`_bridge/agents/list` request.",
@@ -232,7 +266,7 @@
       ]
     },
     "AttachSessionRequest": {
-      "description": "`_bridge/session/attach` request: start receiving a session's updates.",
+      "description": "`_bridge/session/attach` request: start receiving a session's updates.\n\nThe response comes first, then the catch-up, then live messages.",
       "type": "object",
       "properties": {
         "sessionId": {
@@ -308,11 +342,15 @@
           "type": "string"
         },
         "requestId": {
-          "description": "The id the daemon used for the request towards this client."
+          "description": "The id of the request. It is the JSON-RPC id the daemon sent the request with.",
+          "type": "string"
         },
         "method": {
           "description": "The method of the request, such as `session/request_permission`.",
           "type": "string"
+        },
+        "params": {
+          "description": "The params of the request. Present in a replay, where the request itself is not sent."
         },
         "outcome": {
           "description": "The answer that was given, in the shape of the method's response."

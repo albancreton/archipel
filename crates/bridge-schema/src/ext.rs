@@ -21,9 +21,27 @@ pub const NOTIFICATION_REQUEST_RESOLVED: &str = "_bridge/request/resolved";
 pub struct BridgeMeta {
     /// Position of this update in the session's log. Starts at 1 and has no gaps.
     pub seq: u64,
-    /// Set only when the update carries no usable id of its own.
+    /// The session whose log this is, when the message belongs to a subagent's child session.
+    /// Absent when it equals the message's own `sessionId`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub item_id: Option<String>,
+    pub root_session_id: Option<String>,
+}
+
+/// Under `_meta.bridge` inside an update body that the daemon wrote itself, not the agent.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateOrigin {
+    /// Always `daemon`.
+    pub origin: String,
+}
+
+/// Under `_meta.bridge` in the params of `session/new`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct NewSessionMeta {
+    /// The agent to create the session with. Absent for the daemon's first agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
 }
 
 /// `_bridge/agents/list` request.
@@ -104,6 +122,8 @@ pub struct SessionSummary {
 }
 
 /// `_bridge/session/attach` request: start receiving a session's updates.
+///
+/// The response comes first, then the catch-up, then live messages.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AttachSessionRequest {
@@ -148,10 +168,13 @@ pub struct DetachSessionResponse {}
 #[serde(rename_all = "camelCase")]
 pub struct RequestResolvedNotification {
     pub session_id: String,
-    /// The id the daemon used for the request towards this client.
-    pub request_id: Value,
+    /// The id of the request. It is the JSON-RPC id the daemon sent the request with.
+    pub request_id: String,
     /// The method of the request, such as `session/request_permission`.
     pub method: String,
+    /// The params of the request. Present in a replay, where the request itself is not sent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub params: Option<Value>,
     /// The answer that was given, in the shape of the method's response.
     pub outcome: Value,
     /// A label for the client that answered, when known.
@@ -164,6 +187,8 @@ pub struct RequestResolvedNotification {
 #[serde(rename_all = "camelCase")]
 pub struct BridgeExtensions {
     pub meta: BridgeMeta,
+    pub update_origin: UpdateOrigin,
+    pub new_session_meta: NewSessionMeta,
     pub list_agents_request: ListAgentsRequest,
     pub list_agents_response: ListAgentsResponse,
     pub list_sessions_request: ListSessionsRequest,

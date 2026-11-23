@@ -1,72 +1,100 @@
-//! The session log: every update gets a sequence number, and a client catches up from one.
+//! The session log: every event gets a sequence number, and a client catches up from one.
 
 use crate::{json, state};
 use bridge_schema::rules::{Action, RuleSet, StateRule};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 
-/// One logged `session/update`.
+/// What one log entry holds.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
+pub enum Record {
+    /// The body of a `session/update`, as sent on the wire.
+    Update { update: Value },
+    /// A request from the agent that waits for the user: an approval or a question.
+    Request {
+        /// The id the daemon gave the request. Stable across clients and reconnects.
+        request_id: String,
+        method: String,
+        params: Value,
+        /// Never stored. [`condense`] sets it when the answer is later in the same run.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        outcome: Option<Value>,
+    },
+    /// The answer to an earlier request.
+    Resolved {
+        request_id: String,
+        method: String,
+        outcome: Value,
+        /// A label for the client that answered, when known.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        resolved_by: Option<String>,
+    },
+}
+
+/// One numbered entry of a session's log.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LogEntry {
     /// Position in the log, starting at 1, without gaps.
     pub seq: u64,
-    /// The session the update belongs to. A subagent's child session has its own id.
+    /// The session the entry belongs to. A subagent's child session has its own id.
     pub session_id: String,
-    /// The body of the update, as sent on the wire.
-    pub update: Value,
+    pub record: Record,
 }
 
-/// Where a session's updates are kept. Implementations decide how they are stored.
-pub trait LogStore {
-    /// Adds an update and returns its sequence number.
-    fn append(&mut self, session_id: &str, update: Value) -> u64;
-    /// The sequence number of the newest update, or 0 when the log is empty.
-    fn head(&self) -> u64;
-    /// The updates after `seq`, oldest first.
-    fn after(&self, seq: u64) -> Vec<LogEntry>;
-}
-
-/// A log held in memory.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct MemoryLog {
-    entries: Vec<LogEntry>,
-}
-
-impl LogStore for MemoryLog {
-    fn append(&mut self, session_id: &str, update: Value) -> u64 {
-        let seq = self.head() + 1;
-        self.entries.push(LogEntry {
-            seq,
-            session_id: session_id.to_owned(),
-            update,
-        });
-        seq
-    }
-
-    fn head(&self) -> u64 {
-        self.entries.last().map_or(0, |entry| entry.seq)
-    }
-
-    fn after(&self, seq: u64) -> Vec<LogEntry> {
-        let start = self.entries.partition_point(|entry| entry.seq <= seq);
-        self.entries[start..].to_vec()
+impl LogEntry {
+    /// The update body, when the entry is an update.
+    #[must_use]
+    pub fn update(&self) -> Option<&Value> {
+        match &self.record {
+            Record::Update { update } => Some(update),
+            _ => None,
+        }
     }
 }
 
-/// Shortens a run of updates for replay: neighbouring chunks of the same item become one update.
+/// Shortens a run of entries for replay.
+///
+/// - Neighbouring chunks of the same item become one update.
+/// - A request whose answer is in the run carries the answer, and the answer entry is dropped.
 ///
 /// Applying the result gives the same state as applying the input. A merged update keeps the
-/// sequence number of its last part, so a client that applied it is up to date to that point.
+/// sequence number of its last part.
 #[must_use]
 pub fn condense(rules: &RuleSet, entries: &[LogEntry]) -> Vec<LogEntry> {
     let mut condensed: Vec<LogEntry> = Vec::with_capacity(entries.len());
+    let mut requests: HashMap<&str, usize> = HashMap::new();
     for entry in entries {
-        if let Some(previous) = condensed.last_mut()
-            && let Some(rule) = chunk_rule(rules, &entry.update)
-            && merge_chunk(previous, entry, rule)
-        {
-            continue;
+        match &entry.record {
+            Record::Update { update } => {
+                if let Some(previous) = condensed.last_mut()
+                    && let Some(rule) = chunk_rule(rules, update)
+                    && merge_chunk(previous, entry, update, rule)
+                {
+                    continue;
+                }
+            }
+            Record::Request { request_id, .. } => {
+                requests.insert(request_id, condensed.len());
+            }
+            Record::Resolved {
+                request_id,
+                outcome: answer,
+                ..
+            } => {
+                if let Some(&position) = requests.get(request_id.as_str())
+                    && let Record::Request { outcome, .. } = &mut condensed[position].record
+                {
+                    *outcome = Some(answer.clone());
+                    continue;
+                }
+            }
         }
         condensed.push(entry.clone());
     }
@@ -85,24 +113,27 @@ fn chunk_rule<'a>(rules: &'a RuleSet, update: &Value) -> Option<&'a StateRule> {
 }
 
 /// Folds `next` into `previous` when both are chunks of the same item. Returns whether it did.
-fn merge_chunk(previous: &mut LogEntry, next: &LogEntry, rule: &StateRule) -> bool {
+fn merge_chunk(previous: &mut LogEntry, next: &LogEntry, new: &Value, rule: &StateRule) -> bool {
+    let previous_session = previous.session_id.clone();
+    let Record::Update { update: old } = &mut previous.record else {
+        return false;
+    };
     let (Some(id_path), Some(value_path)) = (rule.id.as_deref(), rule.value.as_deref()) else {
         return false;
     };
-    let same_item = previous.session_id == next.session_id
-        && previous.update.get("sessionUpdate") == next.update.get("sessionUpdate")
-        && json::get(&previous.update, id_path).is_some()
-        && json::get(&previous.update, id_path) == json::get(&next.update, id_path);
+    let same_item = previous_session == next.session_id
+        && old.get("sessionUpdate") == new.get("sessionUpdate")
+        && json::get(old, id_path).is_some()
+        && json::get(old, id_path) == json::get(new, id_path);
     if !same_item {
         return false;
     }
-    let (Some(old), Some(new)) = (
-        json::get(&previous.update, value_path),
-        json::get(&next.update, value_path),
-    ) else {
+    let (Some(old_value), Some(new_value)) =
+        (json::get(old, value_path), json::get(new, value_path))
+    else {
         return false;
     };
-    let merged = match (old, new) {
+    let merged = match (old_value, new_value) {
         (Value::String(old), Value::String(new)) => {
             Value::String(state::concat_text(old, new, state::is_base64(rule)))
         }
@@ -115,7 +146,7 @@ fn merge_chunk(previous: &mut LogEntry, next: &LogEntry, rule: &StateRule) -> bo
             _ => return false,
         },
     };
-    let Some(body) = previous.update.as_object_mut() else {
+    let Some(body) = old.as_object_mut() else {
         return false;
     };
     *json::slot(body, value_path) = merged;
@@ -128,39 +159,85 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn chunk(id: &str, text: &str) -> Value {
-        json!({"sessionUpdate": "agent_message_chunk", "messageId": id, "content": {"type": "text", "text": text}})
-    }
-
-    #[test]
-    fn sequence_numbers_start_at_one_and_after_returns_the_rest() {
-        let mut log = MemoryLog::default();
-        assert_eq!(log.head(), 0);
-        assert_eq!(log.append("s", chunk("m", "a")), 1);
-        assert_eq!(log.append("s", chunk("m", "b")), 2);
-        assert_eq!(
-            log.after(1).iter().map(|e| e.seq).collect::<Vec<_>>(),
-            vec![2]
-        );
-        assert!(log.after(2).is_empty());
+    fn chunk(seq: u64, session: &str, id: &str, text: &str) -> LogEntry {
+        LogEntry {
+            seq,
+            session_id: session.to_owned(),
+            record: Record::Update {
+                update: json!({"sessionUpdate": "agent_message_chunk", "messageId": id, "content": {"type": "text", "text": text}}),
+            },
+        }
     }
 
     #[test]
     fn condense_merges_only_neighbouring_chunks_of_the_same_item_and_session() {
-        let mut log = MemoryLog::default();
-        log.append("s", chunk("m1", "Hel"));
-        log.append("s", chunk("m1", "lo"));
-        log.append("s", chunk("m2", "x"));
-        log.append("child", chunk("m2", "y"));
-        log.append(
-            "s",
-            json!({"sessionUpdate": "state_update", "state": "idle"}),
-        );
-        let condensed = condense(&RuleSet::pinned(), &log.after(0));
+        let entries = vec![
+            chunk(1, "s", "m1", "Hel"),
+            chunk(2, "s", "m1", "lo"),
+            chunk(3, "s", "m2", "x"),
+            chunk(4, "child", "m2", "y"),
+            LogEntry {
+                seq: 5,
+                session_id: "s".into(),
+                record: Record::Update {
+                    update: json!({"sessionUpdate": "state_update", "state": "idle"}),
+                },
+            },
+        ];
+        let condensed = condense(&RuleSet::pinned(), &entries);
         assert_eq!(
             condensed.iter().map(|e| e.seq).collect::<Vec<_>>(),
             vec![2, 3, 4, 5]
         );
-        assert_eq!(condensed[0].update["content"]["text"], json!("Hello"));
+        assert_eq!(
+            condensed[0].update().unwrap()["content"]["text"],
+            json!("Hello")
+        );
+    }
+
+    #[test]
+    fn condense_puts_the_answer_on_its_request() {
+        let request = |seq, id: &str| LogEntry {
+            seq,
+            session_id: "s".into(),
+            record: Record::Request {
+                request_id: id.into(),
+                method: "session/request_permission".into(),
+                params: json!({"sessionId": "s"}),
+                outcome: None,
+            },
+        };
+        let entries = vec![
+            request(1, "a"),
+            request(2, "b"),
+            LogEntry {
+                seq: 3,
+                session_id: "s".into(),
+                record: Record::Resolved {
+                    request_id: "a".into(),
+                    method: "session/request_permission".into(),
+                    outcome: json!({"outcome": {"outcome": "cancelled"}}),
+                    resolved_by: None,
+                },
+            },
+        ];
+        let condensed = condense(&RuleSet::pinned(), &entries);
+        assert_eq!(condensed.len(), 2);
+        assert!(
+            matches!(
+                &condensed[0].record,
+                Record::Request {
+                    outcome: Some(_),
+                    ..
+                }
+            ),
+            "answered request carries its answer"
+        );
+        assert!(
+            matches!(&condensed[1].record, Record::Request { outcome: None, .. }),
+            "unanswered request stays pending"
+        );
+        // An answer whose request is not in the run is kept.
+        assert_eq!(condense(&RuleSet::pinned(), &entries[2..]).len(), 1);
     }
 }

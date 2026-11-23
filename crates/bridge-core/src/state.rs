@@ -432,14 +432,14 @@ impl Conversation {
                 let (Some(session_id), Some(update)) = (session_id, params.get("update")) else {
                     return Ok(Vec::new());
                 };
-                self.session(session_id).apply_update(rules, update)
+                self.session_mut(session_id).apply_update(rules, update)
             }
             (Direction::In, Some(method), Some(id)) => {
                 let Some(session_id) = session_id else {
                     return Ok(Vec::new());
                 };
                 self.incoming.insert(id.clone(), session_id.to_owned());
-                self.session(session_id)
+                self.session_mut(session_id)
                     .apply_request(rules, &id, method, params)
             }
             (Direction::Out, Some(method), Some(id)) => {
@@ -456,7 +456,7 @@ impl Conversation {
                     .or_else(|| message.get("error"))
                     .cloned()
                     .unwrap_or(Value::Null);
-                self.session(&session_id).resolve_request(&id, outcome);
+                self.session_mut(&session_id).resolve_request(&id, outcome);
                 Ok(vec![Change::Item(ItemRef {
                     target: REQUEST_TARGET.to_owned(),
                     id,
@@ -477,7 +477,7 @@ impl Conversation {
                 });
                 match session_id {
                     Some(session_id) => self
-                        .session(&session_id)
+                        .session_mut(&session_id)
                         .apply_response(rules, &method, result),
                     None => Ok(Vec::new()),
                 }
@@ -492,7 +492,8 @@ impl Conversation {
         self.sessions.first()
     }
 
-    fn session(&mut self, session_id: &str) -> &mut SessionState {
+    /// The state of one session, created empty if it is new.
+    pub fn session_mut(&mut self, session_id: &str) -> &mut SessionState {
         self.sessions.entry(session_id.to_owned()).or_default()
     }
 }

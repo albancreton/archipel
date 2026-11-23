@@ -3,7 +3,7 @@
 //! Set `UPDATE_VECTORS=1` to rewrite the expected renderings in `testdata/vectors`.
 
 use bridge_core::{
-    log::{LogStore, MemoryLog, condense},
+    log::{LogEntry, Record, condense},
     render,
     state::SessionState,
     transcript::Transcript,
@@ -66,6 +66,37 @@ fn reduce<'a>(
     sessions
 }
 
+/// The transcript's updates as log entries, numbered from 1.
+fn log_of(transcript: &Transcript) -> Vec<LogEntry> {
+    transcript
+        .updates()
+        .zip(1..)
+        .map(|((session_id, update), seq)| LogEntry {
+            seq,
+            session_id: session_id.to_owned(),
+            record: Record::Update {
+                update: update.clone(),
+            },
+        })
+        .collect()
+}
+
+/// The state of each session after applying the given entries.
+fn reduce_log<'a>(
+    rules: &RuleSet,
+    entries: impl Iterator<Item = &'a LogEntry>,
+) -> IndexMap<String, SessionState> {
+    reduce(
+        rules,
+        entries.map(|entry| {
+            (
+                entry.session_id.as_str(),
+                entry.update().expect("an update"),
+            )
+        }),
+    )
+}
+
 #[test]
 fn rendering_matches_the_vectors() {
     let rules = RuleSet::pinned();
@@ -115,27 +146,16 @@ fn a_condensed_replay_gives_the_same_state() {
     let rules = RuleSet::pinned();
     let (mut total, mut kept) = (0, 0);
     for (name, transcript) in transcripts() {
-        let mut log = MemoryLog::default();
-        for (session_id, update) in transcript.updates() {
-            log.append(session_id, update.clone());
-        }
-        let all = log.after(0);
+        let all = log_of(&transcript);
         let condensed = condense(&rules, &all);
         total += all.len();
         kept += condensed.len();
 
-        let full = reduce(
-            &rules,
-            all.iter()
-                .map(|entry| (entry.session_id.as_str(), &entry.update)),
+        assert_eq!(
+            reduce_log(&rules, all.iter()),
+            reduce_log(&rules, condensed.iter()),
+            "{name}: condensed replay differs"
         );
-        let replayed = reduce(
-            &rules,
-            condensed
-                .iter()
-                .map(|entry| (entry.session_id.as_str(), &entry.update)),
-        );
-        assert_eq!(full, replayed, "{name}: condensed replay differs");
         assert_eq!(
             condensed.last().map(|entry| entry.seq),
             all.last().map(|entry| entry.seq),
@@ -157,31 +177,12 @@ fn a_condensed_replay_gives_the_same_state() {
 fn catching_up_from_any_point_gives_the_same_state() {
     let rules = RuleSet::pinned();
     for (name, transcript) in transcripts() {
-        let mut log = MemoryLog::default();
-        for (session_id, update) in transcript.updates() {
-            log.append(session_id, update.clone());
-        }
-        let all = log.after(0);
-        let full = reduce(
-            &rules,
-            all.iter()
-                .map(|entry| (entry.session_id.as_str(), &entry.update)),
-        );
-        // A client that applied the first half, then asks for what came after.
-        let cut = log.head() / 2;
-        let later = log.after(cut);
-        assert_eq!(
-            later.first().map(|entry| entry.seq),
-            (cut < log.head()).then_some(cut + 1),
-            "{name}"
-        );
-        let resumed = reduce(
-            &rules,
-            all.iter()
-                .filter(|entry| entry.seq <= cut)
-                .chain(later.iter())
-                .map(|entry| (entry.session_id.as_str(), &entry.update)),
-        );
+        let all = log_of(&transcript);
+        let full = reduce_log(&rules, all.iter());
+        // A client that applied the first half, then gets the condensed rest.
+        let cut = all.len() / 2;
+        let later = condense(&rules, &all[cut..]);
+        let resumed = reduce_log(&rules, all[..cut].iter().chain(later.iter()));
         assert_eq!(full, resumed, "{name}: catching up from {cut} differs");
     }
 }
