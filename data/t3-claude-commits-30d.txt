@@ -1,0 +1,230 @@
+2026-11-22|maria|fix(shared): Windows command discovery no longer blocks the event loop (#27391)|+7 -3|src+3|ClaudeExecutable.ts 
+2026-11-22|axis|fix(server): Claude turns no longer stall on empty or partial stream usage frames (#40804)|+157 -29|src+48|ClaudeAdapterV2.ts 
+2026-11-22|Julius Marminge|fix(server): wake the agent when Claude exits while it awaits background work (#30214)|+311 -8|src+37|ClaudeAdapterV2.ts 
+2026-11-22|Lakshmi Tanmay|fix(server): preserve cancellations during checkpoint capture (#31349)|+17 -0|src+0|
+2026-11-21|Julius Marminge|fix(server): Claude's answer before a late-read steer stays visible (#40265)|+36 -0|src+16|ClaudeAdapterV2.ts 
+2026-11-20|Julius Marminge|fix(client-runtime): don't ask for a provider update the install channel lacks (#39966)|+74 -2|src+49|ClaudeModelCatalog.ts ClaudeDriver.ts 
+2026-11-20|Julius Marminge|feat(projects): a project covers several repositories (#35925)|+52 -4|src+18|ClaudeAdapterV2.ts 
+2026-11-21|Rishabh_t106|fix(claude): keep truncated request, error, and snippet text valid Unicode (#40075)|+248 -5|src+15|ClaudeAdapterV2.ts 
+2026-11-20|Julius Marminge|fix(server): skip the image attempt for Claude models that rejected images (#40087)|+70 -30|src+19|ClaudeTextGeneration.ts 
+2026-11-21|Bilal Bakr|fix: proxied usage limits follow the hub's model routing and show on the thread card (#30778)|+125 -0|src+0|
+2026-11-20|Julius Marminge|feat: sign in to an agent's MCP server from its warning (#39921)|+348 -2|src+205|ClaudeAdapterV2.ts 
+2026-11-20|Julius Marminge|feat(server): a thread turn can return a typed result (#38874)|+1 -0|src+1|ClaudeAdapterV2.ts 
+2026-11-21|Manav|fix(server): skills from Claude --plugin-dir launch args show in the composer (#39896)|+98 -32|src+50|ClaudeAdapterV2.ts ClaudeSkills.ts 
+2026-11-20|Julius Marminge|fix(server): Claude gateway cooldown survives an untyped SDK rejection (#39695)|+23 -4|src+10|ClaudeAdapterV2.ts 
+2026-11-20|Julius Marminge|fix(server): Claude text generation retries without images when the model rejects them (#39684)|+83 -15|src+27|ClaudeTextGeneration.ts 
+2026-11-20|Yash Singh|fix(cursor): background commands survive the turn and wake the agent when they exit (#38348)|+1 -0|src+1|ClaudeAdapterV2.ts 
+2026-11-19|Shlok Sheth|fix(server): deliver child results to running Claude turns (#39528)|+27 -27|src+1|ClaudeAdapterV2.ts 
+2026-11-19|Julius Marminge|fix(server): a provider CLI that dies at startup names its exit and EPERM (#39299)|+44 -7|src+42|ClaudeAdapterV2.ts 
+2026-11-19|Julius Marminge|fix(server): Full access rejects Claude Code's reworded dangerous-removal check (#38581)|+6 -0|src+1|ClaudeAdapterV2.ts 
+2026-11-19|Ibrahim Elkamali|fix(claude): every repeated --plugin-dir launch argument loads its plugin (#38634)|+48 -3|src+31|ClaudeAdapterV2.ts 
+2026-11-19|Julius Marminge|fix(client-runtime): hide Resume where the provider cannot continue a stopped run (#39229)|+1 -0|src+1|ClaudeAdapterV2.ts 
+2026-11-19|Alb11747|fix(server): an unread Claude steer no longer hangs the turn or gets lost (#39018)|+635 -34|src+115|ClaudeAdapterV2.ts 
+2026-11-19|Navid Nadali|fix(server): the Claude process poll forgets jobs that have ended (#38800)|+161 -21|src+42|ClaudeAdapterV2.ts 
+2026-11-19|primevishnu|fix(provider-core): bound status probe output while draining pipes (#37936)|+33 -0|src+4|ClaudeAdapterV2.ts 
+2026-11-18|Noah Sigel|fix(claude): a background subagent's shell shows its command in Background work details (#38904)|+45 -2|src+3|ClaudeAdapterV2.ts 
+2026-11-18|Julius Marminge|fix(server): Claude text generation sends attached images (#38619)|+97 -4|src+58|ClaudeTextGeneration.ts 
+2026-11-18|Joseph Vidal|fix(server): a Claude command moved to the background keeps its command in Background work (#37787)|+93 -20|src+30|ClaudeAdapterV2.ts 
+2026-11-18|Julius Marminge|fix(server): the first message on an imported conversation sends its history once (#38575)|+18 -2|src+9|ClaudeAdapterV2.ts 
+2026-11-18|Julius Marminge|fix(server): steering a running turn carries MCP app model context (#38554)|+57 -14|src+24|ClaudeAdapterV2.ts 
+2026-11-18|ahalekelly|fix(server): a resumed Claude subagent keeps its earlier result (#34663)|+48 -13|src+17|ClaudeAdapterV2.ts 
+2026-11-17|Julius Marminge|fix(server): Claude turns receive MCP app model context (#38307)|+143 -5|src+71|ClaudeAdapterV2.ts 
+2026-11-17|azhar|fix(server): a Claude goal no longer shows as set after the CLI drops it on an error (#38199)|+65 -0|src+8|ClaudeAdapterV2.ts 
+2026-11-16|Julius Marminge|fix(server): fork a running Claude thread natively (#37955)|+17 -4|src+3|ClaudeAdapterV2.ts 
+2026-11-16|Julius Marminge|fix(server): retry a fresh Claude session once after a startup or MCP registration timeout (#37943)|+504 -496|src+459|ClaudeAdapterV2.ts 
+2026-11-16|Julius Marminge|fix(server): /clear resets the Claude context meter (#29961)|+95 -0|src+8|ClaudeAdapterV2.ts 
+2026-11-16|Julius Marminge|fix(server): background tasks survive a failed Claude turn on a live process (#31840)|+145 -6|src+9|ClaudeAdapterV2.ts 
+2026-11-16|Julius Marminge|fix(providers): enforce approval and settings boundaries (#37826)|+32 -2|src+1|ClaudeTextGeneration.ts 
+2026-11-16|Julius Marminge|fix(server): a Claude request that gets no answer fails after 10 minutes instead of running forever (#37728)|+212 -30|src+92|ClaudeAdapterV2.ts 
+2026-11-16|Maximilian Fabian Kirchner|fix(server): recover gateway cooldown after last error (#37692)|+22 -4|src+8|ClaudeAdapterV2.ts 
+2026-11-16|Julius Marminge|fix(server): a Claude session gone on resume starts fresh instead of failing every send (#37610)|+137 -3|src+50|ClaudeAdapterV2.ts 
+2026-11-16|fast-fourier-transfem | yuridkowskian catgirlmbinator|fix(provider-core): thread title instructions override the generic title limits (#37565)|+1 -1|src+0|
+2026-11-15|Jackson Miller|fix(server): nested Claude subagent summaries no longer show Claude Code's hand-back frame (#37355)|+54 -3|src+17|ClaudeAdapterV2.ts 
+2026-11-15|Julius Marminge|fix(server): Claude session name follows thread renames without waiting for the next turn (#37185)|+184 -18|src+37|ClaudeAdapterV2.ts 
+2026-11-15|Katya|fix(server): skills linked by a SessionStart hook appear in the $ picker in the same session (#37165)|+98 -2|src+22|ClaudeAdapterV2.ts ClaudeDriver.ts 
+2026-11-15|Yash Singh|fix(claude): keep monitor threads waiting between updates (#37085)|+46 -5|src+17|ClaudeAdapterV2.ts 
+2026-11-14|Julius Marminge|fix(server): Claude text generation honors --settings launch args (#34874)|+44 -1|src+15|ClaudeAdapterV2.ts ClaudeTextGeneration.ts 
+2026-11-15|Mahir Taha Özdin|fix(server): Claude sessions no longer log a canUseTool shadowing warning (#31548)|+59 -4|src+26|ClaudeAdapterV2.ts 
+2026-11-14|Julius Marminge|fix(server): Claude knows decline feedback is the user's message (#27871)|+21 -4|src+5|ClaudeAdapterV2.ts 
+2026-11-15|Sudharsan|fix(server): resolve Claude WinGet launchers on Windows (#32138)|+20 -3|src+7|ClaudeExecutable.ts 
+2026-11-14|Julius Marminge|fix(server): Claude append launch text may start with two hyphens (#35598)|+39 -3|src+9|ClaudeAdapterV2.ts 
+2026-11-15|Malte Buttjer|fix(server): Claude MCP elicitations T3 cannot show are cancelled, not declined (#33575)|+7 -4|src+5|ClaudeAdapterV2.ts 
+2026-11-14|Yash Singh|fix(claude): show monitor commands in background work details (#37019)|+12 -1|src+2|ClaudeAdapterV2.ts 
+2026-11-14|George Nijo|fix(server): Claude goals no longer re-prompt while a delegated task will wake the thread (#30646)|+94 -2|src+21|ClaudeAdapterV2.ts 
+2026-11-14|maria|fix(mcp): return delegated task handles before client timeouts (#15622)|+1 -1|src+1|ClaudeAdapterV2.ts 
+2026-11-14|Dara Adedeji|perf(server): Windows process launches no longer block the RPC thread (#32260)|+25 -8|src+24|ClaudeAdapterV2.ts ClaudeProvider.ts 
+2026-11-14|Julius Marminge|fix(server): Claude /rename now retitles the T3 thread (#36879)|+76 -0|src+32|ClaudeAdapterV2.ts 
+2026-11-14|Dmitry Farafonov|fix(server): switching the Claude model no longer blocks a later provider switch (#34498)|+82 -1|src+11|ClaudeAdapterV2.ts 
+2026-11-15|Sohaib Ali|fix(server): show Claude's root refusal when it exits before the turn starts (#34621)|+51 -1|src+7|ClaudeAdapterV2.ts 
+2026-11-15|Karan Kumar|fix(claude): rename the native session when the thread title changes (#34775)|+403 -22|src+139|ClaudeAdapterV2.ts 
+2026-11-15|Alex Southwell|fix(claude): tools running at Stop show as stopped, not failed (#29801)|+300 -13|src+29|ClaudeAdapterV2.ts 
+2026-11-14|David Mendes|fix(server): skills from CLAUDE_CODE_PLUGIN_DIRS plugins show in the composer (#33341)|+197 -14|src+107|ClaudeSkills.ts 
+2026-11-14|Julius Marminge|fix(server): Claude Fable 5.2 is offered only from Claude Code 2.1.321 (#36805)|+7 -0|src+0|
+2026-11-14|Jex|fix(server): turns stuck in provider retries for 10 minutes fail instead of running forever (#29208)|+232 -3|src+64|ClaudeAdapterV2.ts 
+2026-11-15|Alex Southwell|fix(server): Claude API-key logins show as Claude API Key in provider status (#29855)|+8 -3|src+8|ClaudeProvider.ts 
+2026-11-14|chise|fix(server): honor custom Claude thinking choices (#28024)|+34 -12|src+7|claudeModelOptions.ts ClaudeModelCatalog.ts 
+2026-11-14|Grey|fix(server): include managed Claude skills in the skill menu (#26732)|+90 -10|src+23|ClaudeSkills.ts 
+2026-11-14|Julius Marminge|fix(server): recover Claude cooldown reset times from proxy errors (#36642)|+71 -18|src+23|ClaudeAdapterV2.ts 
+2026-11-14|Bilal Bakr|fix(server): subagent hover cards show reasoning effort again (#35333)|+154 -9|src+74|ClaudeAdapterV2.ts 
+2026-11-14|Yash Singh|feat(server): resume stopped provider threads natively (#36526)|+279 -39|src+150|ClaudeAdapterV2.ts 
+2026-11-14|Craig Davison|fix(server): npm provider updates only offer versions npm will install (#24062)|+47 -7|src+0|
+2026-11-14|Victor|fix(server): Claude on Bedrock runs the model picked in the composer (#24695)|+804 -98|src+362|claudeModelOptions.ts ClaudeAdapterV2.ts ClaudeCodeModelRoutes.ts ClaudeModelCatalog.ts ClaudeDriver.ts ClaudeHome.ts ClaudeTextGeneration.ts 
+2026-11-13|Theo Browne|feat: agents can restyle T3 Code with theme colors and CSS (#35247)|+3 -0|src+1|ClaudeAdapterV2.ts 
+2026-11-13|Theo Browne|perf(server): a new thread's first turn starts sooner (#35710)|+37 -19|src+37|ClaudeAdapterV2.ts 
+2026-11-13|Theo Browne|perf(desktop): provider checks no longer compete with server startup (#35712)|+1 -0|src+0|
+2026-11-13|Julius Marminge|fix(server): Claude context meter no longer shows an auto-compact point when auto-compaction is off (#36417)|+36 -0|src+24|ClaudeAdapterV2.ts 
+2026-11-13|Julius Marminge|fix(server): a Claude Monitor line no longer wakes a delegated child's parent (#36339)|+269 -7|src+74|ClaudeAdapterV2.ts 
+2026-11-13|Julius Marminge|fix(server): Claude can show the user mid-turn text in full (#36384)|+12 -0|src+10|ClaudeAdapterV2.ts 
+2026-11-13|Julius Marminge|fix(server): a worktree handoff on Claude or Pi completes its run and starts the continuation (#36360)|+13 -0|src+0|
+2026-11-13|Julius Marminge|fix(server): a hung network mount no longer freezes the server when it spawns a process (#36327)|+105 -2|src+46|ClaudeAdapterV2.ts ClaudeProvider.ts 
+2026-11-13|Julius Marminge|fix(server): proxied usage limits take their reset time from the CLIProxyAPI hub (#36238)|+17 -2|src+17|ClaudeProvider.ts claudeUsageLimits.ts 
+2026-11-13|Nei Cardoso de Oliveira Neto|fix(usage): Claude accounts with a $0 monthly cap no longer leave a blank cell (#35341)|+21 -1|src+5|claudeUsageLimits.ts 
+2026-11-13|Julius Marminge|fix(server): Claude no longer dispatches skill mentions from handoff history (#34497)|+76 -8|src+26|ClaudeAdapterV2.ts ClaudeSkillDispatch.ts 
+2026-11-12|Julius Marminge|fix(server): reap recorded Linux Claude survivors before recovery (#22834)|+67 -2|src+26|ClaudeAdapterV2.ts 
+2026-11-12|Julius Marminge|test: drop Effect.scoped wrappers that @effect/vitest already applies (#35993)|+11642 -12012|src+0|
+2026-11-12|Julius Marminge|test: run clock-free live tests on TestClock (#35868)|+1 -1|src+0|
+2026-11-12|Julius Marminge|fix(server): show self-resumed Claude subagents as running (#23831)|+232 -19|src+30|ClaudeAdapterV2.ts 
+2026-11-12|Julius Marminge|fix(server): Claude's auto-compact setting now wins over CLAUDE_CODE_AUTO_COMPACT_WINDOW (#35737)|+27 -3|src+13|ClaudeAdapterV2.ts 
+2026-11-12|Dara Adedeji|fix(server): Claude background commands show how long they have run (#26668)|+86 -10|src+41|ClaudeAdapterV2.ts 
+2026-11-12|Julius Marminge|fix(server): Claude context meter honours CLAUDE_CODE_AUTO_COMPACT_WINDOW (#33806)|+58 -20|src+36|ClaudeAdapterV2.ts 
+2026-11-13|Johan John Thomas|fix(provider): make readiness probe timeouts configurable (#33275)|+11 -3|src+11|ClaudeProvider.ts 
+2026-11-12|Julius Marminge|fix(server): Claude 1-hour cache writes are priced at the 1-hour rate (#35423)|+55 -2|src+9|claudeUsage.ts 
+2026-11-12|Julius Marminge|fix(server): Claude threads resume the session /clear started (#35054)|+92 -2|src+34|ClaudeAdapterV2.ts 
+2026-11-12|Julius Marminge|fix(server): Claude replies stream paragraph by paragraph again (#35037)|+290 -53|src+202|ClaudeAdapterV2.ts 
+2026-11-12|Julius Marminge|fix(server): custom Claude models named like a Claude Code alias reach the API unchanged (#34938)|+44 -2|src+19|ClaudeAdapterV2.ts 
+2026-11-12|Julius Marminge|fix(server): Claude forked skills record the model they run on (#34848)|+173 -0|src+71|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): subagent threads get short ids agents can quote back (#34877)|+6 -2|src+2|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): Claude subagent results drop Claude Code's tools-used note (#34821)|+30 -6|src+8|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): resumed Claude sessions wait for their MCP servers (#34822)|+33 -7|src+17|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): Claude sets a /goal that also mentions a skill (#34818)|+27 -8|src+13|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): a reset credit's limits refresh when the first read after it fails (#34780)|+18 -19|src+18|ClaudeDriver.ts 
+2026-11-11|Julius Marminge|fix(server): a Claude resume rejected before the prompt keeps the native session (#34762)|+4 -1|src+4|ClaudeAdapterV2.ts 
+2026-11-11|Yash Singh|fix(server): preserve delegated results across wake turns (#34568)|+259 -26|src+71|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): a cancelled queued Claude continuation no longer drops later wakes (#30114)|+1276 -39|src+281|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): skip Claude interrupts after session teardown (#25159)|+89 -3|src+15|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): stop jobs a Claude CLI moved out of its process group when the session closes (#34505)|+178 -4|src+115|ClaudeAdapterV2.ts 
+2026-11-12|dw3105|fix(server): Claude turns on busy hosts no longer time out registering MCP tools (#30166)|+85 -16|src+31|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): list skills from plugins synced from claude.ai (#28633)|+415 -54|src+191|ClaudeSkills.ts claudeResetCredits.ts 
+2026-11-11|Julius Marminge|fix(server): a failed Claude wake dispatch no longer drops every later wake (#28173)|+173 -6|src+18|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): provider launches and text generation wait for provider updates (#31186)|+127 -18|src+27|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): a steer that cuts off a streaming Claude reply marks it interrupted (#34597)|+75 -11|src+53|ClaudeAdapterV2.ts 
+2026-11-12|Aaron Zingerle|fix(server): Claude Plan mode runs t3_background_wait without asking (#34343)|+3 -0|src+1|ClaudeAdapterV2.ts 
+2026-11-11|Dara Adedeji|fix(server): a Claude tool call interrupted by a new message shows as stopped, not failed (#34183)|+7 -4|src+2|ClaudeAdapterV2.ts 
+2026-11-12|Alex Southwell|fix(server): Claude live command output no longer starts with � after skipping ahead (#33246)|+12 -6|src+8|ClaudeTaskOutputTail.ts 
+2026-11-11|Julius Marminge|fix(server): a model change sent with a Claude steer now applies to the running turn (#34564)|+137 -5|src+23|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): Claude effort changes apply to the running turn (#34563)|+164 -18|src+48|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): show when Stop leaves a Claude steer unconfirmed (#23807)|+223 -12|src+75|ClaudeAdapterV2.ts 
+2026-11-11|maria|fix(server): fail any provider turn stuck in a retry (#33152)|+24 -3|src+10|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): keep queued Claude workflow members pending (#25325)|+42 -8|src+9|claudeWorkflowProgress.ts 
+2026-11-11|Julius Marminge|fix(server): a Claude thread waiting on a ScheduleWakeup stays in Working (#23648)|+568 -2|src+99|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): Claude --settings and prompt-file launch args expand ~ (#26649)|+59 -8|src+15|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(claude): a killed Claude process names its signal on the failed turn (#26086)|+147 -0|src+21|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): show when a Claude steer is waiting for acceptance (#24785)|+267 -2|src+88|ClaudeAdapterV2.ts 
+2026-11-11|Julius Marminge|fix(server): Claude effort picker marks levels capped by maxEffortLevel (#23629)|+482 -19|src+242|ClaudeModelCatalog.ts ClaudeProvider.ts 
+2026-11-11|Ahmed Ibrahem|fix(server): only offer claude update for native Claude installs (#14170)|+46 -11|src+5|ClaudeMaintenance.ts 
+2026-11-11|shivam|test: remove tests that repeat another case or restate the source (#34170)|+1 -12|src+0|
+2026-11-11|Juan Suaya|fix(server): Claude subagents no longer show the parent's effort (#17042)|+8 -13|src+2|ClaudeAdapterV2.ts 
+2026-11-11|Richard Frost|fix(usage): Claude subagent output is no longer undercounted (#20276)|+3 -3|src+3|claudeUsage.ts 
+2026-11-10|Julius Marminge|fix(server): hide passive Claude Stop-hook summaries (#22964)|+75 -1|src+11|ClaudeAdapterV2.ts 
+2026-11-11|Bin Jamshid|fix(claude): version errors from a custom endpoint no longer say to run claude update (#34176)|+106 -9|src+61|ClaudeAdapterV2.ts ClaudeProvider.ts ClaudeSkills.ts 
+2026-11-10|Julius Marminge|fix(server): fork Claude threads after project root changes (#22836)|+70 -26|src+4|ClaudeAdapterV2.ts 
+2026-11-10|Julius Marminge|feat(claude): Fable resets are offered and redeemed apart from weekly resets (#34106)|+109 -7|src+66|ClaudeDriver.ts claudeResetCredits.ts 
+2026-11-10|Julius Marminge|fix(server): signed-out Claude instances with their own config dir name it in the sign-in hint (#32951)|+12 -2|src+12|ClaudeProvider.ts 
+2026-11-10|Julius Marminge|fix(server): Claude turns whose CLI exits before its first frame fail instead of running forever (#33008)|+146 -12|src+15|ClaudeAdapterV2.ts 
+2026-11-10|Julius Marminge|fix(server): provider status checks no longer make mise download missing CLIs (#33448)|+5 -4|src+5|ClaudeProvider.ts 
+2026-11-09|Theo Browne|fix(server): Claude threads can allow an MCP app for the session (#33707)|+52 -13|src+15|ClaudeAdapterV2.ts 
+2026-11-09|Yash Singh|fix(web): show details for background commands (#33647)|+84 -5|src+27|ClaudeAdapterV2.ts 
+2026-11-09|Theo Browne|fix(server): steering during a Claude compaction shows it stopped, not failed (#33291)|+50 -15|src+8|ClaudeAdapterV2.ts 
+2026-11-09|shivam|fix(server): delegated Claude tasks report the model that ran (#27753)|+38 -3|src+25|ClaudeAdapterV2.ts ClaudeModelCatalog.ts 
+2026-11-08|Theo Browne|feat: Labs option to suggest your next prompt after Claude and Codex turns (#28047)|+168 -0|src+28|ClaudeAdapterV2.ts 
+2026-11-08|Ryan Hughes|fix(server): mise-installed providers update through mise instead of their own updater (#21524)|+1 -0|src+1|ClaudeMaintenance.ts 
+2026-11-06|Julius Marminge|perf(server): stop tracing the per-event background-work probe (#31584)|+2 -3|src+2|ClaudeAdapterV2.ts 
+2026-11-06|Lakshmi Tanmay|fix(server): report Claude settings compaction threshold (#29220)|+268 -16|src+75|ClaudeAdapterV2.ts 
+2026-11-05|MarcoDotIO|fix(server): failed Claude text generation shows Claude's error instead of raw JSON (#30331)|+62 -2|src+15|ClaudeTextGeneration.ts 
+2026-11-05|Julius Marminge|fix(claude): turns use the downloaded model catalog (#31717)|+90 -42|src+19|ClaudeAdapterV2.ts ClaudeDriver.ts 
+2026-11-05|Bilal Bakr|feat(claude): Ultracode works with any effort, like Claude Desktop (#27034)|+230 -30|src+92|claudeModelOptions.ts ClaudeAdapterV2.ts ClaudeModelCatalog.ts ClaudeProvider.ts ClaudeTextGeneration.ts 
+2026-11-05|Elliot Drel|test(server): correct Windows path and settings assertions (#30983)|+22 -10|src+0|
+2026-11-04|Julius Marminge|refactor: Effect.try calls map failures to typed errors (#31217)|+61 -36|src+61|ClaudeAdapterV2.ts ClaudeProvider.ts 
+2026-11-04|Julius Marminge|refactor: Effect code reads env through HostProcess.Environment (#31218)|+28 -129|src+0|
+2026-11-04|Julius Marminge|feat(server): render MCP Apps from Claude tool calls (#29803)|+1113 -2|src+420|ClaudeAdapterV2.ts 
+2026-11-03|Yash Singh|fix(tools): show images from MCP and OpenCode outputs (#30389)|+21 -1|src+8|ClaudeAdapterV2.ts 
+2026-11-03|Julius Marminge|feat(server): list Claude models reported by Claude Code (#30511)|+156 -13|src+110|ClaudeModelCatalog.ts ClaudeProvider.ts ClaudeSkills.ts 
+2026-11-04|Chunhao Zhang|fix(server): Claude context meter shows the window for models outside the catalog (#30051)|+149 -53|src+62|ClaudeAdapterV2.ts ClaudeTurnTokenUsage.ts 
+2026-11-03|Taylor Dolezal|perf(server): Claude skill discovery resolves each repository root once (#29757)|+77 -7|src+12|ClaudeSkills.ts 
+2026-11-03|u9g|fix(server): Claude's commands no longer run Electron apps as Node (#29413)|+5 -1|src+3|ClaudeHome.ts 
+2026-11-04|Abhishek B R|fix(server): truncated Claude task output no longer starts with a replacement character (#28643)|+31 -2|src+4|ClaudeTaskOutputTail.ts 
+2026-11-03|Alex Southwell|fix(server): native forks after an undo no longer copy later turns (#29902)|+16 -1|src+2|ClaudeAdapterV2.ts 
+2026-11-02|Julius Marminge|fix(server): imported Claude sessions resume on their first turn (#23219)|+130 -51|src+58|ClaudeAdapterV2.ts 
+2026-11-02|Julius Marminge|fix(server): preserve nested Claude subagent completion across turns (#23561)|+218 -4|src+26|ClaudeAdapterV2.ts 
+2026-11-02|Julius Marminge|fix(server): show why Claude refuses full access as root (#23804)|+106 -4|src+64|ClaudeAdapterV2.ts 
+2026-11-03|maria|fix(claude): a background-task wake run no longer hangs after a user turn absorbed its wake (#28010)|+108 -1|src+28|ClaudeAdapterV2.ts 
+2026-11-02|Julius Marminge|fix(server): anchor Claude wake cooldowns to result arrival (#25061)|+96 -4|src+14|ClaudeAdapterV2.ts 
+2026-11-02|Julius Marminge|fix(server): Claude subagents left by a stopped process no longer stay Running (#28356)|+398 -35|src+91|ClaudeAdapterV2.ts 
+2026-11-02|Julius Marminge|fix(server): forked Claude threads keep their compaction chain (#27577)|+109 -20|src+0|
+2026-11-03|Nate Glasby|fix(server): native Claude updates use the native release feed (#27958)|+532 -34|src+126|ClaudeDriver.ts ClaudeMaintenance.ts 
+2026-11-02|Julius Marminge|chore(deps): upgrade Effect to 4.1.2 and alchemy to beta.85 (#26833)|+873 -180|src+12|ClaudeAdapterV2.ts ClaudeDriver.ts 
+2026-11-02|maria|perf(server): skip redundant claude session naming (#28910)|+12 -0|src+4|ClaudeAdapterV2.ts 
+2026-11-02|Theo Browne|fix(server): Claude threads no longer join the Claude session that launched T3 (#29169)|+58 -24|src+21|ClaudeHome.ts 
+2026-11-02|Andrei|perf(cli): short commands like t3 --version no longer load the whole server (#29127)|+10 -7|src+10|claudeHistory.ts 
+2026-11-01|Theo Browne|update the claude entrypoint identifier for accuracy (#28410)|+75 -21|src+47|ClaudeAdapterV2.ts ClaudeProvider.ts ClaudeDriver.ts ClaudeHome.ts ClaudeSkills.ts 
+2026-11-01|Theo Browne|fix(server): token telemetry counts each request once and only confirmed models (#29001)|+148 -2|src+147|ClaudeAdapterV2.ts ClaudeTurnTokenUsage.ts 
+2026-11-01|Victor Vogel|fix(claude): Claude text generation stops saving throwaway transcripts (#28367)|+82 -15|src+29|ClaudeTextGeneration.ts 
+2026-11-02|Sparsh Kaushik|fix(server): Claude threads revert to the message after a /compact (#27381)|+90 -10|src+25|ClaudeAdapterV2.ts 
+2026-11-01|ash|fix(claude): approval cards close when Claude withdraws the request (#27320)|+126 -0|src+36|ClaudeAdapterV2.ts 
+2026-11-01|tyler-b4innova|fix(server): keep a gateway's Claude reset time on a direct 429 (#25438)|+90 -19|src+37|ClaudeAdapterV2.ts 
+2026-11-01|Henry Chu|fix(server): foreground Claude forks no longer show as finished the moment they start (#26459)|+63 -0|src+2|ClaudeAdapterV2.ts 
+2026-11-01|Julius Marminge|feat: managed policy for organization-wide T3 Code configuration (#27197)|+37 -1|src+9|ClaudeAdapterV2.ts 
+2026-11-01|Yash Singh|feat(clients): surface child approvals in parent threads (#28516)|+115 -0|src+21|ClaudeAdapterV2.ts 
+2026-11-01|yaacovcorcos|fix(server): stopping a Claude turn no longer hangs without an acknowledgement (#16419)|+121 -1|src+1|ClaudeAdapterV2.ts 
+2026-10-31|maria|fix(claude): retain measured usage after a steered query exits (#25200)|+50 -46|src+21|ClaudeTurnTokenUsage.ts 
+2026-10-31|F4llen|fix(server): changing Claude effort no longer re-sends the model (#22272)|+70 -4|src+7|ClaudeAdapterV2.ts 
+2026-10-31|MarcoDotIO|fix(claude): failed advisor calls no longer show as completed (#24254)|+61 -0|src+1|ClaudeAdapterV2.ts 
+2026-10-31|GitJarno|fix(claude): context meter shows where Claude actually auto-compacts (#22654)|+10 -6|src+7|ClaudeAdapterV2.ts 
+2026-10-31|Md Ehsanul Haque|fix(server): recognize a Claude proxy set in Claude's settings.json (#26937)|+49 -7|src+49|ClaudeProvider.ts ClaudeSkills.ts 
+2026-10-30|zayd / cold|fix(server): accept explicit false in Claude managed policy (#24402)|+140 -6|src+43|ClaudeAdapterV2.ts 
+2026-10-30|Victor Vogel|fix(claude): stream live command output on Linux when TMPDIR is set (#24176)|+180 -7|src+27|ClaudeAdapterV2.ts ClaudeTaskOutputTail.ts 
+2026-10-30|Victor Vogel|fix(claude): no failed AskUserQuestion row after the resume dialog (#23481)|+81 -6|src+18|ClaudeAdapterV2.ts 
+2026-10-30|Victor Vogel|fix(claude): keep model upgrade notices when signed out (#23272)|+1 -0|src+1|ClaudeProvider.ts 
+2026-10-30|Victor Vogel|fix(claude): name the notebook a NotebookEdit changed (#22130)|+85 -1|src+1|ClaudeAdapterV2.ts 
+2026-10-30|Christopher Gómez|fix(server): show Claude MCP elicitations on the approval card (#21903)|+463 -1|src+196|ClaudeAdapterV2.ts 
+2026-10-30|Julius Marminge|perf(server): busy threads stop decoding settled subagents and idle pollers skip work (#27711)|+3 -2|src+3|ClaudeAdapterV2.ts 
+2026-10-30|oliver|fix(server): Claude accounts show the new Max and Ultra plan names (#27745)|+4 -6|src+4|ClaudeProvider.ts 
+2026-10-30|Yordis Prieto|feat(settings): point provider environment variables at a secret provider (#27115)|+2 -2|src+0|
+2026-10-29|Julius Marminge|fix(ci): repair main after merge burst|+1 -1|src+1|ClaudeAdapterV2.ts 
+2026-10-29|Julius Marminge|fix(server): Stop always completes, and an agent that ignores it can be force stopped (#27252)|+20 -26|src+20|ClaudeAdapterV2.ts 
+2026-10-29|Julius Marminge|fix(server): fail Claude turns waiting for unsupported mod input (#24320)|+204 -0|src+38|ClaudeAdapterV2.ts 
+2026-10-30|fixfon|fix(usage): count Claude advisor calls under the advisor model (#24139)|+179 -19|src+45|claudeUsage.ts 
+2026-10-29|Victor Vogel|fix(claude): pass every --add-dir launch directory to Claude (#23281)|+58 -15|src+34|ClaudeAdapterV2.ts ClaudeSkills.ts 
+2026-10-29|maria|fix(shared): stop parsing CLI flags after -- (#25204)|+15 -0|src+0|
+2026-10-29|Shoubhit Dash|fix(claude): Open diff shows Claude edits as a diff instead of raw JSON (#26529)|+188 -1|src+42|ClaudeAdapterV2.ts 
+2026-10-29|maria|fix(server,cursor,opencode): refresh provider usage when a turn hits its usage limit (#26234)|+1 -0|src+1|ClaudeDriver.ts 
+2026-10-29|maria|fix(claude): command approvals show the command, not Claude's description of it (#20145)|+17 -6|src+3|ClaudeAdapterV2.ts 
+2026-10-28|Bilal Bakr|feat(mobile): add dynamic workflows to the Agents sheet (#18642)|+183 -6|src+39|ClaudeAdapterV2.ts 
+2026-10-28|Gabriel De Andrade|fix(server): agents drive simulators through the device tools instead of ssh (#25661)|+97 -3|src+28|ClaudeAdapterV2.ts 
+2026-10-27|Theo Browne|chore: delete 18k lines of code that nothing reaches (#26238)|+17 -130|src+3|ClaudeAdapterV2.ts ClaudeTurnTokenUsage.ts ClaudeSkillDispatch.ts 
+2026-10-27|Theo Browne|feat(server,web): see and stop the dev servers a thread started (#22542)|+72 -2|src+17|ClaudeAdapterV2.ts 
+2026-10-27|Theo Browne|fix(server): Claude --settings launch args merge with T3's settings instead of being dropped (#22864)|+178 -34|src+83|ClaudeAdapterV2.ts 
+2026-10-27|Julius Marminge|feat(server): agents use linked environments through any T3 tool (#16684)|+1 -0|src+1|ClaudeAdapterV2.ts 
+2026-10-27|Yash Singh|fix(server): recover handoffs when target context is exhausted (#25610)|+56 -4|src+13|ClaudeAdapterV2.ts 
+2026-10-27|Julius Marminge|fix(server): preserve interrupted Claude context after revert (#25695)|+134 -1|src+2|ClaudeAdapterV2.ts 
+2026-10-26|Theo Browne|feat(server): cut T3's MCP tool schemas by a third and merge 18 tools into action tools (#25423)|+0 -6|src+0|ClaudeAdapterV2.ts 
+2026-10-26|Yash Singh|fix(server): expire new-model badges after seven days (#25609)|+5 -7|src+5|ClaudeModelCatalog.ts 
+2026-10-26|Theo Browne|fix(server): goals stop the running turn, clear while working, no echoes (#25426)|+71 -1|src+22|ClaudeAdapterV2.ts 
+2026-10-26|Julius Marminge|chore(lint): enforce effectFnOpportunity (#25099)|+6 -2|src+6|ClaudeAdapterV2.ts 
+2026-10-26|Yash Singh|fix(server): retry stalled MCP registration for resumed Claude turns (#25372)|+548 -208|src+279|ClaudeAdapterV2.ts 
+2026-10-25|Julius Marminge|chore(lint): enforce t3code/no-inline-schema-compile (#25113)|+3 -1|src+0|
+2026-10-25|Julius Marminge|chore(lint): enforce abortControllerInEffect (#25098)|+6 -9|src+0|
+2026-10-26|maria|fix(server): make document attachments readable to agents (#21458)|+6 -1|src+6|ClaudeAdapterV2.ts 
+2026-10-25|Julius Marminge|chore(lint): enforce eslint/no-unused-vars (#25100)|+0 -63|src+0|ClaudeAdapterV2.ts 
+2026-10-25|Julius Marminge|chore(lint): enforce raceFirstWithSleepToTimeout (#25092)|+6 -3|src+6|ClaudeTaskOutputTail.ts 
+2026-10-25|Julius Marminge|chore(lint): enforce unnecessaryFailYieldableError (#25083)|+4 -6|src+0|
+2026-10-25|Julius Marminge|chore(lint): enforce unnecessaryPipeChain (#25077)|+5 -6|src+0|
+2026-10-25|Julius Marminge|fix: restore files reverted by 5f1f604|+29 -6|src+9|ClaudeProvider.ts 
+2026-10-25|Julius Marminge|feat(mobile): on-demand chrome e2e runner across simulators|+6 -29|src+5|ClaudeProvider.ts 
+2026-10-25|Theo Browne|perf: opening a thread loads 85% less data (#24899)|+29 -6|src+9|ClaudeProvider.ts 
+2026-10-25|maria|feat(server): send pdf attachments to claude and antigravity as documents (#21358)|+1280 -63|src+395|ClaudeAdapterV2.ts 
+2026-10-25|Theo Browne|feat(server): cut T3's agent instructions and tool copy by 60% (#24850)|+1 -1|src+1|ClaudeAdapterV2.ts 
+2026-10-24|Theo Browne|fix(claude): ENABLE_TOOL_SEARCH=auto no longer costs 10x cache writes per session (#24654)|+241 -1|src+117|ClaudeAdapterV2.ts 
+2026-10-25|maria|refactor: halve code comments and cap comment blocks at four lines (#21514)|+166 -534|src+139|claudeHistoryWorker.ts claudeHistory.ts ClaudeAdapterV2.ts ClaudeTaskOutputTail.ts claudeWorkflowProgress.ts ClaudeProvider.ts ClaudeTurnTokenUsage.ts ClaudeExecutable.ts ClaudeHome.ts ClaudeSkillDispatch.ts ClaudeSkills.ts claudeResetCredits.ts claudeUsageLimits.ts ClaudeTextGeneration.ts 
+2026-10-24|Theo Browne|fix(threads): Working holds only background work the agent waits on (#24610)|+248 -23|src+112|ClaudeAdapterV2.ts 
+2026-10-24|Julius Marminge|feat: compactions T3 Code starts read as one working row, and stay quiet (#24334)|+119 -4|src+26|ClaudeAdapterV2.ts 
