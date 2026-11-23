@@ -47,6 +47,7 @@ With the real Claude adapter: put a `config.json` in the daemon's home (see `bri
 | Path | What |
 |---|---|
 | `docs/design/daemon.md` | The daemon design (current work) |
+| `docs/design/addons.md` | Addons: where fixes for upstream faults and optional features live, and how to write one |
 | `schema/`, `crates/` | The data model and the Rust workspace (daemon, command-line client). Run `just` for the commands |
 | `clients/ts`, `clients/swift` | The client SDKs |
 | `ui/react`, `ui/swift` | The component kits |
@@ -69,6 +70,8 @@ With the real Claude adapter: put a `config.json` in the daemon's home (see `bri
 | `docs/research/21` | The second plan: components to add, running the daemon, watching upstream, what is tested and what is not |
 | `docs/research/22` | What Claude Code offers in its terminal and what comes through the adapter |
 | `docs/research/23` | The live conformance tests: the first run and what it found |
+| `docs/research/24` | Addons: the mechanism, the first two, and which fixes went into the core instead |
+| `examples/own-daemon` | A daemon with an addon of one's own, without forking |
 | `conformance/` | Live checks of the real harnesses against a recorded baseline |
 | `docs/remote.md` | How to reach a daemon from another machine or a browser |
 | `testdata/` | Recorded sessions and readable renderings of what the core makes of them |

@@ -258,7 +258,7 @@ An extension crashing does not take the server down, and extensions can be writt
 
 Not in the first version: extensions that block or rewrite the flow (for example, approve a prompt before it is sent). That needs ordering and timeout rules; the namespaces leave room for it.
 
-A product written in Rust has a third option: build its own server from the crates (section 12) and add code in-process.
+A product written in Rust has a third option: build its own server from the crates (section 12) and add code in-process. Since 2026-11-23 that option has a defined form, the **addon**, which is also where the library keeps its own fixes for upstream faults. An addon may change or refuse a request and change or drop an update, which is the blocking and rewriting left out above, done in-process where no ordering or timeout rules are needed. See `addons.md`.
 
 ## 12. Implementation
 
@@ -283,7 +283,9 @@ A correction to draft 1: it is not true that every setup already needs Node. Pi 
 | `bridge-agents` | Starting adapters, profiles (Claude so far), the fake adapter | yes |
 | `bridge-transport` | The message codec over lines, a Unix socket and a WebSocket | yes |
 | `bridge-server` | The daemon as a library, behind a builder | yes |
-| `bridged` | The daemon program: config, listeners | yes |
+| `bridge-addon-api` | What an addon is: the trait and the types its hooks receive | no |
+| `bridge-addons` | The addons the library ships | no |
+| `bridged` | The daemon program, as a library with a five-line binary: config, listeners | yes |
 | `bridge-client` | A client's connection, and the `bridge` command-line tool | yes |
 | `bridge-ffi` | C interface for embedding in native apps | later |
 

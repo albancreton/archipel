@@ -59,7 +59,7 @@ While isolating finding 1: with Haiku selected and plan mode on, Claude Code ran
 
 ## What follows for the library
 
-Not built; proposed.
+Items 1 to 3 were done the same day, in a different way than proposed here: see `24-addons.md`. Item 4 is open.
 
 1. **The daemon re-applies the user's choices after a wake-up.** It already logs every setting. After `session/resume` it compares what the agent reports with what the log says and sets what differs, before forwarding the message. This fixes findings 1 to 3 for every harness, whatever the adapter does.
 2. **`session/delete` removes the session from the daemon's log too**, with the admin scope.
