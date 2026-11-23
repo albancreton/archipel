@@ -1,6 +1,6 @@
 # Daemon design
 
-Draft 9, 2026-11-22: based on ACP v2; milestones 0 to 4 done (`docs/research/11` to `15`). The daemon runs Claude and Pi side by side. "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
+Draft 10, 2026-11-22: based on ACP v2; milestones 0 to 5 done (`docs/research/11` to `16`). The daemon runs Claude and Pi side by side. "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
 
 ## 1. What the daemon is for
 
@@ -241,15 +241,15 @@ The contract lives in `schema/`:
 
 The requirement: a product such as T3 Code can add checkpoints or handoffs without changing the server.
 
-Two mechanisms, both independent of the server's language:
+Two mechanisms, both independent of the server's language. Done; see `docs/research/16`.
 
-**Namespaced content.** Item kinds, methods and `_meta` keys outside the standard set carry a vendor namespace (`x.<vendor>.<name>`). The server stores, sequences, replays and fans them out without understanding the payload. A UI that does not know a kind skips it or shows a generic fallback.
+**Namespaced content.** Update kinds `x.<namespace>.<name>` and methods `_x/<namespace>/<name>`. The server stores, sequences, replays and fans them out without understanding the payload. An extension's update carries its own state rule (`_meta.bridge.state`, in the form of ACP's rules), so every client's reducer places and updates the item correctly without knowing the extension. A UI that has no component for a kind skips it or shows a generic fallback.
 
-**Extension peers.** An extension is a separate process that connects to the server like an app, with an `extend` scope. It can:
+**Extension peers.** An extension is a separate process that connects to the server like an app, with the `extend` scope, and registers its namespace (`_bridge/extension/register`). It can:
 
 - observe session events,
-- append and update items in its namespace,
-- register methods in its namespace; the server routes app calls to it and returns the answer.
+- append and update items in its namespace (`_bridge/session/append`),
+- serve methods in its namespace; the server routes app calls to it and returns the answer.
 
 Example: a checkpoint extension observes a turn ending, captures a git ref, and appends an `x.t3.checkpoint` item. The app calls `_x/t3/checkpoint/restore`; the server routes it to the extension. The server knows nothing about git.
 
@@ -353,7 +353,7 @@ Two rules:
 2. **Single-session daemon.** Done; see `docs/research/13`. Fan-out to several apps and "first answer wins" came with it.
 3. **Several apps.** Done except Windows; see `docs/research/14`. Scopes, harness sessions listed and adopted, session-list notifications, remembered setup, retention.
 4. **Adapter profiles for Claude and Pi.** Done; see `docs/research/15`.
-5. **Extensions.** Namespaced items and extension peers, proven with a toy checkpoint extension.
+5. **Extensions.** Done; see `docs/research/16`.
 6. **Client SDKs and UI kits.** TypeScript and Swift SDKs; a React and a SwiftUI chat view rendering the same session.
 7. **Remote.** Pairing, tokens, SSH stdio mode, Tailscale notes.
 

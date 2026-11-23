@@ -16,6 +16,58 @@ pub enum Endpoint {
     Ws { url: String, token: String },
 }
 
+impl Endpoint {
+    /// Reads where the daemon is from command-line arguments, removing those it uses:
+    /// `--home DIR`, `--socket PATH`, or `--ws URL` with `--token TOKEN` or `--token-file PATH`.
+    /// The default is the socket in `$BRIDGE_HOME` or `~/.harness-bridge`.
+    ///
+    /// # Errors
+    /// When a token file cannot be read.
+    pub fn from_args(args: &mut Vec<String>) -> io::Result<Self> {
+        let home = option(args, "--home")
+            .or_else(|| std::env::var("BRIDGE_HOME").ok())
+            .map_or_else(
+                || PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".harness-bridge"),
+                PathBuf::from,
+            );
+        let socket = option(args, "--socket");
+        let token = option(args, "--token");
+        let token_file = option(args, "--token-file");
+        Ok(match option(args, "--ws") {
+            Some(url) => {
+                let token = match (token, token_file) {
+                    (Some(token), _) => token,
+                    (None, file) => {
+                        let path = file.map_or_else(|| home.join("ws-token"), PathBuf::from);
+                        std::fs::read_to_string(&path)
+                            .map_err(|error| {
+                                io::Error::new(error.kind(), format!("{}: {error}", path.display()))
+                            })?
+                            .trim()
+                            .to_owned()
+                    }
+                };
+                Self::Ws { url, token }
+            }
+            None => Self::Local(socket.map_or_else(|| home.join("daemon.sock"), PathBuf::from)),
+        })
+    }
+}
+
+/// Removes `--name VALUE` from the arguments and returns the value.
+pub fn option(args: &mut Vec<String>, name: &str) -> Option<String> {
+    let at = args.iter().position(|arg| arg == name)?;
+    args.remove(at);
+    (at < args.len()).then(|| args.remove(at))
+}
+
+/// Removes `--name` from the arguments and says whether it was there.
+pub fn switch(args: &mut Vec<String>, name: &str) -> bool {
+    let before = args.len();
+    args.retain(|arg| arg != name);
+    args.len() != before
+}
+
 #[derive(Debug)]
 pub enum Error {
     /// The connection could not be opened.
@@ -112,6 +164,16 @@ impl Connection {
     /// When the connection is closed.
     pub async fn answer(&mut self, request_id: &Value, result: Value) -> Result<(), Error> {
         self.send(json!({"jsonrpc": "2.0", "id": request_id, "result": result}))
+            .await
+    }
+
+    /// Refuses a request from the daemon, such as a call to a method an extension lacks.
+    ///
+    /// # Errors
+    /// When the connection is closed.
+    pub async fn refuse(&mut self, request_id: &Value, message: &str) -> Result<(), Error> {
+        let error = json!({"code": -32601, "message": message});
+        self.send(json!({"jsonrpc": "2.0", "id": request_id, "error": error}))
             .await
     }
 

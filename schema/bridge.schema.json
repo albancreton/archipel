@@ -45,6 +45,15 @@
     },
     "scope": {
       "$ref": "#/$defs/Scope"
+    },
+    "registerExtensionRequest": {
+      "$ref": "#/$defs/RegisterExtensionRequest"
+    },
+    "appendRequest": {
+      "$ref": "#/$defs/AppendRequest"
+    },
+    "appendResponse": {
+      "$ref": "#/$defs/AppendResponse"
     }
   },
   "required": [
@@ -61,7 +70,10 @@
     "detachSessionResponse",
     "requestResolvedNotification",
     "sessionsUpdatedNotification",
-    "scope"
+    "scope",
+    "registerExtensionRequest",
+    "appendRequest",
+    "appendResponse"
   ],
   "$defs": {
     "BridgeMeta": {
@@ -421,10 +433,103 @@
           "const": "interact"
         },
         {
+          "description": "Also act as an extension: register a namespace, add items to sessions, serve methods.",
+          "type": "string",
+          "const": "extend"
+        },
+        {
           "description": "Also manage the daemon. Nothing needs this yet.",
           "type": "string",
           "const": "admin"
         }
+      ]
+    },
+    "RegisterExtensionRequest": {
+      "description": "`_bridge/extension/register` request: this connection is the extension `namespace`.\n\nFrom then on it may add updates whose kind starts with `x.<namespace>.` to sessions, and\nthe daemon passes it every request whose method starts with `_x/<namespace>/`.",
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "description": "Lower-case letters, digits and `-`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace"
+      ]
+    },
+    "AppendRequest": {
+      "description": "`_bridge/session/append` request: add an update of the extension's own kind to a session.\nIt is numbered, stored, replayed and sent to every attached app like any other update.",
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "update": {
+          "description": "The update body. Its `sessionUpdate` must start with `x.<namespace>.`."
+        },
+        "state": {
+          "description": "How the update changes what clients hold. Without it the update is kept as an event\nthat clients do not place among the items.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemRule"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "sessionId",
+        "update"
+      ]
+    },
+    "ItemRule": {
+      "description": "How an extension's update changes client state: an ACP state rule whose target is the\nupdate's own kind. The daemon stores it in the update under `_meta.bridge.state`, so every\nclient can apply it without knowing the extension.",
+      "type": "object",
+      "properties": {
+        "action": {
+          "description": "`append`, `upsert`, `replace` or `remove`.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Dotted path of the item's id in the update, such as `checkpointId`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "field": {
+          "description": "The field of the item that is changed. Absent means the whole item.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "description": "Dotted path of the new data in the update. Absent means the whole update.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "action"
+      ]
+    },
+    "AppendResponse": {
+      "type": "object",
+      "properties": {
+        "seq": {
+          "description": "The sequence number the update got.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "seq"
       ]
     }
   }

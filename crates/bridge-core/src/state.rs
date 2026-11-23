@@ -65,6 +65,16 @@ impl fmt::Display for ApplyError {
 
 impl std::error::Error for ApplyError {}
 
+/// The state rule an update carries for itself under `_meta.bridge.state`, if any.
+///
+/// It has the fields of a [`StateRule`] without the target, which is the update's kind.
+fn own_rule(kind: &str, update: &Value) -> Option<StateRule> {
+    let mut rule = update.pointer("/_meta/bridge/state")?.clone();
+    rule.as_object_mut()?
+        .insert("target".to_owned(), kind.into());
+    serde_json::from_value(rule).ok()
+}
+
 /// A request from the agent that waits for the user: an approval or a question.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Request {
@@ -106,6 +116,11 @@ impl SessionState {
             .and_then(Value::as_str)
             .ok_or(ApplyError::MissingKind)?;
         let Some(rules) = rules.updates.get(kind) else {
+            // Not an ACP kind. An extension's update can say itself how it changes state, and
+            // then it becomes an item like any other, under its own kind as the target.
+            if let Some(rule) = own_rule(kind, update) {
+                return Ok(vec![self.apply_rule(kind, &rule, update)?]);
+            }
             self.unknown.push(update.clone());
             return Ok(vec![Change::Unknown(kind.to_owned())]);
         };

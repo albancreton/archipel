@@ -4,7 +4,7 @@ A library for building apps that render the agent loop of terminal coding harnes
 
 Claude Code and Pi are the main targets. Other harnesses are accessory.
 
-Status: milestone 4 of 7 done. The daemon runs Claude Code and Pi side by side, numbers and logs everything, and lets clients attach, catch up after a disconnect, and answer approvals. It lists the sessions each harness already has and loads one when it is opened. Connections can be limited to reading. Tested against 29 recorded sessions and live.
+Status: milestone 5 of 7 done. The daemon runs Claude Code and Pi side by side, numbers and logs everything, and lets clients attach, catch up after a disconnect, and answer approvals. It lists the sessions each harness already has and loads one when it is opened. Connections can be limited to reading. Other programs can add their own items and methods as extensions. Tested against 29 recorded sessions and live.
 
 ## Try it
 
@@ -50,6 +50,7 @@ With the real Claude adapter: put a `config.json` in the daemon's home (see `bri
 | `docs/research/13` | Milestone 2: the first running daemon, what was tested, what is missing |
 | `docs/research/14` | Milestone 3: scopes, listing and adopting the harness's own sessions |
 | `docs/research/15` | Milestone 4: the Pi translator, one process per session |
+| `docs/research/16` | Milestone 5: extensions, and items that carry their own state rule |
 | `testdata/` | Recorded sessions and readable renderings of what the core makes of them |
 | `spikes/` | The scripts and raw logs behind 05, 06, 09, 10. See `spikes/README.md` |
 | `data/t3-claude-commits-30d.txt` | The 230 Claude-related T3 commits analysed in 03 |

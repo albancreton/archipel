@@ -52,6 +52,23 @@ async fn the_command_line_client_creates_prompts_watches_and_shows_a_session() {
         }
     });
 
+    // The demo extension, as its own process.
+    let mut extension = Command::new(env!("CARGO_BIN_EXE_bridge-demo-checkpoints"))
+        .arg("--socket")
+        .arg(&socket)
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .expect("the extension starts");
+    let mut ready = String::new();
+    tokio::io::AsyncBufReadExt::read_line(
+        &mut tokio::io::BufReader::new(extension.stderr.take().unwrap()),
+        &mut ready,
+    )
+    .await
+    .unwrap();
+    assert!(ready.contains("registered"), "{ready}");
+
     assert!(bridge(&socket, &["agents"]).await.starts_with("claude"));
     let session = bridge(&socket, &["new", "--cwd", "/"]).await;
     let session = session.trim();
@@ -66,9 +83,35 @@ async fn the_command_line_client_creates_prompts_watches_and_shows_a_session() {
     assert!(watched.contains("[agent_message] "), "{watched}");
     assert!(watched.trim_end().ends_with("-- idle"), "{watched}");
 
+    // The session as recorded, plus the checkpoint the extension added when the turn ended.
+    let checkpoint = format!("{}-1", &session[..8]);
+    let listed = loop {
+        let params = format!(r#"{{"sessionId":"{session}"}}"#);
+        let listed = bridge(&socket, &["call", "_x/demo/checkpoints/list", &params]).await;
+        if listed.contains(&checkpoint) {
+            break listed;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    };
+    assert!(listed.contains("after turn 1"), "{listed}");
     let shown = bridge(&socket, &["show", session]).await;
     let vector = fs::read_to_string(testdata.join("vectors/claude-v2/simple.txt")).unwrap();
-    assert_eq!(shown, vector.split_once("\n\n").unwrap().1);
+    let recorded: Vec<&str> = vector.split_once("\n\n").unwrap().1.lines().collect();
+    let shown_lines: Vec<&str> = shown.lines().collect();
+    let extra: Vec<&&str> = shown_lines
+        .iter()
+        .filter(|line| !recorded.contains(line))
+        .collect();
+    assert_eq!(extra.len(), 1, "{shown}");
+    assert!(extra[0].starts_with("[x.demo.checkpoint] ") && extra[0].contains(&checkpoint));
+
+    // Restoring changes that item; it does not add another.
+    let params = format!(r#"{{"sessionId":"{session}","checkpointId":"{checkpoint}"}}"#);
+    let restored = bridge(&socket, &["call", "_x/demo/checkpoint/restore", &params]).await;
+    assert!(restored.contains(&checkpoint), "{restored}");
+    let shown = bridge(&socket, &["show", session]).await;
+    assert_eq!(shown.matches("[x.demo.checkpoint]").count(), 1, "{shown}");
+    assert!(shown.contains(r#""restored":true"#), "{shown}");
 
     let listed = bridge(&socket, &["sessions"]).await;
     assert!(

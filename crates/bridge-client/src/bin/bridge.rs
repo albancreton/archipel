@@ -1,14 +1,14 @@
 //! `bridge`: a command-line client for the daemon.
 
 use base64::Engine as _;
-use bridge_client::{Connection, Endpoint, Error};
+use bridge_client::{Connection, Endpoint, Error, option, switch};
 use bridge_core::{
     mirror::{Mirror, seq_of},
     render,
 };
 use bridge_schema::{ext, rules::RuleSet};
 use serde_json::{Value, json};
-use std::{io::Write as _, path::PathBuf, process::ExitCode, time::Duration};
+use std::{io::Write as _, process::ExitCode, time::Duration};
 
 const USAGE: &str = "\
 bridge: talk to the harness-bridge daemon
@@ -28,6 +28,8 @@ bridge: talk to the harness-bridge daemon
   bridge answer SESSION --json JSON      answer the oldest open request with a raw result
   bridge cancel SESSION                  interrupt the running turn
   bridge set SESSION OPTION VALUE        change a setting, e.g. `set SESSION mode plan`
+  bridge call METHOD [JSON]              send any request and print the result, for example
+                                         an extension's `_x/<namespace>/…` method
 
 SESSION may be the first characters of a session id.
 
@@ -50,54 +52,12 @@ async fn main() -> ExitCode {
     }
 }
 
-/// Removes `--name VALUE` from the arguments and returns the value.
-fn option(args: &mut Vec<String>, name: &str) -> Option<String> {
-    let at = args.iter().position(|arg| arg == name)?;
-    args.remove(at);
-    (at < args.len()).then(|| args.remove(at))
-}
-
-/// Removes `--name` from the arguments and says whether it was there.
-fn switch(args: &mut Vec<String>, name: &str) -> bool {
-    let before = args.len();
-    args.retain(|arg| arg != name);
-    args.len() != before
-}
-
-fn endpoint(args: &mut Vec<String>) -> Result<Endpoint, Failure> {
-    let home = option(args, "--home")
-        .or_else(|| std::env::var("BRIDGE_HOME").ok())
-        .map_or_else(
-            || PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".harness-bridge"),
-            PathBuf::from,
-        );
-    let socket = option(args, "--socket");
-    let token = option(args, "--token");
-    let token_file = option(args, "--token-file");
-    Ok(match option(args, "--ws") {
-        Some(url) => {
-            let token = match (token, token_file) {
-                (Some(token), _) => token,
-                (None, file) => {
-                    let path = file.map_or_else(|| home.join("ws-token"), PathBuf::from);
-                    std::fs::read_to_string(&path)
-                        .map_err(|error| format!("{}: {error}", path.display()))?
-                        .trim()
-                        .to_owned()
-                }
-            };
-            Endpoint::Ws { url, token }
-        }
-        None => Endpoint::Local(socket.map_or_else(|| home.join("daemon.sock"), PathBuf::from)),
-    })
-}
-
 async fn run(mut args: Vec<String>) -> Result<(), Failure> {
     if args.is_empty() || switch(&mut args, "--help") || switch(&mut args, "-h") {
         print!("{USAGE}");
         return Ok(());
     }
-    let endpoint = endpoint(&mut args)?;
+    let endpoint = Endpoint::from_args(&mut args)?;
     let command = args.remove(0);
     if command == "watch" {
         return watch(&endpoint, args).await;
@@ -243,6 +203,17 @@ async fn run(mut args: Vec<String>) -> Result<(), Failure> {
                 return Err("usage: bridge set SESSION OPTION VALUE".into());
             };
             set(&mut daemon, &session, option, value).await?;
+        }
+        "call" => {
+            let [method, rest @ ..] = args.as_slice() else {
+                return Err("usage: bridge call METHOD [JSON]".into());
+            };
+            let params = match rest.first() {
+                Some(raw) => serde_json::from_str(raw)?,
+                None => json!({}),
+            };
+            let result = daemon.call(method, params).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
         }
         other => return Err(format!("unknown command `{other}`; try --help").into()),
     }

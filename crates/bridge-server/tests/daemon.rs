@@ -563,7 +563,7 @@ async fn content_the_daemon_does_not_know_passes_through() {
         json!({"dir": "in", "t": 1, "m": {"jsonrpc": "2.0", "id": 1, "result": {"protocolVersion": 2, "capabilities": {}}}}),
         json!({"dir": "out", "t": 2, "m": {"jsonrpc": "2.0", "id": 2, "method": "session/new", "params": {"cwd": "/work", "mcpServers": []}}}),
         json!({"dir": "in", "t": 3, "m": {"jsonrpc": "2.0", "id": 2, "result": {"sessionId": "s1"}}}),
-        json!({"dir": "out", "t": 4, "m": {"jsonrpc": "2.0", "id": 3, "method": "_x/acme/checkpoint/create", "params": {"sessionId": "s1", "label": "before"}}}),
+        json!({"dir": "out", "t": 4, "m": {"jsonrpc": "2.0", "id": 3, "method": "_acme/checkpoint/create", "params": {"sessionId": "s1", "label": "before"}}}),
         json!({"dir": "in", "t": 5, "m": {"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": "s1", "update": {
             "sessionUpdate": "x.acme.checkpoint", "checkpointId": "c1", "ref": "refs/acme/1", "nested": {"anything": [1, 2, {"deep": true}]}}}}}),
         json!({"dir": "in", "t": 6, "m": {"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": "s1", "update": {
@@ -930,4 +930,153 @@ async fn sessions_unused_for_longer_than_the_retention_time_are_removed() {
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
     panic!("the old session was not removed");
+}
+
+#[tokio::test]
+async fn an_extension_adds_its_own_items_and_serves_its_own_methods() {
+    let transcript = transcript("simple");
+    let session = session_of(&transcript);
+    let server = Server::builder().agent(fake(&transcript)).start();
+    let mut app = App::connect(&server).await;
+    Driver::default().play(&mut app, &transcript.frames).await;
+
+    // An extension is a connection with the `extend` scope that names its namespace.
+    let mut extension = App::connect_as(&server, Mirror::default(), Scope::Extend);
+    let registered = extension
+        .call(ext::METHOD_EXTENSION_REGISTER, json!({"namespace": "acme"}))
+        .await;
+    assert!(registered.get("result").is_some(), "{registered}");
+
+    // It adds an item of its own kind, saying how clients should hold it.
+    let rule = json!({"action": "upsert", "id": "checkpointId"});
+    let added = extension
+        .call(
+            ext::METHOD_SESSION_APPEND,
+            json!({"sessionId": session, "state": rule, "update": {
+                "sessionUpdate": "x.acme.checkpoint", "checkpointId": "c1", "ref": "refs/acme/1"}}),
+        )
+        .await;
+    let seq = added["result"]["seq"].as_u64().expect("a sequence number");
+
+    // The attached app gets it like any update, and holds it as an item in the timeline.
+    let got = app.until(|message| seq_of(message) == Some(seq)).await;
+    assert_eq!(got["params"]["update"]["ref"], json!("refs/acme/1"));
+    assert_eq!(
+        got["params"]["update"]["_meta"]["bridge"]["origin"],
+        json!("extension")
+    );
+    let held = |app: &App| {
+        let (_, root) = app.mirror.conversation.root().unwrap();
+        let last = root.timeline.last().unwrap().clone();
+        (
+            last.target,
+            root.collections["x.acme.checkpoint"]["c1"].clone(),
+        )
+    };
+    assert_eq!(
+        held(&app).0,
+        "x.acme.checkpoint",
+        "it comes after the turn's items"
+    );
+    assert!(
+        app.rendering().contains("[x.acme.checkpoint] "),
+        "{}",
+        app.rendering()
+    );
+
+    // A later update with the same id changes the item instead of adding another.
+    let changed = extension
+        .call(
+            ext::METHOD_SESSION_APPEND,
+            json!({"sessionId": session, "state": rule, "update": {
+                "sessionUpdate": "x.acme.checkpoint", "checkpointId": "c1", "restored": true}}),
+        )
+        .await;
+    let seq = changed["result"]["seq"].as_u64().unwrap();
+    app.until(|message| seq_of(message) == Some(seq)).await;
+    let (_, item) = held(&app);
+    assert_eq!(
+        (&item["ref"], &item["restored"]),
+        (&json!("refs/acme/1"), &json!(true))
+    );
+    let (_, root) = app.mirror.conversation.root().unwrap();
+    assert_eq!(root.collections["x.acme.checkpoint"].len(), 1);
+
+    // An app that arrives later gets the same from the log.
+    let mut late = App::connect(&server).await;
+    late.attach(&session).await;
+    assert_eq!(late.rendering(), app.rendering());
+
+    // The app calls a method of the extension; the daemon carries it there and back.
+    let call = app
+        .request("_x/acme/checkpoint/restore", json!({"checkpointId": "c1"}))
+        .await;
+    let asked = extension
+        .until(|message| message["method"] == "_x/acme/checkpoint/restore")
+        .await;
+    assert_eq!(asked["params"], json!({"checkpointId": "c1"}));
+    extension
+        .answer(&asked["id"], json!({"restored": "c1"}))
+        .await;
+    let answered = app.until(|message| message["id"] == json!(call)).await;
+    assert_eq!(answered["result"], json!({"restored": "c1"}));
+
+    // What an extension may not do, and what others may not do in its place.
+    let foreign = extension
+        .call(
+            ext::METHOD_SESSION_APPEND,
+            json!({"sessionId": session, "update": {"sessionUpdate": "x.acmeother.thing"}}),
+        )
+        .await;
+    assert_eq!(
+        foreign["error"]["code"],
+        json!(-32602),
+        "only its own namespace"
+    );
+    let acp = extension
+        .call(
+            ext::METHOD_SESSION_APPEND,
+            json!({"sessionId": session, "update": {"sessionUpdate": "agent_message_chunk"}}),
+        )
+        .await;
+    assert_eq!(acp["error"]["code"], json!(-32602), "never an ACP kind");
+    let mut plain = App::connect_as(&server, Mirror::default(), Scope::Interact);
+    let refused = plain
+        .call(
+            ext::METHOD_EXTENSION_REGISTER,
+            json!({"namespace": "other"}),
+        )
+        .await;
+    assert_eq!(
+        refused["error"]["code"],
+        json!(-32003),
+        "registering needs the extend scope"
+    );
+    let taken = app
+        .call(ext::METHOD_EXTENSION_REGISTER, json!({"namespace": "acme"}))
+        .await;
+    assert_eq!(
+        taken["error"]["code"],
+        json!(-32602),
+        "one connection per namespace"
+    );
+    let nobody = app.call("_x/nobody/anything", json!({})).await;
+    assert_eq!(nobody["error"]["code"], json!(-32601));
+
+    // When the extension goes away, a call that waits on it fails, and the daemon carries on.
+    let call = app.request("_x/acme/slow", json!({})).await;
+    extension
+        .until(|message| message["method"] == "_x/acme/slow")
+        .await;
+    drop(extension);
+    let failed = app.until(|message| message["id"] == json!(call)).await;
+    assert!(
+        failed["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("went away")
+    );
+    let gone = app.call("_x/acme/slow", json!({})).await;
+    assert_eq!(gone["error"]["code"], json!(-32601));
+    server.shutdown().await;
 }

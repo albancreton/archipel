@@ -20,6 +20,10 @@
 //! time an app opens it: the adapter replays its history, which becomes the session's log.
 //!
 //! What an app may do depends on its scope: `observe` reads, `interact` also acts.
+//!
+//! An *extension* is a connection that registered a namespace. It adds updates of its own kinds
+//! (`x.<namespace>.…`) to sessions and serves its own methods (`_x/<namespace>/…`). The daemon
+//! stores and carries both without knowing what they mean.
 
 use crate::wire;
 use bridge_agents::{AgentSpec, initialize_params};
@@ -95,6 +99,11 @@ pub(crate) struct Daemon {
     next_list: u64,
     /// Sessions untouched for longer than this many milliseconds are removed from the log.
     retention: Option<u64>,
+    /// Registered extensions: namespace to the connection that serves it.
+    extensions: HashMap<String, u64>,
+    /// Requests passed to an extension: our id to the extension, the asking app and its id.
+    extension_calls: HashMap<String, (u64, u64, Value)>,
+    next_extension_call: u64,
 }
 
 /// A session only the harness knows, as its adapter listed it.
@@ -243,6 +252,9 @@ impl Daemon {
             lists: HashMap::new(),
             next_list: 0,
             retention,
+            extensions: HashMap::new(),
+            extension_calls: HashMap::new(),
+            next_extension_call: 0,
         }
     }
 
@@ -301,6 +313,19 @@ impl Daemon {
         self.clients.remove(&client);
         for session in self.sessions.values_mut() {
             session.subscribers.remove(&client);
+        }
+        // If it was an extension, its namespace is free again and what waited on it fails.
+        self.extensions.retain(|_, serving| *serving != client);
+        let orphaned: Vec<String> = self
+            .extension_calls
+            .iter()
+            .filter(|(_, (extension, _, _))| *extension == client)
+            .map(|(id, _)| id.clone())
+            .collect();
+        for call in orphaned {
+            if let Some((_, asker, id)) = self.extension_calls.remove(&call) {
+                self.refuse(asker, &id, wire::INTERNAL_ERROR, "the extension went away");
+            }
         }
     }
 
@@ -388,6 +413,9 @@ impl Daemon {
                 self.reply(client, &id, json!({}));
             }
             "session/resume" => self.resume_for_client(client, &id, &message),
+            ext::METHOD_EXTENSION_REGISTER => self.register_extension(client, &id, &params),
+            ext::METHOD_SESSION_APPEND => self.append(client, &id, &message),
+            _ if method.starts_with("_x/") => self.call_extension(client, method, id, params),
             "session/new" => self.new_session(client, id, &message),
             _ => match text(&params, "/sessionId").map(str::to_owned) {
                 Some(session_id) => self.forward(client, id, &session_id, message),
@@ -421,6 +449,7 @@ impl Daemon {
                     ext::NOTIFICATION_SESSIONS_UPDATED,
                 ],
                 "scope": self.scope(client),
+                "namespaces": self.extensions.keys().collect::<Vec<_>>(),
                 "agent": agent.and_then(|result| result.get("info")),
             }},
         })
@@ -962,11 +991,127 @@ impl Daemon {
         }
     }
 
+    /// An extension says who it is.
+    fn register_extension(&mut self, client: u64, id: &Value, params: &Value) {
+        if !self.allowed(client, id, Scope::Extend) {
+            return;
+        }
+        let namespace = text(params, "/namespace").unwrap_or_default();
+        let well_formed = !namespace.is_empty()
+            && namespace
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+        if !well_formed {
+            return self.refuse(
+                client,
+                id,
+                wire::INVALID_PARAMS,
+                "a namespace is lower-case letters, digits and `-`",
+            );
+        }
+        if self
+            .extensions
+            .get(namespace)
+            .is_some_and(|serving| *serving != client)
+        {
+            return self.refuse(
+                client,
+                id,
+                wire::INVALID_PARAMS,
+                "another connection serves this namespace",
+            );
+        }
+        self.extensions.insert(namespace.to_owned(), client);
+        self.reply(client, id, json!({}));
+    }
+
+    /// An extension adds an update of its own kind to a session.
+    fn append(&mut self, client: u64, id: &Value, message: &Value) {
+        if !self.allowed(client, id, Scope::Extend) {
+            return;
+        }
+        let params = message.get("params").cloned().unwrap_or(Value::Null);
+        let Ok(request) = serde_json::from_value::<ext::AppendRequest>(params) else {
+            return self.refuse(
+                client,
+                id,
+                wire::INVALID_PARAMS,
+                "expected a sessionId and an update",
+            );
+        };
+        let kind = text(&request.update, "/sessionUpdate").unwrap_or_default();
+        let own = self.extensions.iter().any(|(namespace, serving)| {
+            *serving == client
+                && kind
+                    .strip_prefix("x.")
+                    .and_then(|rest| rest.strip_prefix(namespace.as_str()))
+                    .is_some_and(|rest| rest.starts_with('.'))
+        });
+        if !own {
+            return self.refuse(
+                client,
+                id,
+                wire::INVALID_PARAMS,
+                "the update's kind must start with `x.<your namespace>.`",
+            );
+        }
+        let Some(root) = self.open(client, id, &request.session_id, message) else {
+            return;
+        };
+        let mut update = request.update;
+        let mut mark = json!({"origin": "extension"});
+        if let Some(state) = request.state {
+            mark["state"] = json!(state);
+        }
+        if !update["_meta"].is_object() {
+            update["_meta"] = json!({});
+        }
+        update["_meta"][ext::META_KEY] = mark;
+        match self.log(&root, &request.session_id, Record::Update { update }) {
+            Some(entry) => self.reply(client, id, json!(ext::AppendResponse { seq: entry.seq })),
+            None => self.refuse(
+                client,
+                id,
+                wire::INTERNAL_ERROR,
+                "the update could not be stored",
+            ),
+        }
+    }
+
+    /// An app calls a method of an extension. The daemon only carries it there and back.
+    fn call_extension(&mut self, client: u64, method: &str, id: Value, params: Value) {
+        let namespace = method.split('/').nth(1).unwrap_or_default();
+        let Some(&extension) = self.extensions.get(namespace) else {
+            return self.refuse(
+                client,
+                &id,
+                wire::METHOD_NOT_FOUND,
+                "no extension serves this method",
+            );
+        };
+        self.next_extension_call += 1;
+        let call = format!("ext-{}", self.next_extension_call);
+        self.extension_calls
+            .insert(call.clone(), (extension, client, id));
+        self.send(extension, wire::request(call.as_str(), method, params));
+    }
+
     /// An app answers an approval or a question. Only the first answer counts.
     fn client_answer(&mut self, client: u64, id: &Value, message: &Value) {
         let Some(request_id) = id.as_str() else {
             return;
         };
+        // An extension answering a call that was passed to it.
+        if self
+            .extension_calls
+            .get(request_id)
+            .is_some_and(|(extension, _, _)| *extension == client)
+        {
+            if let Some((_, asker, their_id)) = self.extension_calls.remove(request_id) {
+                self.send(asker, wire::relay(&their_id, message));
+            }
+            return;
+        }
         let Some(root) = self.requests.get(request_id).cloned() else {
             return; // Unknown, or somebody else answered first.
         };

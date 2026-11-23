@@ -15,6 +15,59 @@ pub const METHOD_SESSION_ATTACH: &str = "_bridge/session/attach";
 pub const METHOD_SESSION_DETACH: &str = "_bridge/session/detach";
 pub const NOTIFICATION_REQUEST_RESOLVED: &str = "_bridge/request/resolved";
 pub const NOTIFICATION_SESSIONS_UPDATED: &str = "_bridge/sessions/updated";
+pub const METHOD_EXTENSION_REGISTER: &str = "_bridge/extension/register";
+pub const METHOD_SESSION_APPEND: &str = "_bridge/session/append";
+
+/// `_bridge/extension/register` request: this connection is the extension `namespace`.
+///
+/// From then on it may add updates whose kind starts with `x.<namespace>.` to sessions, and
+/// the daemon passes it every request whose method starts with `_x/<namespace>/`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisterExtensionRequest {
+    /// Lower-case letters, digits and `-`.
+    pub namespace: String,
+}
+
+/// `_bridge/session/append` request: add an update of the extension's own kind to a session.
+/// It is numbered, stored, replayed and sent to every attached app like any other update.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AppendRequest {
+    pub session_id: String,
+    /// The update body. Its `sessionUpdate` must start with `x.<namespace>.`.
+    pub update: Value,
+    /// How the update changes what clients hold. Without it the update is kept as an event
+    /// that clients do not place among the items.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<ItemRule>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AppendResponse {
+    /// The sequence number the update got.
+    pub seq: u64,
+}
+
+/// How an extension's update changes client state: an ACP state rule whose target is the
+/// update's own kind. The daemon stores it in the update under `_meta.bridge.state`, so every
+/// client can apply it without knowing the extension.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemRule {
+    /// `append`, `upsert`, `replace` or `remove`.
+    pub action: String,
+    /// Dotted path of the item's id in the update, such as `checkpointId`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// The field of the item that is changed. Absent means the whole item.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
+    /// Dotted path of the new data in the update. Absent means the whole update.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+}
 
 /// What a connected app may do. Each level includes the ones before it.
 #[derive(
@@ -26,6 +79,8 @@ pub enum Scope {
     Observe,
     /// Also create sessions, prompt, cancel, answer, change settings.
     Interact,
+    /// Also act as an extension: register a namespace, add items to sessions, serve methods.
+    Extend,
     /// Also manage the daemon. Nothing needs this yet.
     Admin,
 }
@@ -232,4 +287,7 @@ pub struct BridgeExtensions {
     pub request_resolved_notification: RequestResolvedNotification,
     pub sessions_updated_notification: SessionsUpdatedNotification,
     pub scope: Scope,
+    pub register_extension_request: RegisterExtensionRequest,
+    pub append_request: AppendRequest,
+    pub append_response: AppendResponse,
 }
