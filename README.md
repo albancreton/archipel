@@ -28,6 +28,7 @@ Status: research and design. The repository layout is scaffolded; the crates are
 | `docs/research/07` | The content types to render; protocol and prior-art summary |
 | `docs/research/08` | Raw web research on protocols, prior art, transport (with an unverified list) |
 | `docs/research/09`, `10` | Claude and Pi driven live through their ACP adapters |
+| `docs/research/11` | Milestone 0: the unknowns closed, ACP v2 tried, the Rust crate checked |
 | `spikes/` | The scripts and raw logs behind 05, 06, 09, 10. See `spikes/README.md` |
 | `data/t3-claude-commits-30d.txt` | The 230 Claude-related T3 commits analysed in 03 |
 

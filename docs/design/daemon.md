@@ -1,6 +1,6 @@
 # Daemon design
 
-Draft 3, 2026-11-22. "bridge" stands for the project's temporary name. Items marked **to verify** have not been tested; everything else rests on the runs in `docs/research/09` and `10`.
+Draft 4, 2026-11-22, after milestone 0 (`docs/research/11`). "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
 
 ## 1. What the daemon is for
 
@@ -73,6 +73,18 @@ Extensions by other products use their own namespace (section 11).
 
 `session/new`, `session/prompt`, `session/cancel`, `session/set_mode`, `session/set_config_option`, `session/request_permission` and `elicitation/create` pass through with ACP semantics.
 
+### What milestone 0 changed
+
+ACP v2, which the Claude adapter already serves in preview, provides much of what this section adds on top of v1: `session/prompt` returns at once and `state_update` carries the turn state (`running`, `requires_action`, `idle`) and the background work; chunks carry a `messageId`; `session/resume` replays history and ends with `replay_complete`; command output streams as `terminal_output_chunk`.
+
+**Recommended, pending your decision (section 16):** make v2 shapes the canonical form. Apps receive ACP v2 plus the extensions; Claude is driven over v2 nearly as-is; Pi's v1 stream is translated up. With that:
+
+- `_bridge/session/state` is replaced by v2's `state_update`.
+- `_meta.bridge.itemId` is needed only where v2 has no id (it has `messageId` and `toolCallId`).
+- The extensions that remain are the ones v2 lacks: attach and detach, sequence numbers for catching up without a full replay, session and agent lists across adapters, request resolution across several apps.
+
+The text below still describes the v1-based plan and will be rewritten once the base is decided.
+
 ### One difference from plain ACP
 
 In ACP v1, `session/prompt` returns when the turn ends. The tests showed that updates keep coming after that (a subagent finishing, a background command waking the agent). Apps must therefore take turn state from `_bridge/session/state`, not from the prompt response. This matches where ACP v2 is going (`state_update`), which should make a later move to v2 mechanical.
@@ -84,7 +96,7 @@ Every canonical event gets a per-session sequence number and is appended to the 
 - **Attach with no `afterSeq`:** the daemon sends a snapshot (section 5) and its sequence number, then live events.
 - **Attach with `afterSeq`:** the daemon sends the events after it. If the gap is larger than a threshold, it sends a snapshot instead and says so.
 - **Coalescing:** consecutive text chunks for the same item are merged in storage, so replay cost grows with content, not with token count.
-- **Storage:** one SQLite file, one row per event, indexed by session and sequence. The log is a cache: the harness still owns the transcript of record, and a lost log can be rebuilt with `session/load`. **To verify:** how faithfully each adapter's `session/load` replays, including subagents.
+- **Storage:** one SQLite file, one row per event, indexed by session and sequence. The log is a cache: the harness still owns the transcript of record, and a lost log can be rebuilt with `session/load`. Tested: Claude replays everything including subagent child sessions; Pi replays messages and tools but not reasoning.
 - **Retention:** configurable by age and size; pruned sessions remain listed if the harness still has them.
 
 SQLite revises the earlier "no database" note. That note was about not owning a domain model like T3's orchestrator; a replay log needs ordered reads, an index and crash safety, which is what SQLite is for. Append-only files per session are the fallback if a dependency-free daemon matters more.
@@ -124,10 +136,10 @@ One profile per adapter. Each entry is a difference seen in testing.
 |---|---|---|---|
 | Command output while running | Only at completion | `terminal_output` meta, incremental | Incremental output on the tool item. For Claude: accept end-only at first; later consider tailing the task output file as T3 does |
 | Subagents | Child session | One tool call, details in `rawOutput` | Child session. For Pi: show the tool call at first; unpack later if the raw shape is stable |
-| Background work | Wake-up text after the turn; task items only behind the JetBrains AIR extension | Not tested | Background count in session state. **To verify:** declare the AIR `asyncTasks` capability and map it |
+| Background work | Wake-up text after the turn; task items only behind the JetBrains AIR extension | Not tested | Background count in session state. Tested: declaring the AIR capabilities yields `async_task_*` updates on v1; v2 reports background terminals in `state_update` |
 | Message while busy | Steering, advertised in `_meta` | Queue; announced as assistant text, depth in `_meta.piAcp` | Explicit queued/steered state on the user message; drop the announcement text |
-| Reasoning | None seen | Thought chunks | Reasoning item. **To verify:** which setting makes Claude emit summaries (T3 sets `showThinkingSummaries`) |
-| Todos | Mapped to plan entries (not reproduced) | None | Todo list item |
+| Reasoning | None seen | Thought chunks | Reasoning item. Tested: set `CLAUDE_CODE_THINKING_DISPLAY=summarized` or pass `thinking` options in `_meta.claudeCode.options` |
+| Todos | Mapped to plan entries by the adapter; untestable here because this Claude Code install has no todo tool | None | Todo list item |
 | Startup banner | None | Assistant message at session start | Dropped (or set `quietStartup`) |
 | MCP tool calls | `claudeCode.toolName` in meta | Title is the tool name, kind `other` | Tool item with server and tool name |
 | Auth status | `auth/status_update` with account details | Error on `session/new` | Agent readiness in `_bridge/agents/list`; account details not logged |
@@ -142,12 +154,12 @@ Unknown updates and `_meta` keys pass through untouched, so a client can use som
 - Every attached app receives every event.
 - Any app with the right scope may prompt, cancel, or answer.
 - A pending approval or question is shown to all; the first answer wins and the others receive `_bridge/request/resolved`.
-- A pending request survives all apps disconnecting. It is in the snapshot when one returns. **To verify:** how long each adapter waits before timing out a permission request.
+- A pending request survives all apps disconnecting. It is in the snapshot when one returns. Tested on Claude: still valid after 150 seconds, no timeout seen.
 - Prompts are serialised per session by the daemon, then handed to the adapter, which queues or steers.
 
 ## 8. Adapter processes
 
-- One adapter process per agent kind per working set, reused across sessions where the adapter allows it. **To verify:** multiple concurrent sessions per `claude-agent-acp` and `pi-acp` process.
+- Whether sessions share an adapter process is a profile setting. Tested: Claude's adapter hosts several concurrent sessions; Pi's keeps one session per process and silently drops the others, so Pi gets one process per session.
 - Adapters are pinned by version in the daemon's manifest and updated deliberately; the ACP registry is the catalogue for accessory agents.
 - If an adapter dies: sessions go to `error` with a notice item; the next prompt restarts the adapter and resumes with `session/resume` or `session/load`.
 - If the daemon restarts: sessions are listed from the log; adapters are started on first attach or prompt.
@@ -234,7 +246,7 @@ A correction to draft 1: it is not true that every setup already needs Node. Pi 
 
 Adding a harness means: an ACP adapter (any language, its own process) and a profile in `bridge-agents`. A profile is mostly data (how to start the adapter, which capabilities to declare) plus the normalising rules for that adapter.
 
-Likely building blocks, to confirm in milestone 0: the official ACP Rust crate for protocol types and the client role, tokio, serde, rusqlite. **To verify:** that the ACP crate covers the newer parts used here (subagents, elicitation, compaction) and v2.
+Likely building blocks, to confirm in milestone 0: the official ACP Rust crate for protocol types and the client role, tokio, serde, rusqlite. Checked: `agent-client-protocol` 5.5.1 has Client, Agent and Proxy roles, the newer update kinds, and v2 behind `unstable_protocol_v2`; a test crate compiled. **To verify:** that update kinds unknown to the crate (such as the AIR `async_task_*` ones) pass through instead of failing to parse.
 
 ### Client side
 
@@ -286,7 +298,7 @@ Two rules:
 
 ## 15. Milestones
 
-0. **Close the unknowns.** The "to verify" items, one run of ACP v2 against the Claude adapter, and a check of the ACP Rust crate.
+0. **Close the unknowns.** Done; see `docs/research/11`.
 1. **Schema and core.** The extension schema, generated types, the reducer, and reducer vectors from the recorded logs. No network yet.
 2. **Single-session daemon.** Local socket and WebSocket, one adapter, log, attach with replay. A command-line client prints a live session and survives a reconnect.
 3. **Several apps.** Fan-out, request broker, scopes, session state.
@@ -298,7 +310,7 @@ Two rules:
 ## 16. Open decisions
 
 1. **Log storage:** SQLite (recommended) or append-only files.
-2. **ACP v1 or v2 as the base:** v1 is stable; v2 is in preview since 2026-11-20 and already covers state and prompting during work. Recommended: build on v1, shape the internals like v2, decide after milestone 0.
+2. **ACP v1 or v2 as the base.** Milestone 0 showed v2 covers turn state, ids, replay, command output and background work on Claude. Recommended now: v2 shapes as the canonical form, with Pi's v1 translated up. The cost is tracking a preview that will change; the alternative is building on v1 what v2 already has.
 3. **How far to go for Pi subagents and Claude command output** in the first version, or accept the adapters' current behaviour.
 4. **Name.** "harness-bridge" is temporary; the copyright line in `LICENSE-MIT` follows it.
 

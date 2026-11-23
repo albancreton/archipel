@@ -11,6 +11,8 @@ A raw ACP client (newline-delimited JSON-RPC over stdio, no SDK) that drives an 
 - `runpi.sh`: runs Pi scenarios with the shell profile loaded and a chosen model (`PROBE_MODEL`).
 - `logs/`: one `.ndjson` per run, every inbound and outbound message with a timestamp. Email addresses were replaced with `user@example.com`. These are the first recorded transcripts for a replay test suite.
 
+- `m0.mjs`: the milestone 0 probes (`multi`, `load`, `permwait`, `bg`, `think`, `todo`, `picompact`, `v2`, `v2b`); `m0pi.sh` runs one for Pi. Logs are `logs/m0-*.ndjson`.
+
 Setup: `npm install` here (installs `@agentclientprotocol/claude-agent-acp` and `pi-acp`), create a `work/` directory with a small `package.json` and `tsconfig.json`. Claude runs use `ANTHROPIC_MODEL=haiku` and `CLAUDE_CODE_EXECUTABLE` pointing at the installed `claude`. Live runs cost money or tokens.
 
 Known quirk: without `PROBE_MODEL`, a Pi session uses Pi's default model.
