@@ -34,7 +34,12 @@ export class Daemon {
     this.home = path.join(root, "target/conformance", agent.daemon.id);
     rmSync(this.home, { recursive: true, force: true });
     mkdirSync(this.home, { recursive: true });
-    writeFileSync(path.join(this.home, "config.json"), JSON.stringify({ agents: [agent.daemon] }));
+    this.configure({});
+  }
+
+  /** Writes the config. `addons` switches addons on or off; it applies from the next start. */
+  configure(addons: Record<string, boolean>): void {
+    writeFileSync(path.join(this.home, "config.json"), JSON.stringify({ agents: [this.agent.daemon], addons }));
   }
 
   async start(): Promise<void> {
@@ -212,10 +217,14 @@ export class Run {
     return session;
   }
 
-  /** Stops the daemon and starts it again: every session loses its process. */
-  async restartDaemon(): Promise<void> {
+  /**
+   * Stops the daemon and starts it again: every session loses its process. `addons` switches
+   * addons on or off for the new daemon; without it they are as shipped.
+   */
+  async restartDaemon(addons: Record<string, boolean> = {}): Promise<void> {
     for (const client of this.clients.splice(0)) client.close();
     await this.daemon.stop();
+    this.daemon.configure(addons);
     await this.daemon.start();
   }
 

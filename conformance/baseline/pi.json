@@ -27,10 +27,53 @@
     "effortChangeShows": true
   },
   "settings.rejects_unknown": {
-    "unknownEffort": "ok",
-    "unknownSetting": "error -32602"
+    "unknownEffort": "error -32602",
+    "unknownSetting": "error -32602",
+    "unknownEffortUnaided": "ok"
   },
   "reopen.keeps_settings": {
+    "untouched": {
+      "chosen": {},
+      "shownBefore": {
+        "model": "local/Qwen3.8-27B-BF16-DFLASH2",
+        "thought_level": "medium"
+      },
+      "shownAfterRestart": {
+        "model": "local/Qwen3.8-27B-BF16-DFLASH2",
+        "thought_level": "medium"
+      },
+      "shownAfterWake": {
+        "model": "local/Qwen3.8-27B-BF16-DFLASH2",
+        "thought_level": "medium"
+      },
+      "kept": {},
+      "modelUsedBefore": null,
+      "modelUsedAfter": null
+    },
+    "effortAndMode": {
+      "chosen": {
+        "thought_level": "low"
+      },
+      "shownBefore": {
+        "model": "local/Qwen3.8-27B-BF16-DFLASH2",
+        "thought_level": "low"
+      },
+      "shownAfterRestart": {
+        "model": "local/Qwen3.8-27B-BF16-DFLASH2",
+        "thought_level": "low"
+      },
+      "shownAfterWake": {
+        "model": "local/Qwen3.8-27B-BF16-DFLASH2",
+        "thought_level": "low"
+      },
+      "kept": {
+        "thought_level": true
+      },
+      "modelUsedBefore": null,
+      "modelUsedAfter": null
+    }
+  },
+  "reopen.keeps_settings.unaided": {
     "untouched": {
       "chosen": {},
       "shownBefore": {

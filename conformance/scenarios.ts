@@ -24,6 +24,59 @@ const attempt = async (work: Promise<unknown>): Promise<string> => work.then(() 
 const another = (values: string[], now: Json, preferred: string): string | undefined =>
   values.includes(preferred) && now !== preferred ? preferred : values.find((value) => value !== now);
 
+/**
+ * Sets a model, an effort and a mode, restarts the daemon and looks at what the sessions
+ * continue with. `addons` switches addons for the restarted daemon.
+ */
+async function reopen(t: Run, shared: Map<string, unknown>, addons: Record<string, boolean>): Promise<void> {
+    const app = await t.app();
+    // Three sessions, so that each choice is judged alone. `untouched` tells "the choice is
+    // lost" from "the default is lost too". Plan mode is left out: it can change the model.
+    const sessions = { untouched: await t.session(app), model: await t.session(app), effortAndMode: await t.session(app) };
+    const chosen: Record<keyof typeof sessions, Record<string, string>> = { untouched: {}, model: {}, effortAndMode: {} };
+    const choose = async (label: keyof typeof sessions, id: string, value: string) => {
+      await sessions[label].setConfigOption(id, value);
+      chosen[label][id] = value;
+    };
+    if (t.agent.otherCheapModel && settingOf(sessions.model, "model")?.values.includes(t.agent.otherCheapModel)) {
+      await choose("model", "model", t.agent.otherCheapModel);
+    }
+    const effort = settingOf(sessions.effortAndMode, "thought_level");
+    if (effort) await choose("effortAndMode", effort.id, another(effort.values, effort.current, "low")!);
+    const mode = settingOf(sessions.effortAndMode, "mode");
+    if (mode?.values.includes("acceptEdits")) await choose("effortAndMode", mode.id, "acceptEdits");
+
+    const ids = [...settings(sessions.untouched).values()].filter((setting) => setting.type === "select").map((setting) => setting.id);
+    const snapshot = (of: Session) => Object.fromEntries(ids.map((id) => [id, current(of, id)]));
+    const labels = (Object.keys(sessions) as (keyof typeof sessions)[]).filter((label) => label === "untouched" || Object.keys(chosen[label]).length > 0);
+    const before: Record<string, { shown: Json; used: Json }> = {};
+    for (const label of labels) {
+      const first = await turn(sessions[label], OK);
+      before[label] = { shown: snapshot(sessions[label]), used: first.model };
+      t.must(`the ${label} session shows its choices`, Object.entries(chosen[label]).every(([id, value]) => current(sessions[label], id) === value));
+    }
+
+    await t.restartDaemon(addons);
+    const reopened = await t.app();
+    for (const label of labels) {
+      const again = await reopened.session(sessions[label].id);
+      const shownAfterRestart = snapshot(again);
+      const second = await turn(again, OK);
+      t.fact(label, {
+        chosen: chosen[label],
+        shownBefore: before[label]!.shown,
+        shownAfterRestart,
+        shownAfterWake: snapshot(again),
+        kept: Object.fromEntries(Object.entries(chosen[label]).map(([id, value]) => [id, current(again, id) === value])),
+        modelUsedBefore: before[label]!.used,
+        modelUsedAfter: second.model,
+      });
+      t.info(`${label}FirstTurnAfterReopenMs`, second.ms);
+      t.must(`the ${label} session answers after the restart`, count(again, "agentMessage") >= 2);
+    }
+    shared.set("reopened", { sessionId: sessions.effortAndMode.id, chosen: chosen.effortAndMode });
+}
+
 export const scenarios: Scenario[] = [
   {
     name: "settings.listed",
@@ -91,6 +144,17 @@ export const scenarios: Scenario[] = [
         t.fact("modeAfterwards", current(session, mode.id) === mode.current ? "unchanged" : current(session, mode.id));
       }
       t.fact("unknownSetting", await attempt(session.setConfigOption("no-such-setting", "x")));
+      // The harness by itself, without the addon `pi.check-setting-values`. When this starts
+      // to be an error for Pi, the addon can go.
+      if (effort) {
+        try {
+          await t.restartDaemon({ "pi.check-setting-values": false });
+          const unaided = await t.session(await t.app());
+          t.fact("unknownEffortUnaided", await attempt(unaided.setConfigOption(effort.id, "no-such-value")));
+        } finally {
+          await t.restartDaemon();
+        }
+      }
     },
   },
   {
@@ -98,53 +162,19 @@ export const scenarios: Scenario[] = [
     about: "After the daemon restarts, does a session continue with the model, effort and mode the user chose?",
     agents: ["claude", "pi"],
     cost: "turn",
+    run: (t, shared) => reopen(t, shared, {}),
+  },
+  {
+    name: "reopen.keeps_settings.unaided",
+    about: "The same without the addon `acp.restore-settings`: what the harness does by itself. When this starts to keep the settings, the addon can go.",
+    agents: ["claude", "pi"],
+    cost: "turn",
     async run(t, shared) {
-      const app = await t.app();
-      // Three sessions, so that each choice is judged alone. `untouched` tells "the choice is
-      // lost" from "the default is lost too". Plan mode is left out: it can change the model.
-      const sessions = { untouched: await t.session(app), model: await t.session(app), effortAndMode: await t.session(app) };
-      const chosen: Record<keyof typeof sessions, Record<string, string>> = { untouched: {}, model: {}, effortAndMode: {} };
-      const choose = async (label: keyof typeof sessions, id: string, value: string) => {
-        await sessions[label].setConfigOption(id, value);
-        chosen[label][id] = value;
-      };
-      if (t.agent.otherCheapModel && settingOf(sessions.model, "model")?.values.includes(t.agent.otherCheapModel)) {
-        await choose("model", "model", t.agent.otherCheapModel);
+      try {
+        await reopen(t, new Map(shared), { "acp.restore-settings": false });
+      } finally {
+        await t.restartDaemon();
       }
-      const effort = settingOf(sessions.effortAndMode, "thought_level");
-      if (effort) await choose("effortAndMode", effort.id, another(effort.values, effort.current, "low")!);
-      const mode = settingOf(sessions.effortAndMode, "mode");
-      if (mode?.values.includes("acceptEdits")) await choose("effortAndMode", mode.id, "acceptEdits");
-
-      const ids = [...settings(sessions.untouched).values()].filter((setting) => setting.type === "select").map((setting) => setting.id);
-      const snapshot = (of: Session) => Object.fromEntries(ids.map((id) => [id, current(of, id)]));
-      const labels = (Object.keys(sessions) as (keyof typeof sessions)[]).filter((label) => label === "untouched" || Object.keys(chosen[label]).length > 0);
-      const before: Record<string, { shown: Json; used: Json }> = {};
-      for (const label of labels) {
-        const first = await turn(sessions[label], OK);
-        before[label] = { shown: snapshot(sessions[label]), used: first.model };
-        t.must(`the ${label} session shows its choices`, Object.entries(chosen[label]).every(([id, value]) => current(sessions[label], id) === value));
-      }
-
-      await t.restartDaemon();
-      const reopened = await t.app();
-      for (const label of labels) {
-        const again = await reopened.session(sessions[label].id);
-        const shownAfterRestart = snapshot(again);
-        const second = await turn(again, OK);
-        t.fact(label, {
-          chosen: chosen[label],
-          shownBefore: before[label]!.shown,
-          shownAfterRestart,
-          shownAfterWake: snapshot(again),
-          kept: Object.fromEntries(Object.entries(chosen[label]).map(([id, value]) => [id, current(again, id) === value])),
-          modelUsedBefore: before[label]!.used,
-          modelUsedAfter: second.model,
-        });
-        t.info(`${label}FirstTurnAfterReopenMs`, second.ms);
-        t.must(`the ${label} session answers after the restart`, count(again, "agentMessage") >= 2);
-      }
-      shared.set("reopened", { sessionId: sessions.effortAndMode.id, chosen: chosen.effortAndMode });
     },
   },
   {

@@ -74,9 +74,85 @@
     "unknownEffort": "error -32602",
     "modeDontAsk": "error -32602",
     "modeAfterwards": "unchanged",
-    "unknownSetting": "error -32602"
+    "unknownSetting": "error -32602",
+    "unknownEffortUnaided": "error -32602"
   },
   "reopen.keeps_settings": {
+    "untouched": {
+      "chosen": {},
+      "shownBefore": {
+        "model": "haiku",
+        "effort": "default",
+        "mode": "auto"
+      },
+      "shownAfterRestart": {
+        "model": "haiku",
+        "effort": "default",
+        "mode": "auto"
+      },
+      "shownAfterWake": {
+        "model": "haiku",
+        "effort": "default",
+        "mode": "auto"
+      },
+      "kept": {},
+      "modelUsedBefore": "claude-haiku-5-5",
+      "modelUsedAfter": "claude-haiku-5-5"
+    },
+    "model": {
+      "chosen": {
+        "model": "claude-haiku-4-5-20251001"
+      },
+      "shownBefore": {
+        "model": "claude-haiku-4-5-20251001",
+        "effort": null,
+        "mode": "acceptEdits"
+      },
+      "shownAfterRestart": {
+        "model": "claude-haiku-4-5-20251001",
+        "effort": null,
+        "mode": "acceptEdits"
+      },
+      "shownAfterWake": {
+        "model": "claude-haiku-4-5-20251001",
+        "effort": null,
+        "mode": "acceptEdits"
+      },
+      "kept": {
+        "model": true
+      },
+      "modelUsedBefore": "claude-haiku-4-5-20251001",
+      "modelUsedAfter": "claude-haiku-4-5-20251001"
+    },
+    "effortAndMode": {
+      "chosen": {
+        "effort": "low",
+        "mode": "acceptEdits"
+      },
+      "shownBefore": {
+        "model": "haiku",
+        "effort": "low",
+        "mode": "acceptEdits"
+      },
+      "shownAfterRestart": {
+        "model": "haiku",
+        "effort": "low",
+        "mode": "acceptEdits"
+      },
+      "shownAfterWake": {
+        "model": "haiku",
+        "effort": "low",
+        "mode": "acceptEdits"
+      },
+      "kept": {
+        "effort": true,
+        "mode": true
+      },
+      "modelUsedBefore": "claude-haiku-5-5",
+      "modelUsedAfter": "claude-haiku-5-5"
+    }
+  },
+  "reopen.keeps_settings.unaided": {
     "untouched": {
       "chosen": {},
       "shownBefore": {
@@ -176,7 +252,7 @@
     "goneFromTheList": true,
     "renameThroughTheDaemon": "ok",
     "deleteThroughTheDaemon": "ok",
-    "stillInTheDaemonsListAfterDelete": true
+    "stillInTheDaemonsListAfterDelete": false
   },
   "turn.interrupt": {
     "stopReason": "cancelled",

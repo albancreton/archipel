@@ -32,4 +32,6 @@ How it is built:
 - The run starts a daemon of its own in `target/conformance/<agent>` and works in `conformance/work/<agent>`. It does not touch any other daemon.
 - For Claude it deletes every session it made from Claude's own history at the end. Pi's adapter cannot delete: the sessions stay in Pi's folder for `conformance/work/pi`.
 
+Addons (`docs/design/addons.md`) run as shipped. A scenario that checks a fix also notes what the harness does with that addon switched off (`t.restartDaemon({ "<id>": false })`): `reopen.keeps_settings.unaided`, and the fact `unknownEffortUnaided`. When one of those shows `CHANGED` towards the right behaviour, upstream has repaired the fault and the addon can be deleted.
+
 Scenarios that talk to the adapter directly (`session.empty`, `session.options`, `session.rename_delete`) cover what the daemon does not pass on yet, and note what the daemon does with the same call today.
