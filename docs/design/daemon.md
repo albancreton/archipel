@@ -173,7 +173,7 @@ A second option for Pi is to drop `pi-acp` and have the daemon speak Pi's own RP
 
 - Whether sessions share an adapter process is a profile setting. Claude's adapter hosts several concurrent sessions (tested).
 - **Pi: one process per session.** Pi's RPC mode holds one conversation per `pi` process, and `pi-acp` starts one `pi` per session anyway. `pi-acp` additionally closes every other session when a new one is created, so today each session needs its own `pi-acp` plus its own `pi`. Measured on the test machine: one idle `pi --mode rpc` is about 680 MB across four processes, most of it the user's own extensions and MCP servers. Ways to reduce this, in order of effort:
-  1. Accept it for the first version, and stop idle Pi processes after a timeout; `session/load` brings a session back.
+  1. **Chosen for the first version (2026-11-22):** accept it, and stop idle Pi processes after a timeout. `session/load` brings a session back: tested, about 1.7 seconds, context intact (it is what Pi's `/resume` does). What the app shows comes from the daemon's log, which also keeps the reasoning that Pi's own replay drops. A session is stopped only when truly idle: no turn running, no pending request, no queued message, no background work.
   2. Remove the one-line `closeAllExcept` call in `pi-acp` (ideally upstream) so one `pi-acp` serves all sessions. This saves the adapter process, not the `pi` process.
   3. Write a Pi bridge in the daemon that speaks Pi's RPC protocol directly. No `pi-acp` at all, and it emits v2 natively, which removes the translation table in section 6. Still one `pi` per session. T3's Pi adapter and its recorded transcripts are the specification.
   4. Host several sessions in one Node process through Pi's SDK (`createAgentSession`). The only way to truly share a process, but it means maintaining a Node program that embeds Pi and loses the isolation between sessions. Not recommended.
@@ -327,7 +327,7 @@ Two rules:
 ## 16. Open decisions
 
 1. **Log storage:** SQLite (recommended) or append-only files.
-2. **Pi integration:** keep `pi-acp` and translate v1 up (first version), or write a direct Pi RPC bridge (section 8, option 3).
+2. **Pi integration, later:** whether to replace `pi-acp` with a direct Pi RPC bridge (section 8, option 3). The first version keeps `pi-acp`, one process per session, with idle sessions stopped and reloaded.
 3. **How far to go for Pi subagents and Claude command output** in the first version, or accept the adapters' current behaviour.
 4. **Name.** "harness-bridge" is temporary; the copyright line in `LICENSE-MIT` follows it.
 
