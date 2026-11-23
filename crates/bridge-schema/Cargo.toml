@@ -10,7 +10,7 @@ publish = false
 agent-client-protocol-schema = { version = "1.21.2", features = ["unstable", "unstable_protocol_v2"] }
 schemars = "1"
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = { version = "1.0.154", features = ["preserve_order"] }
+serde_json = { version = "1.0.154", features = ["preserve_order", "float_roundtrip"] }
 
 [lints]
 workspace = true

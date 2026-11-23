@@ -1,4 +1,5 @@
-//! Regenerates `schema/state-rules.json` and `schema/bridge.schema.json`. Run through `just gen`.
+//! Regenerates `schema/state-rules.json` (and the client SDKs' copies of it) and
+//! `schema/bridge.schema.json`. Run through `just gen`.
 
 use bridge_schema::{ext::BridgeExtensions, rules::RuleSet};
 use std::{fs, path::Path};
@@ -9,10 +10,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let acp: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(schema_dir.join("acp-v2.schema.json"))?)?;
     let rules = RuleSet::extract(&acp, "acp-v2.schema.json (x-state annotations)");
-    write(
-        &schema_dir.join("state-rules.json"),
-        &serde_json::to_value(&rules)?,
-    )?;
+    let rules = serde_json::to_value(&rules)?;
+    write(&schema_dir.join("state-rules.json"), &rules)?;
+    // The client SDKs carry their own copy, so each package is complete by itself.
+    for copy in [
+        "../../clients/ts/src/generated/state-rules.json",
+        "../../clients/swift/Sources/BridgeClient/Resources/state-rules.json",
+    ] {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(copy);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        write(&path, &rules)?;
+    }
 
     let mut ext = serde_json::to_value(schemars::schema_for!(BridgeExtensions))?;
     if let Some(root) = ext.as_object_mut() {

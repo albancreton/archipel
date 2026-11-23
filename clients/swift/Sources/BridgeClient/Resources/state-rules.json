@@ -1,0 +1,328 @@
+{
+  "source": "acp-v2.schema.json (x-state annotations)",
+  "updates": {
+    "agent_message": {
+      "session": [
+        {
+          "action": "upsert",
+          "target": "agentMessage",
+          "id": "messageId"
+        }
+      ]
+    },
+    "agent_message_chunk": {
+      "session": [
+        {
+          "action": "append",
+          "target": "agentMessage",
+          "id": "messageId",
+          "field": "content",
+          "value": "content"
+        }
+      ]
+    },
+    "agent_thought": {
+      "session": [
+        {
+          "action": "upsert",
+          "target": "agentThought",
+          "id": "messageId"
+        }
+      ]
+    },
+    "agent_thought_chunk": {
+      "session": [
+        {
+          "action": "append",
+          "target": "agentThought",
+          "id": "messageId",
+          "field": "content",
+          "value": "content"
+        }
+      ]
+    },
+    "available_commands_update": {
+      "session": [
+        {
+          "action": "replace",
+          "target": "availableCommands",
+          "value": "availableCommands"
+        }
+      ]
+    },
+    "compaction_summary_chunk": {
+      "session": [
+        {
+          "action": "append",
+          "target": "compaction",
+          "id": "compactionId",
+          "field": "summary",
+          "value": "content"
+        }
+      ]
+    },
+    "compaction_update": {
+      "session": [
+        {
+          "action": "upsert",
+          "target": "compaction",
+          "id": "compactionId"
+        }
+      ]
+    },
+    "config_option_update": {
+      "session": [
+        {
+          "action": "replace",
+          "target": "configOptions",
+          "value": "configOptions"
+        }
+      ]
+    },
+    "cursor_update": {
+      "session": [
+        {
+          "action": "upsert",
+          "target": "cursor",
+          "id": "cursorId"
+        }
+      ]
+    },
+    "notice": {},
+    "plan_removed": {
+      "session": [
+        {
+          "action": "remove",
+          "target": "plan",
+          "id": "planId"
+        }
+      ]
+    },
+    "plan_update": {
+      "session": [
+        {
+          "action": "replace",
+          "target": "plan",
+          "id": "plan.planId",
+          "value": "plan"
+        }
+      ]
+    },
+    "prompt_suggestions_update": {
+      "session": [
+        {
+          "action": "replace",
+          "target": "promptSuggestions",
+          "value": "suggestions"
+        }
+      ]
+    },
+    "replay_complete": {},
+    "session_info_update": {
+      "session": [
+        {
+          "action": "upsert",
+          "target": "sessionInfo"
+        }
+      ]
+    },
+    "session_message": {
+      "session": [
+        {
+          "action": "upsert",
+          "target": "sessionMessage",
+          "id": "messageId"
+        }
+      ]
+    },
+    "session_message_chunk": {
+      "session": [
+        {
+          "action": "append",
+          "target": "sessionMessage",
+          "id": "messageId",
+          "field": "content",
+          "value": "content"
+        }
+      ]
+    },
+    "state_update": {
+      "session": [
+        {
+          "action": "replace",
+          "target": "state"
+        }
+      ]
+    },
+    "subagent_update": {
+      "session": [
+        {
+          "action": "upsert",
+          "target": "subagent",
+          "id": "sessionId"
+        }
+      ]
+    },
+    "terminal_output_chunk": {
+      "session": [
+        {
+          "action": "append",
+          "target": "terminal",
+          "id": "terminalId",
+          "field": "output.data",
+          "value": "data"
+        }
+      ]
+    },
+    "terminal_update": {
+      "session": [
+        {
+          "action": "upsert",
+          "target": "terminal",
+          "id": "terminalId"
+        }
+      ]
+    },
+    "tool_call_content_chunk": {
+      "session": [
+        {
+          "action": "append",
+          "target": "toolCall",
+          "id": "toolCallId",
+          "field": "content",
+          "value": "content"
+        }
+      ]
+    },
+    "tool_call_update": {
+      "session": [
+        {
+          "action": "upsert",
+          "target": "toolCall",
+          "id": "toolCallId"
+        }
+      ]
+    },
+    "usage_update": {
+      "session": [
+        {
+          "action": "upsert",
+          "target": "usage"
+        }
+      ]
+    },
+    "user_message": {
+      "session": [
+        {
+          "action": "upsert",
+          "target": "userMessage",
+          "id": "messageId"
+        }
+      ]
+    },
+    "user_message_chunk": {
+      "session": [
+        {
+          "action": "append",
+          "target": "userMessage",
+          "id": "messageId",
+          "field": "content",
+          "value": "content"
+        }
+      ]
+    }
+  },
+  "requests": {
+    "session/request_permission": {
+      "session": [
+        {
+          "action": "upsert",
+          "target": "toolCall",
+          "id": "subject.toolCall.toolCallId",
+          "value": "subject.toolCall"
+        }
+      ]
+    }
+  },
+  "responses": {
+    "auth/status": {
+      "agent": [
+        {
+          "action": "replace",
+          "target": "authStatus"
+        }
+      ]
+    },
+    "session/fork": {
+      "session": [
+        {
+          "action": "replace",
+          "target": "configOptions",
+          "value": "configOptions"
+        },
+        {
+          "action": "replace",
+          "target": "availableCommands",
+          "value": "availableCommands"
+        }
+      ]
+    },
+    "session/new": {
+      "session": [
+        {
+          "action": "replace",
+          "target": "configOptions",
+          "value": "configOptions"
+        },
+        {
+          "action": "replace",
+          "target": "availableCommands",
+          "value": "availableCommands"
+        }
+      ]
+    },
+    "session/resume": {
+      "session": [
+        {
+          "action": "replace",
+          "target": "configOptions",
+          "value": "configOptions"
+        },
+        {
+          "action": "replace",
+          "target": "availableCommands",
+          "value": "availableCommands"
+        }
+      ]
+    },
+    "session/set_config_option": {
+      "session": [
+        {
+          "action": "replace",
+          "target": "configOptions",
+          "value": "configOptions"
+        }
+      ]
+    },
+    "session/set_title": {
+      "session": [
+        {
+          "action": "replace",
+          "target": "sessionInfo",
+          "field": "title",
+          "value": "title"
+        }
+      ]
+    }
+  },
+  "notifications": {
+    "auth/status_update": {
+      "agent": [
+        {
+          "action": "replace",
+          "target": "authStatus"
+        }
+      ]
+    }
+  }
+}

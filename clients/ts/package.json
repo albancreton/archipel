@@ -1,0 +1,22 @@
+{
+  "name": "@harness-bridge/client",
+  "version": "0.0.0",
+  "description": "Client SDK for the harness-bridge daemon: connection, session state, and the reducer that follows the ACP v2 state rules.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test test/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "json-schema-to-typescript": "^16.0.0",
+    "typescript": "^5.9.0"
+  }
+}

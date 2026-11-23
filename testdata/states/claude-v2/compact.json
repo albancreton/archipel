@@ -686,7 +686,7 @@
             "_claude/model": "claude-haiku-5-5"
           },
           "cost": {
-            "amount": 0.009103865,
+            "amount": 0.009103865000000001,
             "currency": "USD"
           }
         }

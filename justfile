@@ -3,9 +3,10 @@
 default:
     @just --list
 
-# Regenerate schema/state-rules.json and schema/bridge.schema.json.
+# Regenerate everything derived from the schema: the rules, the extension schema, client types.
 gen:
     cargo run -q -p bridge-schema --bin gen
+    cd clients/ts && node generate-types.mjs
 
 # Rewrite the expected renderings in testdata/vectors after a deliberate change. Review the diff.
 vectors:
@@ -23,10 +24,13 @@ demo scenario="approval_command":
 check:
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
+    pnpm -r check
 
-# Run all tests.
+# Run all tests: Rust, TypeScript, Swift.
 test:
     cargo test --workspace
+    pnpm -r test
+    swift test
 
 # Format the code.
 fmt:
