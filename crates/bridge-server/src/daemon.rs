@@ -803,6 +803,7 @@ impl Daemon {
             return;
         };
         let head = self.sessions[&root].record.head_seq;
+        let agent = self.sessions[&root].record.agent_id.clone();
         // A position beyond the log's end is from another log: start over.
         let after = request.after_seq.filter(|&seq| seq <= head);
         let catch_up = if after.is_some() {
@@ -815,7 +816,8 @@ impl Daemon {
             id,
             json!(ext::AttachSessionResponse {
                 catch_up,
-                head_seq: head
+                head_seq: head,
+                open_elsewhere: self.held_elsewhere(&agent, &root),
             }),
         );
         self.catch_up(client, &root, after);
@@ -959,28 +961,20 @@ impl Daemon {
                 .get(session_id)
                 .map(|known| (session_id.to_owned(), known.agent.clone())),
         };
-        if !self.share
-            && let Some((root, agent)) = holder
-            && let Some(other) = self.elsewhere(&agent, &root)
+        if let Some((root, agent)) = holder
+            && let Some(held) = self.held_elsewhere(&agent, &root)
         {
             let message = format!(
                 "this session is open in another process of the agent (pid {}{}); fork it to continue here",
-                other.pid,
-                other
-                    .status
+                held.pid,
+                held.status
                     .as_deref()
                     .map(|status| format!(", {status}"))
                     .unwrap_or_default()
             );
-            let data = json!(ext::OpenElsewhere {
-                session_id: root,
-                pid: other.pid,
-                status: other.status,
-                client: other.client,
-            });
             return self.send(
                 client,
-                wire::error_with(&id, ext::ERROR_OPEN_ELSEWHERE, &message, data),
+                wire::error_with(&id, ext::ERROR_OPEN_ELSEWHERE, &message, json!(held)),
             );
         }
         let Some(root) = self.open(client, &id, session_id, &message) else {
@@ -1014,6 +1008,20 @@ impl Daemon {
     /// Another process of the harness that has the session open, if the agent can tell.
     fn elsewhere(&self, agent: &str, session_id: &str) -> Option<bridge_agents::Elsewhere> {
         self.agents.get(agent)?.spec.launcher.elsewhere(session_id)
+    }
+
+    /// Who else has the session open, when that stops the daemon from acting on it.
+    fn held_elsewhere(&self, agent: &str, root: &str) -> Option<ext::OpenElsewhere> {
+        if self.share {
+            return None;
+        }
+        let other = self.elsewhere(agent, root)?;
+        Some(ext::OpenElsewhere {
+            session_id: root.to_owned(),
+            pid: other.pid,
+            status: other.status,
+            client: other.client,
+        })
     }
 
     /// Makes a copy of a session to continue with: a new session with the same history, which

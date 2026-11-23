@@ -49,3 +49,25 @@ Live check, with no model call: the daemon listed 116 sessions and marked two as
 Where the check comes from: each agent's profile may say who else has a session open. Claude's reads Claude Code's registry and ignores the processes the daemon's own adapter started. Pi's says nothing yet, so Pi sessions are never blocked; Pi was not probed, and its adapter has no fork.
 
 Still not covered: a second process that starts in the moment between the check and the prompt, and any harness without a registry.
+
+## The fork button in the chat views (2026-11-23)
+
+Asked by the user: "add the fork button to the React and SwiftUI chat views".
+
+What a chat shows when another process has its session open: a notice above the composer that says so and names the process, with a button "Fork and continue here". The button makes the copy and the app shows it in place of the original.
+
+![The React chat on a session open elsewhere](img/20-open-elsewhere-react.png)
+
+![The SwiftUI notice](img/20-open-elsewhere-swiftui.png)
+
+(The SwiftUI picture is drawn off screen, where the scroll area and the text field do not render.)
+
+Choices made:
+
+- **The chat knows before the user types.** The answer to `_bridge/session/attach` now carries `openElsewhere` (who has it), so the notice is there when the session opens. The SDK's session keeps it as `openElsewhere`, and updates it after every prompt: a refusal sets it, a prompt that goes through clears it.
+- **The composer stays usable.** The daemon does not announce when the other process closes the session, so a disabled composer could stay disabled for no reason. Instead the user may send again: if the other process is gone it works and the notice goes away.
+- **A refused message is not lost.** It goes back into the field, unless the user has typed something else since. Other refusals (for example a read-only connection) are now shown under the composer; before, they were dropped.
+- **The button is only drawn when the app can show the copy.** The app passes `onFork` (React: `useSession(session, { onFork })`; SwiftUI: `LiveChatView(session:onFork:)`) and receives the new session. Without it the notice only explains.
+- **A fork that fails says why** in the notice (Pi's adapter, for example, has no fork).
+
+Checked live in a headless browser against the real daemon and the Claude adapter, with no model call: the notice appeared on opening the session, a message was refused and came back into the field, and the button replaced the chat with "Codeword ALPHA memory test (fork)" and its history. The "other process" in this check was a stand-in: an entry in a scratch copy of Claude Code's registry that pointed at a sleeping process. A real second Claude terminal was tried first and stopped at Claude Code's "do you trust this folder?" question, which was not answered. The SwiftUI view was drawn by its test and built into the demo app; nobody clicked it.

@@ -344,6 +344,17 @@
           "type": "integer",
           "format": "uint64",
           "minimum": 0
+        },
+        "openElsewhere": {
+          "description": "Another process of the harness has the session open. It can be read, but the daemon\nrefuses to act on it; `session/fork` makes a copy to continue with.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpenElsewhere"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -363,6 +374,38 @@
           "type": "string",
           "const": "replay"
         }
+      ]
+    },
+    "OpenElsewhere": {
+      "description": "The `data` of an [`ERROR_OPEN_ELSEWHERE`] error: who has the session open.",
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "pid": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "status": {
+          "description": "What that process says it is doing, such as `busy` or `idle`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "client": {
+          "description": "How that process was started, such as `cli`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "sessionId",
+        "pid"
       ]
     },
     "DetachSessionRequest": {
@@ -539,38 +582,6 @@
       },
       "required": [
         "seq"
-      ]
-    },
-    "OpenElsewhere": {
-      "description": "The `data` of an [`ERROR_OPEN_ELSEWHERE`] error: who has the session open.",
-      "type": "object",
-      "properties": {
-        "sessionId": {
-          "type": "string"
-        },
-        "pid": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "status": {
-          "description": "What that process says it is doing, such as `busy` or `idle`.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "client": {
-          "description": "How that process was started, such as `cli`.",
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "sessionId",
-        "pid"
       ]
     }
   }

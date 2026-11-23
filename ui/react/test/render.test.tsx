@@ -70,3 +70,15 @@ test("an item of an unknown kind gets the fallback, or the component the app sup
   const html = renderToStaticMarkup(<ChatView conversation={conversation} components={{ "x.acme.checkpoint": Checkpoint }} />);
   assert.match(html, /<div class="checkpoint">after turn 1<\/div>/);
 });
+
+test("a session open elsewhere says so, and offers the fork only when the app can show the copy", () => {
+  const conversation = load("claude-v2/simple");
+  assert.doesNotMatch(renderToStaticMarkup(<ChatView conversation={conversation} />), /hb-elsewhere/);
+  const holder = { pid: 4242, status: "busy" };
+  const told = renderToStaticMarkup(<ChatView conversation={conversation} openElsewhere={holder} actions={{ prompt: () => {} }} />);
+  assert.match(told, /open in another window of the agent \(pid 4242, busy\)/);
+  assert.doesNotMatch(told, /Fork and continue here/);
+  assert.match(told, /<textarea/, "the composer stays: sending works again once the other window is closed");
+  const offered = renderToStaticMarkup(<ChatView conversation={conversation} openElsewhere={holder} actions={{ fork: () => {} }} />);
+  assert.match(offered, /<button type="button">Fork and continue here<\/button>/);
+});

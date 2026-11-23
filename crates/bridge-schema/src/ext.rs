@@ -250,6 +250,10 @@ pub struct AttachSessionResponse {
     pub catch_up: CatchUp,
     /// Sequence number of the newest update at the time of the response.
     pub head_seq: u64,
+    /// Another process of the harness has the session open. It can be read, but the daemon
+    /// refuses to act on it; `session/fork` makes a copy to continue with.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub open_elsewhere: Option<OpenElsewhere>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

@@ -11,9 +11,9 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ChatView, useSession } from "../src/index.ts";
 
-function Chat({ session }: { session: Session }) {
-  const { conversation, actions } = useSession(session);
-  return <ChatView conversation={conversation} sessionId={session.id} actions={actions} />;
+function Chat({ session, onFork }: { session: Session; onFork: (copy: Session) => void }) {
+  const { conversation, actions, openElsewhere } = useSession(session, { onFork });
+  return <ChatView conversation={conversation} sessionId={session.id} actions={actions} openElsewhere={openElsewhere} />;
 }
 
 function App() {
@@ -51,12 +51,12 @@ function App() {
           <li key={summary.sessionId}>
             <button type="button" onClick={() => void client.session(summary.sessionId).then(setSession)}>
               {summary.title ?? summary.sessionId.slice(0, 8)}
-              <small> {summary.agentId} · {summary.state ?? (summary.logged ? "" : "in the harness only")}</small>
+              <small> {summary.agentId} · {summary.state ?? (summary.logged ? "" : "in the harness only")}{summary.openElsewhere ? " · open elsewhere" : ""}</small>
             </button>
           </li>
         ))}
       </ul>
-      {session ? <Chat key={session.id} session={session} /> : <p>Choose a session.</p>}
+      {session ? <Chat key={session.id} session={session} onFork={setSession} /> : <p>Choose a session.</p>}
     </div>
   );
 }

@@ -7,9 +7,57 @@ public struct ChatActions {
     public var approve: (String, String) -> Void = { _, _ in }
     /// Answer a question: request id, and the form's content or nil to skip it.
     public var answer: (String, JSON?) -> Void = { _, _ in }
-    public var prompt: ((String) -> Void)?
+    /// Send a message. If it throws, the composer gives the text back.
+    public var prompt: ((String) async throws -> Void)?
     public var cancel: () -> Void = {}
+    /// Continue on a copy of the session, when another process has this one open. The app
+    /// shows the copy once this returns; if it throws, the notice says why.
+    public var fork: (() async throws -> Void)?
     public init() {}
+}
+
+/// Says that another process has the session open, so messages from here are refused, and
+/// offers to continue on a copy. Without `fork` it only says so.
+public struct OpenElsewhereNotice: View {
+    let holder: OpenElsewhere
+    var fork: (() async throws -> Void)?
+    @State private var forking = false
+    @State private var problem: String?
+
+    public init(holder: OpenElsewhere, fork: (() async throws -> Void)? = nil) {
+        self.holder = holder
+        self.fork = fork
+    }
+
+    public var body: some View {
+        let who = [holder.pid > 0 ? "pid \(holder.pid)" : nil, holder.status].compactMap { $0 }.joined(separator: ", ")
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("This session is open in another window of the agent\(who.isEmpty ? "" : " (\(who))").").fontWeight(.semibold)
+                Text("Messages from here are refused so the two do not overwrite each other. Close it there and send again\(fork == nil ? "." : ", or continue here on a copy.")")
+                    .foregroundStyle(.secondary)
+                if let problem { Text("Could not fork: \(problem)").foregroundStyle(.red) }
+            }
+            .font(.callout)
+            .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            if let fork {
+                Button(forking ? "Forking…" : "Fork and continue here") {
+                    forking = true
+                    problem = nil
+                    Task {
+                        do { try await fork() } catch { problem = String(describing: error) }
+                        forking = false
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(forking)
+            }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.12)))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.orange.opacity(0.6)))
+    }
 }
 
 /// Views for kinds of item that this package does not know, by target, e.g. `x.acme.checkpoint`.
@@ -102,13 +150,20 @@ public struct ChatView: View {
     var sessionId: String?
     var actions = ChatActions()
     var custom: ItemViews = [:]
+    /// Set while another process has the session open: the chat says so and offers `actions.fork`.
+    var openElsewhere: OpenElsewhere?
     @State private var draft = ""
+    @State private var problem: String?
 
-    public init(conversation: Conversation, sessionId: String? = nil, actions: ChatActions = ChatActions(), custom: ItemViews = [:]) {
+    public init(
+        conversation: Conversation, sessionId: String? = nil, actions: ChatActions = ChatActions(), custom: ItemViews = [:],
+        openElsewhere: OpenElsewhere? = nil
+    ) {
         self.conversation = conversation
         self.sessionId = sessionId
         self.actions = actions
         self.custom = custom
+        self.openElsewhere = openElsewhere
     }
 
     public var body: some View {
@@ -121,8 +176,15 @@ public struct ChatView: View {
                     SessionTimeline(conversation: conversation, state: state, actions: actions, custom: custom).padding(12)
                 }
                 .defaultScrollAnchor(.bottom)
+                if let openElsewhere {
+                    OpenElsewhereNotice(holder: openElsewhere, fork: actions.fork).padding([.horizontal, .bottom], 12)
+                }
                 if let prompt = actions.prompt {
                     Divider()
+                    if let problem {
+                        Text("Not sent: \(problem)").font(.callout).foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading).padding([.horizontal, .top], 12)
+                    }
                     HStack(alignment: .bottom) {
                         TextField(running ? "Add to the running turn…" : "Message the agent…", text: $draft, axis: .vertical)
                             .textFieldStyle(.roundedBorder)
@@ -139,22 +201,36 @@ public struct ChatView: View {
         }
     }
 
-    private func send(_ prompt: (String) -> Void) {
-        guard !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        prompt(draft)
+    private func send(_ prompt: @escaping (String) async throws -> Void) {
+        let text = draft
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         draft = ""
+        problem = nil
+        Task {
+            do {
+                try await prompt(text)
+            } catch {
+                // A refused message goes back into the field, unless the user has typed since.
+                if draft.isEmpty { draft = text }
+                // The notice above already says it when the session is open elsewhere.
+                if (error as? RPCError)?.openElsewhere != true { problem = String(describing: error) }
+            }
+        }
     }
 }
 
 /// A chat on a session of the client SDK: it draws again after every change, and its controls
-/// act on the session.
+/// act on the session. Give `onFork` to offer the fork when another process has the session
+/// open: it receives the copy to show.
 public struct LiveChatView: View {
     let session: BridgeSession
     var custom: ItemViews = [:]
+    var onFork: ((BridgeSession) -> Void)?
 
-    public init(session: BridgeSession, custom: ItemViews = [:]) {
+    public init(session: BridgeSession, custom: ItemViews = [:], onFork: ((BridgeSession) -> Void)? = nil) {
         self.session = session
         self.custom = custom
+        self.onFork = onFork
     }
 
     public var body: some View {
@@ -163,8 +239,11 @@ public struct LiveChatView: View {
         actions.answer = { id, content in
             session.answer(id, result: content.map { ["action": "accept", "content": $0] } ?? ["action": "decline"])
         }
-        actions.prompt = { text in Task { try? await session.prompt(text) } }
+        actions.prompt = { try await session.prompt($0) }
         actions.cancel = { session.cancel() }
-        return ChatView(conversation: session.conversation, sessionId: session.id, actions: actions, custom: custom)
+        if let onFork { actions.fork = { onFork(try await session.fork()) } }
+        return ChatView(
+            conversation: session.conversation, sessionId: session.id, actions: actions, custom: custom,
+            openElsewhere: session.openElsewhere)
     }
 }

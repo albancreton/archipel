@@ -83,7 +83,7 @@ ACP reserves `_`-prefixed methods and `_meta` for this.
 | `_bridge/agents/list` | Which agents the daemon can start, with version and readiness |
 | `_bridge/sessions/list` | Sessions across all agents: the daemon's own, and those each harness reports (`logged: false`). Opening one of the latter adopts it (section 4) |
 | `_bridge/sessions/updated` (notification) | A session appeared, or its title, turn state or liveness changed. Sent to every connected app |
-| `_bridge/session/attach {sessionId, afterSeq?}` | Subscribe to a session another app may already be using. The response says whether a delta or a full replay follows |
+| `_bridge/session/attach {sessionId, afterSeq?}` | Subscribe to a session another app may already be using. The response says whether a delta or a full replay follows, and `openElsewhere` when another process of the harness has the session open |
 | `_bridge/session/detach` | Unsubscribe without closing the session |
 | `_meta.bridge.seq` on every logged message | Position in the session log, for catching up |
 | `_meta.bridge.rootSessionId` | On a subagent's messages: the session whose log (and sequence numbers) they belong to |

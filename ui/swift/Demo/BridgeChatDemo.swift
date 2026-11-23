@@ -26,14 +26,14 @@ struct BridgeChatDemo: App {
                 List(client.sessions, selection: Binding(get: { session?.id }, set: { open($0) })) { summary in
                     VStack(alignment: .leading) {
                         Text(summary.title ?? "Untitled").lineLimit(1)
-                        Text("\(summary.agentId) · \(summary.state ?? (summary.logged ? "" : "in the harness only"))")
+                        Text("\(summary.agentId) · \(summary.state ?? (summary.logged ? "" : "in the harness only"))\(summary.openElsewhere ? " · open elsewhere" : "")")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 .overlay { if !client.connected { ContentUnavailableView("Not connected", systemImage: "bolt.slash", description: Text(failure ?? "Waiting for the daemon…")) } }
             } detail: {
                 if let session {
-                    LiveChatView(session: session)
+                    LiveChatView(session: session) { self.session = $0 }.id(session.id)
                 } else {
                     Text("Choose a session").foregroundStyle(.secondary)
                 }

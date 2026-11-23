@@ -12,6 +12,24 @@ public struct RPCError: Error, CustomStringConvertible, Equatable {
     public var openElsewhere: Bool { code == -32004 }
 }
 
+/// Another process of the harness that has a session open, as the daemon reports it.
+public struct OpenElsewhere: Equatable, Sendable {
+    public var pid: Int
+    /// What that process says it is doing, such as `busy` or `idle`.
+    public var status: String?
+
+    public init(pid: Int, status: String? = nil) {
+        self.pid = pid
+        self.status = status
+    }
+
+    init?(_ json: JSON?) {
+        guard let json, json != .null else { return nil }
+        pid = json["pid"]?.number.map(Int.init) ?? 0
+        status = json["status"]?.string
+    }
+}
+
 /// One line of the session list.
 public struct SessionSummary: Identifiable, Equatable, Sendable {
     public var id: String
@@ -233,6 +251,11 @@ public final class BridgeSession: Identifiable {
     @ObservationIgnored private weak var client: BridgeClient?
     @ObservationIgnored private var waiters: [(done: () -> Bool, continuation: CheckedContinuation<Void, Never>)] = []
     @ObservationIgnored private var replayEnded = false
+    /// Who else has the session open, as far as the daemon last said: another process of the
+    /// harness, such as its own terminal UI. While it does, the daemon refuses prompts and
+    /// setting changes (error -32004); `fork()` makes a copy to continue with. Known when the
+    /// session is attached and after every prompt, so it can be out of date in between.
+    public private(set) var openElsewhere: OpenElsewhere?
 
     init(id: String, client: BridgeClient) {
         self.id = id
@@ -257,7 +280,24 @@ public final class BridgeSession: Identifiable {
 
     /// Sends a message to the agent. Returns when the agent has taken it, not when it is done.
     public func prompt(_ text: String) async throws {
-        try await client?.call("session/prompt", ["sessionId": .string(id), "prompt": [["type": "text", "text": .string(text)]]])
+        try await act("session/prompt", ["sessionId": .string(id), "prompt": [["type": "text", "text": .string(text)]]])
+    }
+
+    /// Makes a copy of this session to continue with, and attaches to it. This one is left as it is.
+    public func fork() async throws -> BridgeSession {
+        guard let client else { throw ConnectionClosed() }
+        return try await client.fork(id)
+    }
+
+    /// Sends a request that acts on the session, and notes whether another process stood in the way.
+    private func act(_ method: String, _ params: JSON) async throws {
+        do {
+            try await client?.call(method, params)
+        } catch let error as RPCError where error.openElsewhere {
+            openElsewhere = OpenElsewhere(error.data) ?? OpenElsewhere(pid: 0)
+            throw error
+        }
+        if openElsewhere != nil { openElsewhere = nil }
     }
 
     /// Answers an approval with one of its options.
@@ -277,7 +317,7 @@ public final class BridgeSession: Identifiable {
 
     /// Changes a setting, such as `mode` or `model`.
     public func setConfigOption(_ configId: String, value: String) async throws {
-        try await client?.call("session/set_config_option",
+        try await act("session/set_config_option",
             ["sessionId": .string(id), "configId": .string(configId), "type": "id", "value": .string(value)])
     }
 
@@ -293,6 +333,7 @@ public final class BridgeSession: Identifiable {
         if mirror.seq > 0 { params.set("afterSeq", to: .number(Double(mirror.seq))) }
         replayEnded = false
         let attached = try await client.call(Bridge.sessionAttach, params)
+        openElsewhere = OpenElsewhere(attached["openElsewhere"])
         if attached["catchUp"]?.string == "replay" {
             await until { self.replayEnded }
         } else {

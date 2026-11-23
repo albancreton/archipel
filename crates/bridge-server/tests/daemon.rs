@@ -1210,7 +1210,12 @@ async fn a_session_open_in_another_process_is_not_acted_on_but_can_be_forked() {
         listed["result"]["sessions"][0]["openElsewhere"],
         json!(true)
     );
-    // Reading it is still fine.
+    // Reading it is still fine, and the reader is told who has it.
+    let mut reader = App::observer(&server);
+    let attached = reader
+        .call(ext::METHOD_SESSION_ATTACH, json!({"sessionId": session}))
+        .await;
+    assert_eq!(attached["result"]["openElsewhere"]["pid"], json!(4242));
     let mut reader = App::observer(&server);
     reader.attach(&session).await;
     assert_eq!(reader.rendering(), vector("simple"));

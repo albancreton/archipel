@@ -48,6 +48,26 @@ final class RenderTests: XCTestCase {
         }
     }
 
+    /// The notice a chat shows when another process has the session open, with the fork button.
+    func testASessionOpenElsewhereIsDrawnWithTheFork() throws {
+        let conversation = try conversation("claude-v2/simple")
+        var actions = ChatActions()
+        actions.prompt = { _ in }
+        actions.fork = {}
+        let view = ChatView(conversation: conversation, actions: actions, openElsewhere: OpenElsewhere(pid: 4242, status: "busy"))
+            .frame(width: 720, height: 420)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .environment(\.colorScheme, .light)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 2
+        let tiff = try XCTUnwrap(renderer.nsImage?.tiffRepresentation)
+        let png = try XCTUnwrap(NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]))
+        let out = Self.root.appendingPathComponent(".build/bridge-ui-renders")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        try png.write(to: out.appendingPathComponent("open-elsewhere.png"))
+        XCTAssertGreaterThan(png.count, 10_000, "something was drawn")
+    }
+
     func testTextOfContent() {
         XCTAssertEqual(contentText([["type": "text", "text": "a"], ["type": "text", "text": "b"]]), "ab")
         XCTAssertEqual(contentText(["type": "content", "content": ["type": "text", "text": "inner"]]), "inner")

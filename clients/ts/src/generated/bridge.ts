@@ -216,6 +216,29 @@ export interface AttachSessionResponse {
    * Sequence number of the newest update at the time of the response.
    */
   headSeq: number;
+  /**
+   * Another process of the harness has the session open. It can be read, but the daemon
+   * refuses to act on it; `session/fork` makes a copy to continue with.
+   */
+  openElsewhere?: OpenElsewhere | null;
+}
+/**
+ * The `data` of an [`ERROR_OPEN_ELSEWHERE`] error: who has the session open.
+ *
+ * This interface was referenced by `BridgeExtensionsToACPV2Draft`'s JSON-Schema
+ * via the `definition` "OpenElsewhere".
+ */
+export interface OpenElsewhere {
+  sessionId: string;
+  pid: number;
+  /**
+   * What that process says it is doing, such as `busy` or `idle`.
+   */
+  status?: string | null;
+  /**
+   * How that process was started, such as `cli`.
+   */
+  client?: string | null;
 }
 /**
  * `_bridge/session/detach` request: stop receiving updates. The session keeps running.
@@ -344,22 +367,4 @@ export interface AppendResponse {
    * The sequence number the update got.
    */
   seq: number;
-}
-/**
- * The `data` of an [`ERROR_OPEN_ELSEWHERE`] error: who has the session open.
- *
- * This interface was referenced by `BridgeExtensionsToACPV2Draft`'s JSON-Schema
- * via the `definition` "OpenElsewhere".
- */
-export interface OpenElsewhere {
-  sessionId: string;
-  pid: number;
-  /**
-   * What that process says it is doing, such as `busy` or `idle`.
-   */
-  status?: string | null;
-  /**
-   * How that process was started, such as `cli`.
-   */
-  client?: string | null;
 }

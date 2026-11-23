@@ -1,6 +1,7 @@
 // The client an app uses: sessions that stay in step with the daemon, across reconnects.
 
-import { ClosedError, Connection, type Transport } from "./connection.ts";
+import { ClosedError, Connection, RpcError, type Transport } from "./connection.ts";
+import type { OpenElsewhere } from "./generated/bridge.ts";
 import { get, isObject, type Json, type JsonObject } from "./json.ts";
 import { Mirror, rootOf, SESSIONS_UPDATED } from "./mirror.ts";
 import type { Conversation, ItemRef, Request, SessionState } from "./state.ts";
@@ -154,7 +155,7 @@ export class BridgeClient {
   async session(sessionId: string): Promise<Session> {
     let session = this.sessions.get(sessionId);
     if (!session) {
-      session = new Session(sessionId, () => this.connection);
+      session = new Session(sessionId, () => this.connection, () => this.forkSession(sessionId));
       this.sessions.set(sessionId, session);
       await session.attach();
     }
@@ -181,10 +182,43 @@ export class Session {
   private listeners = new Set<() => void>();
   /** Resolves the wait for the end of a replay. */
   private replayed: (() => void) | null = null;
+  private forked: () => Promise<Session>;
+  /**
+   * Who else has the session open, as far as the daemon last said: another process of the
+   * harness, such as its own terminal UI. While it does, the daemon refuses prompts and setting
+   * changes (error -32004); `fork()` makes a copy to continue with. Known when the session is
+   * attached and after every prompt, so it can be out of date in between.
+   */
+  openElsewhere: OpenElsewhere | null = null;
 
-  constructor(id: string, connection: () => Connection) {
+  constructor(id: string, connection: () => Connection, fork: () => Promise<Session>) {
     this.id = id;
     this.connection = connection;
+    this.forked = fork;
+  }
+
+  /** Makes a copy of this session to continue with, and attaches to it. This one is left as it is. */
+  fork(): Promise<Session> {
+    return this.forked();
+  }
+
+  /** Sends a request that acts on the session, and notes whether another process stood in the way. */
+  private async act(method: string, params: JsonObject): Promise<void> {
+    try {
+      await this.connection().call(method, params);
+    } catch (error) {
+      if (error instanceof RpcError && error.openElsewhere) {
+        this.held(isObject(error.data) ? (error.data as unknown as OpenElsewhere) : { sessionId: this.id, pid: 0 });
+      }
+      throw error;
+    }
+    this.held(null);
+  }
+
+  private held(by: OpenElsewhere | null): void {
+    if (by === null && this.openElsewhere === null) return;
+    this.openElsewhere = by;
+    for (const listener of this.listeners) listener();
   }
 
   /** The newest sequence number applied. */
@@ -258,7 +292,7 @@ export class Session {
   /** Sends a message to the agent. Resolves when the agent has taken it, not when it is done. */
   async prompt(content: string | Json[]): Promise<void> {
     const prompt = typeof content === "string" ? [{ type: "text", text: content }] : content;
-    await this.connection().call("session/prompt", { sessionId: this.id, prompt });
+    await this.act("session/prompt", { sessionId: this.id, prompt });
   }
 
   /** Answers an approval with one of its options. */
@@ -278,7 +312,7 @@ export class Session {
 
   /** Changes a setting, such as `mode` or `model`. */
   async setConfigOption(configId: string, value: string): Promise<void> {
-    await this.connection().call("session/set_config_option", { sessionId: this.id, configId, type: "id", value });
+    await this.act("session/set_config_option", { sessionId: this.id, configId, type: "id", value });
   }
 
   /** Internal: (re)attaches from the last sequence number applied. */
@@ -302,6 +336,8 @@ export class Session {
       this.replayed = null;
       throw error;
     }
+    const held = get(attached, "openElsewhere");
+    this.openElsewhere = isObject(held) ? (held as unknown as OpenElsewhere) : null;
     if (get(attached, "catchUp") === "replay") {
       if (!finished) await done;
     } else {

@@ -1,6 +1,6 @@
 // A chat view assembled from the item components, and the hook that keeps it current.
 
-import { type Conversation, type Json, type JsonObject, type Session, type SessionState } from "@harness-bridge/client";
+import { RpcError, type Conversation, type Json, type JsonObject, type Session, type SessionState } from "@harness-bridge/client";
 import { useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
 import {
   Approval, AssistantMessage, Compaction, Fallback, Plan, Question, SessionMessage, Subagent, Terminal, Thought, ToolCall, UserMessage,
@@ -12,8 +12,21 @@ export interface Actions {
   approve?: (requestId: string, optionId: string) => void;
   /** Answer a question: the form's content, or null to skip it. */
   answer?: (requestId: string, content: JsonObject | null) => void;
-  prompt?: (text: string) => void;
+  /** Send a message. If it returns a promise that fails, the composer gives the text back. */
+  prompt?: (text: string) => void | Promise<unknown>;
   cancel?: () => void;
+  /**
+   * Continue on a copy of the session, when another process has this one open. The app shows
+   * the copy once the promise resolves; if it fails, the notice says why.
+   */
+  fork?: () => void | Promise<unknown>;
+}
+
+/** Another process of the harness that has the session open, as the daemon reports it. */
+export interface Holder {
+  pid?: number;
+  /** What it says it is doing, such as `busy` or `idle`. */
+  status?: string | null;
 }
 
 /** Components for kinds of item that this package does not know, by target, e.g. `x.acme.checkpoint`. */
@@ -107,13 +120,58 @@ export function StatusBar({ state }: { state: SessionState }) {
   );
 }
 
+const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+/**
+ * Says that another process has the session open, so messages from here are refused, and
+ * offers to continue on a copy. Without `onFork` it only says so.
+ */
+export function OpenElsewhere({ holder, onFork }: { holder: Holder; onFork?: () => void | Promise<unknown> }) {
+  const [forking, setForking] = useState(false);
+  const [problem, setProblem] = useState("");
+  const fork = async () => {
+    setForking(true);
+    setProblem("");
+    try {
+      await onFork?.();
+    } catch (error) {
+      setProblem(reason(error));
+    }
+    setForking(false);
+  };
+  const who = [holder.pid ? `pid ${holder.pid}` : "", holder.status ?? ""].filter(Boolean).join(", ");
+  return (
+    <div className="hb-elsewhere" role="status">
+      <div className="hb-elsewhere-text">
+        <strong>This session is open in another window of the agent{who && ` (${who})`}.</strong>{" "}
+        Messages from here are refused so the two do not overwrite each other. Close it there and send again
+        {onFork ? ", or continue here on a copy." : "."}
+        {problem && <div className="hb-problem">Could not fork: {problem}</div>}
+      </div>
+      {onFork && (
+        <button type="button" disabled={forking} onClick={() => void fork()}>
+          {forking ? "Forking…" : "Fork and continue here"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Where the user types. While a turn runs it also offers to stop it. */
 export function Composer({ running, actions }: { running: boolean; actions?: Actions }) {
   const [draft, setDraft] = useState("");
+  const [problem, setProblem] = useState("");
   const send = () => {
-    if (!draft.trim()) return;
-    actions?.prompt?.(draft);
+    const text = draft;
+    if (!text.trim()) return;
     setDraft("");
+    setProblem("");
+    // A refused message goes back into the field, unless the user has typed something since.
+    Promise.resolve(actions?.prompt?.(text)).catch((error: unknown) => {
+      setDraft((now) => now || text);
+      // The notice above the composer already says it when the session is open elsewhere.
+      if (!(error instanceof RpcError && error.openElsewhere)) setProblem(reason(error));
+    });
   };
   return (
     <form className="hb-composer" onSubmit={(event) => { event.preventDefault(); send(); }}>
@@ -130,6 +188,7 @@ export function Composer({ running, actions }: { running: boolean; actions?: Act
       />
       <button type="submit">Send</button>
       {running && <button type="button" onClick={() => actions?.cancel?.()}>Stop</button>}
+      {problem && <div className="hb-problem">Not sent: {problem}</div>}
     </form>
   );
 }
@@ -140,10 +199,12 @@ export interface ChatViewProps {
   sessionId?: string;
   actions?: Actions;
   components?: ItemComponents;
+  /** Set while another process has the session open: the chat says so and offers `actions.fork`. */
+  openElsewhere?: Holder | null;
 }
 
 /** A simple chat: status, the items, and a composer. Assemble your own from the parts if it does not fit. */
-export function ChatView({ conversation, sessionId, actions, components }: ChatViewProps) {
+export function ChatView({ conversation, sessionId, actions, components, openElsewhere }: ChatViewProps) {
   const state = sessionId ? conversation.sessions.get(sessionId) : conversation.root()?.[1];
   if (!state) return <div className="hb-chat hb-empty">No session</div>;
   const turn = state.values.get("state") as JsonObject | undefined;
@@ -152,6 +213,7 @@ export function ChatView({ conversation, sessionId, actions, components }: ChatV
     <div className="hb-chat">
       <StatusBar state={state} />
       <Timeline conversation={conversation} state={state} actions={actions} components={components} />
+      {openElsewhere && <OpenElsewhere holder={openElsewhere} onFork={actions?.fork} />}
       {actions?.prompt && <Composer running={running} actions={actions} />}
     </div>
   );
@@ -159,9 +221,13 @@ export function ChatView({ conversation, sessionId, actions, components }: ChatV
 
 /**
  * Follows a session of the client SDK: the component draws again after every change.
- * Returns the conversation to give to `ChatView`, and the actions wired to the session.
+ * Returns what `ChatView` takes: the conversation, the actions wired to the session, and who
+ * else has the session open. Give `onFork` to offer the fork: it receives the copy to show.
  */
-export function useSession(session: Session): { conversation: Conversation; actions: Actions } {
+export function useSession(
+  session: Session,
+  options: { onFork?: (copy: Session) => void } = {},
+): { conversation: Conversation; actions: Actions; openElsewhere: Holder | null } {
   // The session changes in place, so a counter is the snapshot React compares.
   const [store] = useState(() => {
     let version = 0;
@@ -171,14 +237,17 @@ export function useSession(session: Session): { conversation: Conversation; acti
     };
   });
   useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
+  const { onFork } = options;
   return {
     conversation: session.conversation,
+    openElsewhere: session.openElsewhere,
     actions: {
       approve: (requestId, optionId) => session.approve(requestId, optionId),
       answer: (requestId, content) =>
         session.answer(requestId, content === null ? { action: "decline" } : { action: "accept", content }),
-      prompt: (text) => void session.prompt(text),
+      prompt: (text) => session.prompt(text),
       cancel: () => session.cancel(),
+      fork: onFork && (async () => onFork(await session.fork())),
     },
   };
 }

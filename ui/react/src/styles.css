@@ -38,9 +38,15 @@
 .hb-request-title { font-weight: 600; margin: 2px 0 6px; }
 .hb-options { display: flex; flex-wrap: wrap; gap: 6px; }
 .hb-chat button { font: inherit; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--hb-line); background: var(--hb-bg); color: var(--hb-fg); cursor: pointer; }
-.hb-chat button:first-child, .hb-composer button[type="submit"] { background: var(--hb-accent); border-color: var(--hb-accent); color: #fff; }
+.hb-chat button:first-child, .hb-composer button[type="submit"], .hb-elsewhere button { background: var(--hb-accent); border-color: var(--hb-accent); color: #fff; }
 .hb-answer { color: var(--hb-muted); }
 .hb-field { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
 .hb-field input, .hb-field select, .hb-composer textarea { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--hb-line); background: var(--hb-bg); color: var(--hb-fg); }
 .hb-composer { display: flex; gap: 8px; align-items: flex-end; padding-top: 10px; border-top: 1px solid var(--hb-line); }
 .hb-composer textarea { flex: 1; min-height: 40px; resize: vertical; }
+.hb-composer { flex-wrap: wrap; }
+.hb-chat button:disabled { opacity: 0.6; cursor: default; }
+.hb-elsewhere { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--hb-run); border-radius: 10px; background: var(--hb-soft); }
+.hb-elsewhere-text { flex: 1; }
+.hb-elsewhere button { white-space: nowrap; }
+.hb-problem { flex-basis: 100%; margin-top: 4px; color: var(--hb-bad); font-size: 13px; }
