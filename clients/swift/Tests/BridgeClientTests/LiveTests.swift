@@ -80,6 +80,33 @@ final class LiveTests: XCTestCase {
         XCTAssertNil(difference(replayed.conversation.json, expected))
         XCTAssertEqual(replayed.seq, session.seq)
 
+        // A third app pairs with a one-time code and gets a token of its own, to observe only.
+        let pairer = Process()
+        pairer.executableURL = Self.root.appendingPathComponent("target/debug/bridged")
+        pairer.arguments = ["--home", home.path, "pair", "--scope", "observe", "--name", "watch"]
+        let printed = Pipe()
+        pairer.standardOutput = printed
+        pairer.standardError = Pipe()
+        try pairer.run()
+        pairer.waitUntilExit()
+        let code = String(decoding: printed.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let paired = try await pair(url: ws, code: code)
+        XCTAssertEqual([paired.scope, paired.name], ["observe", "watch"])
+        let watch = BridgeClient(name: "watch") { WebSocketTransport(url: ws, token: paired.token) }
+        watch.retryAfter = 0
+        try await watch.connect()
+        XCTAssertEqual(watch.welcome.at("_meta.bridge.scope")?.string, "observe")
+        let watched = try await watch.session(session.id)
+        XCTAssertNil(difference(watched.conversation.json, expected))
+        do {
+            try await watched.prompt("may I?")
+            XCTFail("an observer may not prompt")
+        } catch let error as RPCError {
+            XCTAssertEqual(error.code, -32003)
+        }
+        watch.close()
+
         // An unknown session is refused.
         do {
             _ = try await other.session("no-such-session")

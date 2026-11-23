@@ -1,9 +1,15 @@
 //! The WebSocket transport: one JSON message per text frame, opened with a bearer token.
 //!
 //! The daemon can run commands as the user, so a connection is accepted only when it carries a
-//! known token in an `Authorization: Bearer` header. What a token allows is the caller's
-//! business: the server asks a function, and hands its answer over with the link. Requests with an `Origin` header are refused: they
-//! come from web pages, and any page a browser shows may try to connect to a local port.
+//! known token. What a token allows is the caller's business: the server asks a function, and
+//! hands its answer over with the link.
+//!
+//! The token travels in an `Authorization: Bearer` header. A page in a browser cannot set that
+//! header, so it may send the token as a WebSocket subprotocol instead (`bridge.token.<token>`,
+//! next to `bridge`).
+//!
+//! Requests with an `Origin` header come from web pages, and any page a browser shows may try
+//! to connect to a local port. They are refused unless the origin is on the server's list.
 
 use crate::{Link, QUEUE};
 use futures_util::{SinkExt, StreamExt};
@@ -53,6 +59,8 @@ pub type Authorize<T> = Arc<dyn Fn(&str) -> Option<T> + Send + Sync>;
 pub struct WsServer<T> {
     listener: TcpListener,
     authorize: Authorize<T>,
+    /// Web origins that may connect, such as `https://app.example.com`.
+    origins: Arc<Vec<String>>,
 }
 
 impl<T: Send + 'static> WsServer<T> {
@@ -67,7 +75,16 @@ impl<T: Send + 'static> WsServer<T> {
         Ok(Self {
             listener: TcpListener::bind(addr).await?,
             authorize,
+            origins: Arc::new(Vec::new()),
         })
+    }
+
+    /// Lets pages served from these origins connect. Without this no browser page can.
+    /// An origin is a scheme, host and port as the browser sends it: `http://localhost:5173`.
+    #[must_use]
+    pub fn allow_origins(mut self, origins: Vec<String>) -> Self {
+        self.origins = Arc::new(origins);
+        self
     }
 
     /// The address in use, which matters when the port was chosen by the system.
@@ -85,8 +102,9 @@ impl<T: Send + 'static> WsServer<T> {
     pub async fn run(self, links: mpsc::Sender<(Link, T)>) {
         while let Ok((stream, _)) = self.listener.accept().await {
             let (authorize, links) = (self.authorize.clone(), links.clone());
+            let origins = self.origins.clone();
             tokio::spawn(async move {
-                if let Ok(accepted) = handshake(stream, &authorize).await {
+                if let Ok(accepted) = handshake(stream, &authorize, &origins).await {
                     let _ = links.send(accepted).await;
                 }
             });
@@ -94,7 +112,16 @@ impl<T: Send + 'static> WsServer<T> {
     }
 }
 
-async fn handshake<T>(stream: TcpStream, authorize: &Authorize<T>) -> io::Result<(Link, T)> {
+/// The subprotocol the server names when a client offers subprotocols.
+const SUBPROTOCOL: &str = "bridge";
+/// A token sent as a subprotocol starts with this.
+const TOKEN_SUBPROTOCOL: &str = "bridge.token.";
+
+async fn handshake<T>(
+    stream: TcpStream,
+    authorize: &Authorize<T>,
+    origins: &[String],
+) -> io::Result<(Link, T)> {
     let mut granted = None;
     #[expect(
         clippy::result_large_err,
@@ -106,21 +133,39 @@ async fn handshake<T>(stream: TcpStream, authorize: &Authorize<T>) -> io::Result
             *refused.status_mut() = status;
             refused
         };
-        if request.headers().contains_key(header::ORIGIN) {
-            return Err(refuse(StatusCode::FORBIDDEN, "browser origins are refused"));
+        let header_text = |name| {
+            request
+                .headers()
+                .get(name)
+                .and_then(|value: &HeaderValue| value.to_str().ok())
+        };
+        if let Some(origin) = header_text(header::ORIGIN)
+            && !origins.iter().any(|allowed| allowed == origin)
+        {
+            return Err(refuse(StatusCode::FORBIDDEN, "this origin may not connect"));
         }
-        let given = request
-            .headers()
-            .get(header::AUTHORIZATION)
-            .and_then(|value| value.to_str().ok())
+        let offered = header_text(header::SEC_WEBSOCKET_PROTOCOL).unwrap_or_default();
+        let given = header_text(header::AUTHORIZATION)
             .and_then(|value| value.strip_prefix("Bearer "))
+            .or_else(|| {
+                offered
+                    .split(',')
+                    .find_map(|protocol| protocol.trim().strip_prefix(TOKEN_SUBPROTOCOL))
+            })
             .unwrap_or_default();
         granted = authorize(given);
-        if granted.is_some() {
-            Ok(response)
-        } else {
-            Err(refuse(StatusCode::UNAUTHORIZED, "missing or wrong token"))
+        if granted.is_none() {
+            return Err(refuse(StatusCode::UNAUTHORIZED, "missing or wrong token"));
         }
+        let mut response = response;
+        if !offered.is_empty() {
+            // A client that offers subprotocols expects the server to pick one.
+            response.headers_mut().insert(
+                header::SEC_WEBSOCKET_PROTOCOL,
+                HeaderValue::from_static(SUBPROTOCOL),
+            );
+        }
+        Ok(response)
     };
     let stream = accept_hdr_async(stream, check)
         .await
@@ -183,7 +228,8 @@ mod tests {
         });
         let server = WsServer::bind("127.0.0.1:0".parse().unwrap(), authorize)
             .await
-            .unwrap();
+            .unwrap()
+            .allow_origins(vec!["http://localhost:5173".to_owned()]);
         let url = format!("ws://{}", server.local_addr().unwrap());
         let (links_tx, links_rx) = mpsc::channel(4);
         tokio::spawn(server.run(links_tx));
@@ -225,6 +271,37 @@ mod tests {
             HeaderValue::from_static("https://example.com"),
         );
         assert!(connect_async(request).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_page_from_an_allowed_origin_connects_with_its_token_as_a_subprotocol() {
+        let (url, mut links) = server().await;
+        let page = |origin: &'static str, protocols: &'static str| {
+            let mut request = url.as_str().into_client_request().unwrap();
+            let headers = request.headers_mut();
+            headers.insert(header::ORIGIN, HeaderValue::from_static(origin));
+            headers.insert(
+                header::SEC_WEBSOCKET_PROTOCOL,
+                HeaderValue::from_static(protocols),
+            );
+            connect_async(request)
+        };
+        let (_stream, response) = page("http://localhost:5173", "bridge.token.peek, bridge")
+            .await
+            .expect("accepted");
+        assert_eq!(response.headers()[header::SEC_WEBSOCKET_PROTOCOL], "bridge");
+        assert_eq!(links.recv().await.unwrap().1, "guest");
+
+        assert!(
+            page("http://localhost:5173", "bridge.token.wrong, bridge")
+                .await
+                .is_err()
+        );
+        assert!(
+            page("http://localhost:9999", "bridge.token.peek, bridge")
+                .await
+                .is_err()
+        );
     }
 
     #[test]

@@ -20,7 +20,7 @@ bridge-core = { path = "../bridge-core" }
 bridge-schema = { path = "../bridge-schema" }
 bridge-transport = { path = "../bridge-transport" }
 serde_json = { version = "1.0.154", features = ["preserve_order"] }
-tokio = { version = "1.54.1", features = ["rt", "macros", "time", "io-util", "io-std"] }
+tokio = { version = "1.54.1", features = ["rt", "macros", "time", "io-util", "io-std", "process"] }
 
 [dev-dependencies]
 bridge-agents = { path = "../bridge-agents" }

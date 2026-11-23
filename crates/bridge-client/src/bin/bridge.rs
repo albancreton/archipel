@@ -33,10 +33,17 @@ bridge: talk to the harness-bridge daemon
 
 SESSION may be the first characters of a session id.
 
+  bridge pair WS_URL CODE [--name NAME] [--save FILE]
+                                         exchange a code from `bridged pair` for a token of
+                                         your own; printed, or written to FILE
+  bridge connect --stdio                 carry a connection on stdin and stdout, for --via
+
 Where the daemon is:
   --home DIR       the daemon's directory (default: $BRIDGE_HOME or ~/.harness-bridge)
   --socket PATH    its local socket (default: HOME/daemon.sock)
   --ws URL         a WebSocket address instead, with --token TOKEN or --token-file PATH
+  --via COMMAND    a command that reaches a daemon elsewhere, for example
+                   --via 'ssh myhost bridge connect --stdio'
 ";
 
 type Failure = Box<dyn std::error::Error>;
@@ -57,8 +64,18 @@ async fn run(mut args: Vec<String>) -> Result<(), Failure> {
         print!("{USAGE}");
         return Ok(());
     }
+    if args.first().map(String::as_str) == Some("pair") {
+        return pair(args.split_off(1)).await;
+    }
     let endpoint = Endpoint::from_args(&mut args)?;
+    if args.is_empty() {
+        print!("{USAGE}");
+        return Ok(());
+    }
     let command = args.remove(0);
+    if command == "connect" {
+        return carry(&endpoint).await;
+    }
     if command == "watch" {
         return watch(&endpoint, args).await;
     }
@@ -218,6 +235,65 @@ async fn run(mut args: Vec<String>) -> Result<(), Failure> {
         other => return Err(format!("unknown command `{other}`; try --help").into()),
     }
     Ok(())
+}
+
+/// `bridge pair`: exchanges a one-time code for a token.
+async fn pair(mut args: Vec<String>) -> Result<(), Failure> {
+    let name = option(&mut args, "--name");
+    let save = option(&mut args, "--save");
+    let [url, code] = args.as_slice() else {
+        return Err("usage: bridge pair WS_URL CODE [--name NAME] [--save FILE]".into());
+    };
+    let mut link = bridge_transport::ws::connect(url, &format!("pair:{code}"))
+        .await
+        .map_err(|_| "the daemon refused the code (wrong, used, or expired)")?;
+    let request =
+        json!({"jsonrpc": "2.0", "id": 1, "method": "_bridge/pair", "params": {"name": name}});
+    link.tx.send(request).await?;
+    let answer = link
+        .rx
+        .recv()
+        .await
+        .ok_or("the daemon closed the connection")?;
+    let token = answer["result"]["token"]
+        .as_str()
+        .ok_or_else(|| format!("pairing failed: {}", answer["error"]["message"]))?;
+    match save {
+        Some(path) => {
+            std::fs::write(&path, token)?;
+            #[cfg(unix)]
+            std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
+            println!(
+                "paired as `{}` ({}); token saved to {path}",
+                text(&answer["result"], "name"),
+                text(&answer["result"], "scope")
+            );
+        }
+        None => println!("{token}"),
+    }
+    Ok(())
+}
+
+/// `bridge connect --stdio`: carries one connection to the daemon on stdin and stdout.
+/// Run on the daemon's machine by a client elsewhere, typically through SSH.
+async fn carry(endpoint: &Endpoint) -> Result<(), Failure> {
+    let Endpoint::Local(path) = endpoint else {
+        return Err("connect --stdio carries the local socket".into());
+    };
+    let mut daemon = bridge_transport::local::connect(path).await?;
+    let mut remote = bridge_transport::lines(tokio::io::stdin(), tokio::io::stdout());
+    loop {
+        tokio::select! {
+            message = remote.rx.recv() => match message {
+                Some(message) => daemon.tx.send(message).await?,
+                None => return Ok(()),
+            },
+            message = daemon.rx.recv() => match message {
+                Some(message) => remote.tx.send(message).await?,
+                None => return Ok(()),
+            },
+        }
+    }
 }
 
 fn text<'a>(value: &'a Value, key: &str) -> &'a str {

@@ -89,3 +89,26 @@ public final class UnixSocketTransport: Transport, @unchecked Sendable {
     }
 }
 #endif
+
+/// What `pair` returns: the app's own token, what it may do, and the name the daemon lists it under.
+public struct Pairing: Sendable, Equatable {
+    public var token: String
+    public var scope: String
+    public var name: String
+}
+
+/// Exchanges a one-time code from `bridged pair` for a token of the app's own. Keep the token
+/// in the keychain and use it with `WebSocketTransport` from then on.
+public func pair(url: URL, code: String, name: String? = nil) async throws -> Pairing {
+    let transport = WebSocketTransport(url: url, token: "pair:\(code)")
+    defer { transport.close() }
+    var params: JSON = [:]
+    if let name { params.set("name", to: .string(name)) }
+    try await transport.send(["jsonrpc": "2.0", "id": 1, "method": "_bridge/pair", "params": params])
+    let answer = try await transport.receive()
+    guard let token = answer.at("result.token")?.string else {
+        throw RPCError(code: answer.at("error.code")?.number.map(Int.init) ?? 0,
+                       message: answer.at("error.message")?.string ?? "pairing failed")
+    }
+    return Pairing(token: token, scope: answer.at("result.scope")?.string ?? "", name: answer.at("result.name")?.string ?? "")
+}

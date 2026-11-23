@@ -8,11 +8,14 @@
     ".": "./src/index.ts",
     "./styles.css": "./src/styles.css"
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "check": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.tsx",
-    "demo": "node --import tsx demo/render.tsx"
+    "demo": "node --import tsx demo/render.tsx",
+    "demo:live": "node demo/serve.mjs"
   },
   "dependencies": {
     "@harness-bridge/client": "workspace:*"
@@ -24,6 +27,7 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "esbuild": "^0.28.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tsx": "^4.20.0",

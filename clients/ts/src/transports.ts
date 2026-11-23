@@ -92,3 +92,61 @@ export async function unixSocketTransport(path: string): Promise<Transport> {
     socket.once("close", () => transport.onClose?.());
   });
 }
+
+/**
+ * Carries the connection on a command's stdin and stdout, such as
+ * `ssh host bridge connect --stdio`. Node only.
+ */
+export async function commandTransport(command: string, args: string[] = []): Promise<Transport> {
+  const { spawn } = await import("node:child_process");
+  const child = spawn(command, args, { stdio: ["pipe", "pipe", "inherit"] });
+  const transport: Transport = {
+    send: (message) => void child.stdin.write(JSON.stringify(message) + "\n"),
+    close: () => void child.kill(),
+    onMessage: null,
+    onClose: null,
+  };
+  let buffered = "";
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk: string) => {
+    buffered += chunk;
+    let end: number;
+    while ((end = buffered.indexOf("\n")) >= 0) {
+      const line = buffered.slice(0, end);
+      buffered = buffered.slice(end + 1);
+      try {
+        if (line.trim()) transport.onMessage?.(JSON.parse(line) as Json);
+      } catch {
+        // Not JSON: a login banner or the like.
+      }
+    }
+  });
+  child.once("exit", () => transport.onClose?.());
+  return new Promise((resolve, reject) => {
+    child.once("spawn", () => resolve(transport));
+    child.once("error", reject);
+  });
+}
+
+/**
+ * Exchanges a one-time code from `bridged pair` for a token of the app's own. Keep the token
+ * somewhere safe (the platform's keychain) and use it with `webSocketTransport` from then on.
+ */
+export async function pair(
+  url: string,
+  code: string,
+  options: { name?: string; WebSocket?: unknown; subprotocol?: boolean } = {},
+): Promise<{ token: string; scope: string; name: string }> {
+  const transport = await webSocketTransport(url, { ...options, token: `pair:${code}` });
+  return new Promise((resolve, reject) => {
+    transport.onClose = () => reject(new Error("the daemon closed the connection"));
+    transport.onMessage = (message) => {
+      const answer = message as { result?: { token: string; scope: string; name: string }; error?: { message: string } };
+      transport.onClose = null;
+      transport.close();
+      if (answer.result) resolve(answer.result);
+      else reject(new Error(answer.error?.message ?? "pairing failed"));
+    };
+    transport.send({ jsonrpc: "2.0", id: 1, method: "_bridge/pair", params: options.name ? { name: options.name } : {} });
+  });
+}

@@ -118,6 +118,25 @@ async fn the_command_line_client_creates_prompts_watches_and_shows_a_session() {
         listed.contains(session) && listed.contains("idle"),
         "{listed}"
     );
+
+    // The same through a command that carries the connection, as SSH would:
+    // `bridge --via "ssh host bridge connect --stdio" …`. Here the "remote" side is local.
+    let carrier = format!(
+        "{} --socket {} connect --stdio",
+        env!("CARGO_BIN_EXE_bridge"),
+        socket.display()
+    );
+    let output = Command::new(env!("CARGO_BIN_EXE_bridge"))
+        .args(["--via", &carrier, "show", session])
+        .output()
+        .await
+        .expect("bridge runs");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), shown);
     server.shutdown().await;
     fs::remove_dir_all(&dir).unwrap();
 }

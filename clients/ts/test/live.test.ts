@@ -2,12 +2,12 @@
 // Needs `cargo build` first: it starts `target/debug/bridged`.
 
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { BridgeClient, RpcError, unixSocketTransport, webSocketTransport, type SessionSummary } from "../src/index.ts";
+import { BridgeClient, commandTransport, pair, RpcError, unixSocketTransport, webSocketTransport, type SessionSummary } from "../src/index.ts";
 
 const root = path.join(import.meta.dirname, "../../..");
 const bridged = path.join(root, "target/debug/bridged");
@@ -69,6 +69,27 @@ test("a session driven through the real daemon ends in the reference state", { s
     const replayed = await other.session(session.id);
     assert.deepStrictEqual(plain(replayed), expected);
     assert.equal(replayed.seq, session.seq);
+
+    // A third app pairs with a one-time code, gets a token of its own, and may only observe.
+    const code = execFileSync(bridged, ["--home", home, "pair", "--scope", "observe", "--name", "tablet"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    const paired = await pair(ws, code);
+    assert.deepStrictEqual([paired.scope, paired.name], ["observe", "tablet"]);
+    const tablet = await BridgeClient.connect({ open: () => webSocketTransport(ws, { token: paired.token }), name: "tablet", retryMs: 0 });
+    const watched = await tablet.session(session.id);
+    assert.deepStrictEqual(plain(watched), expected);
+    await assert.rejects(watched.prompt("may I?"), RpcError);
+    await assert.rejects(pair(ws, code), "a code works once");
+    tablet.close();
+
+    // The same session through a command that carries the connection, as SSH would.
+    const bridge = path.join(root, "target/debug/bridge");
+    const carried = await BridgeClient.connect({
+      open: () => commandTransport(bridge, ["--home", home, "connect", "--stdio"]),
+      name: "ts-test-3",
+      retryMs: 0,
+    });
+    assert.deepStrictEqual(plain(await carried.session(session.id)), expected);
+    carried.close();
 
     // A wrong token is refused, and so is an unknown session.
     await assert.rejects(BridgeClient.connect({ open: () => webSocketTransport(ws, { token: "wrong" }), name: "x", retryMs: 0 }));

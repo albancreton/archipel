@@ -14,11 +14,15 @@ pub enum Endpoint {
     Local(PathBuf),
     /// A WebSocket address such as `ws://127.0.0.1:7890`, with the daemon's token.
     Ws { url: String, token: String },
+    /// A command whose stdin and stdout carry the messages, such as
+    /// `ssh host bridge connect --stdio`. It is run through `sh -c`.
+    Command(String),
 }
 
 impl Endpoint {
     /// Reads where the daemon is from command-line arguments, removing those it uses:
-    /// `--home DIR`, `--socket PATH`, or `--ws URL` with `--token TOKEN` or `--token-file PATH`.
+    /// `--home DIR`, `--socket PATH`, `--ws URL` with `--token TOKEN` or `--token-file PATH`,
+    /// or `--via COMMAND`.
     /// The default is the socket in `$BRIDGE_HOME` or `~/.harness-bridge`.
     ///
     /// # Errors
@@ -30,6 +34,9 @@ impl Endpoint {
                 || PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".harness-bridge"),
                 PathBuf::from,
             );
+        if let Some(command) = option(args, "--via") {
+            return Ok(Self::Command(command));
+        }
         let socket = option(args, "--socket");
         let token = option(args, "--token");
         let token_file = option(args, "--token-file");
@@ -97,6 +104,8 @@ pub struct Connection {
     next_id: u64,
     /// Messages that arrived while waiting for a response, oldest first.
     backlog: VecDeque<Value>,
+    /// The command that carries the connection, if any. Stopped when this is dropped.
+    _carrier: Option<tokio::process::Child>,
 }
 
 impl Connection {
@@ -105,15 +114,34 @@ impl Connection {
     /// # Errors
     /// When the daemon cannot be reached or refuses the connection.
     pub async fn open(endpoint: &Endpoint, name: &str) -> Result<(Self, Value), Error> {
+        let mut carrier = None;
         let link = match endpoint {
             Endpoint::Local(path) => local::connect(path).await,
             Endpoint::Ws { url, token } => ws::connect(url, token).await,
+            Endpoint::Command(command) => {
+                let spawned = tokio::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(command)
+                    .stdin(std::process::Stdio::piped())
+                    .stdout(std::process::Stdio::piped())
+                    .kill_on_drop(true)
+                    .spawn();
+                spawned.and_then(|mut child| {
+                    let (Some(stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take())
+                    else {
+                        return Err(io::Error::other("the command has no stdin or stdout"));
+                    };
+                    carrier = Some(child);
+                    Ok(bridge_transport::lines(stdout, stdin))
+                })
+            }
         }
         .map_err(Error::Connect)?;
         let mut connection = Self {
             link,
             next_id: 1,
             backlog: VecDeque::new(),
+            _carrier: carrier,
         };
         let hello = json!({
             "protocolVersion": 2,

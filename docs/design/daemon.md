@@ -1,6 +1,6 @@
 # Daemon design
 
-Draft 11, 2026-11-22: based on ACP v2; milestones 0 to 6 done (`docs/research/11` to `17`). The daemon runs Claude and Pi side by side. "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
+Draft 12, 2026-11-22: based on ACP v2; all seven milestones done (`docs/research/11` to `18`). What is still open is collected in `docs/research/19`. The daemon runs Claude and Pi side by side. "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
 
 ## 1. What the daemon is for
 
@@ -206,16 +206,16 @@ The daemon can run commands as the user. Anything that can talk to it has that p
 | Path | Transport | Authentication |
 |---|---|---|
 | Same machine | Unix socket (named pipe on Windows) | File permissions, owner only |
-| Remote, over SSH | `bridge connect --stdio` run through SSH, same frames | SSH |
+| Remote, over SSH | `bridge connect --stdio` run through SSH, same frames (done; `docs/remote.md`) | SSH |
 | Remote, direct | WebSocket, off unless asked for | Bearer token; TLS from Tailscale serve or a reverse proxy |
 
 All three carry the same JSON-RPC messages (one per line, or one per WebSocket text frame), so the daemon and clients have one codec.
 
 Implemented in milestone 2: the Unix socket (owner-only file in an owner-only directory) and the WebSocket. The WebSocket requires `Authorization: Bearer <token>`, with the token in a file only the owner can read, and refuses any request that has an `Origin` header: any web page may try to open a WebSocket to a local port, so binding to loopback is not a protection by itself. Browser clients therefore cannot connect yet.
 
-- **Pairing:** the daemon prints a one-time code; the app exchanges it for a long-lived token stored in the platform keychain. Tokens are listed and revocable. Until then, `bridged token add NAME --scope …` makes a token by hand; tokens are kept as they are in owner-only files, and should be stored hashed once pairing exists.
+- **Pairing:** `bridged pair` prints a one-time code; the app exchanges it for a long-lived token of its own, to keep in the platform keychain. Tokens are listed and revocable while the daemon runs, and only their hashes are stored. `bridged token add` makes one by hand. Done.
 - **Scopes:** `observe` (list and read), `interact` (also create, prompt, answer, cancel, adopt), `admin` (pair, configure; nothing needs it yet). A wall display gets `observe`. The local socket always has every right: whoever can open it is the user. Done.
-- **Browser clients:** origin allow-list on the WebSocket; no cookies.
+- **Browser clients:** origin allow-list on the WebSocket (`--ws-origin`); the token travels as a WebSocket subprotocol because a page cannot set headers; no cookies. Done.
 - **Logs:** account details and environment values are stripped before storage.
 - **Not built:** an own relay or end-to-end encryption. Tailscale and SSH cover remote access with maintained code. Revisit only if a hosted relay becomes a goal.
 
@@ -355,7 +355,7 @@ Two rules:
 4. **Adapter profiles for Claude and Pi.** Done; see `docs/research/15`.
 5. **Extensions.** Done; see `docs/research/16`.
 6. **Client SDKs and UI kits.** Done; see `docs/research/17`.
-7. **Remote.** Pairing, tokens, SSH stdio mode, Tailscale notes.
+7. **Remote.** Done; see `docs/research/18` and `docs/remote.md`.
 
 ## 16. Open decisions
 
