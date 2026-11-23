@@ -4,3 +4,6 @@ spikes/acp-probe/work/
 .DS_Store
 .build/
 .swiftpm/
+conformance/config.json
+conformance/work/
+conformance/reports/

@@ -68,6 +68,8 @@ With the real Claude adapter: put a `config.json` in the daemon's home (see `bri
 | `docs/research/20` | One session open in two processes: what Claude Code does, the block, the fork, the fork button |
 | `docs/research/21` | The second plan: components to add, running the daemon, watching upstream, what is tested and what is not |
 | `docs/research/22` | What Claude Code offers in its terminal and what comes through the adapter |
+| `docs/research/23` | The live conformance tests: the first run and what it found |
+| `conformance/` | Live checks of the real harnesses against a recorded baseline |
 | `docs/remote.md` | How to reach a daemon from another machine or a browser |
 | `testdata/` | Recorded sessions and readable renderings of what the core makes of them |
 | `spikes/` | The scripts and raw logs behind 05, 06, 09, 10. See `spikes/README.md` |

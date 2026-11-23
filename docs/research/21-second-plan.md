@@ -143,6 +143,8 @@ Three levels of proof exist today. The lists are by behaviour, not by test.
 
 **Never tested**
 
+_Update, same day: the settings, session, turn and shell rows below were run by the first conformance tests. Results in `23-conformance-first-run.md`._
+
 | Area | Behaviour |
 |---|---|
 | Settings | Switching the model on a live session, for Claude and for Pi |

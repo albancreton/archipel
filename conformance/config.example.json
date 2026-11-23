@@ -1,0 +1,21 @@
+{
+  "agents": {
+    "claude": {
+      "daemon": {
+        "id": "claude", "profile": "claude", "command": "node",
+        "args": ["/ABSOLUTE/PATH/TO/node_modules/@agentclientprotocol/claude-agent-acp/dist/index.js"],
+        "env": { "ANTHROPIC_MODEL": "haiku", "CLAUDE_CODE_EXECUTABLE": "/ABSOLUTE/PATH/TO/claude" }
+      },
+      "cheapModel": "haiku",
+      "otherCheapModel": "claude-haiku-4-5-20251001"
+    },
+    "pi": {
+      "daemon": {
+        "id": "pi", "profile": "pi", "command": "node",
+        "args": ["/ABSOLUTE/PATH/TO/node_modules/pi-acp/dist/index.js"],
+        "model": "PROVIDER/A-LOCAL-OR-CHEAP-MODEL", "idleSeconds": 600
+      },
+      "shell": "source ~/.zshrc"
+    }
+  }
+}

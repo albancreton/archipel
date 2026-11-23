@@ -41,3 +41,7 @@ ci: gen
     git diff --exit-code
     just check
     just test
+
+# Live checks against a real harness, compared with conformance/baseline. Costs a few cents for Claude.
+conformance agent *args:
+    cd conformance && node run.ts {{agent}} {{args}}
