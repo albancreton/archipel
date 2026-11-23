@@ -40,19 +40,22 @@ pub(crate) fn relay(id: &Value, response: &Value) -> Value {
     relayed
 }
 
-/// `params` with `_meta.bridge` set to the entry's position in the log.
+/// `params` with the entry's position in the log added to `_meta.bridge`. What is there
+/// already stays: an addon's request carries its mark there.
 fn with_position(mut params: Value, root: &str, entry: &LogEntry) -> Value {
-    let mut position = Map::new();
-    position.insert("seq".to_owned(), entry.seq.into());
-    if entry.session_id != root {
-        position.insert("rootSessionId".to_owned(), root.into());
-    }
     if let Some(object) = params.as_object_mut() {
         let meta = object.entry("_meta").or_insert_with(|| json!({}));
         if !meta.is_object() {
             *meta = json!({});
         }
-        meta[ext::META_KEY] = Value::Object(position);
+        if !meta[ext::META_KEY].is_object() {
+            meta[ext::META_KEY] = Value::Object(Map::new());
+        }
+        let position = &mut meta[ext::META_KEY];
+        position["seq"] = entry.seq.into();
+        if entry.session_id != root {
+            position["rootSessionId"] = root.into();
+        }
     }
     params
 }

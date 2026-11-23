@@ -18,18 +18,29 @@
 //! Every message between an app and an adapter, in both directions:
 //!
 //! ```text
-//!            towards the adapter ──────────────────────────▶
-//! app ── request ──────▶ [request]      ──▶ adapter
-//! app ◀─ its response ── [response]     ◀── adapter
-//! app ── notification ─▶ [notification] ──▶ adapter        such as session/cancel
-//! app ◀─ update ──────── [update]       ◀── adapter        session/update
-//! app ◀─ request ─────── [agent_request]◀── adapter        an approval, a question
-//! app ── its answer ───▶ [answer]       ──▶ adapter
-//!            ◀────────────────────────── towards the app
+//!            towards the adapter ──────────────────────────────▶
+//! app ── request ──────▶ [request]            ──▶ adapter
+//! app ◀─ its response ── [response]           ◀── adapter
+//! app ── notification ─▶ [notification]       ──▶ adapter      such as session/cancel
+//! app ◀─ update ──────── [update]             ◀── adapter      session/update
+//! app                    [agent_notification] ◀── adapter      any other notification
+//! app ◀─ request ─────── [agent_request]      ◀── adapter      an approval, a question
+//! app ── its answer ───▶ [answer]             ──▶ adapter
+//!            ◀────────────────────────────── towards the app
 //! ```
 //!
 //! The daemon's own requests to an adapter (`initialize`, the `session/resume` that wakes a
-//! session, `session/list`) pass the same hooks as an app's.
+//! session, `session/list`) pass the same hooks as an app's. Every message says who it is
+//! from ([`Origin`]).
+//!
+//! Each of these can be let through, changed, stopped, or held and released later.
+//!
+//! # What an addon sends
+//!
+//! An addon can stand in for either side. Like the app, it sends the adapter requests
+//! ([`Cx::call`]) and notifications ([`Cx::notify`]). Like the adapter, it sends apps
+//! session updates ([`Cx::append`]), other notifications ([`Cx::announce`]) and requests for
+//! the user to answer ([`Cx::ask`]). The answers to its requests arrive in [`Addon::reply`].
 //!
 //! # Several addons
 //!
@@ -37,14 +48,16 @@
 //! nearest the adapter. A message towards the adapter passes them first to last, a message
 //! towards the app last to first. An addon that answers a request itself is the adapter as
 //! far as the layers nearer the app can tell: they see the response, the layers nearer the
-//! adapter see nothing. What an addon sends itself ([`Cx::call`], [`Cx::append`]) starts at
-//! its own layer and passes only the layers beyond it.
+//! adapter see nothing. What an addon sends itself starts at its own layer and passes only
+//! the layers beyond it, in the direction it travels. An addon is never shown its own
+//! messages.
 //!
 //! # Rules
 //!
 //! The daemon handles one message at a time on one task and calls the hooks from there. A
 //! hook must return quickly and must not block. An addon that has to wait for something
-//! holds the request ([`Verdict::Hold`]) and releases it from a later hook.
+//! holds the message and releases it from a later hook; to wait for time to pass it asks to
+//! be woken ([`Cx::wake`]).
 //!
 //! What an addon asks for through [`Cx`] happens when its hook returns, before the message
 //! it was looking at moves on.
@@ -52,6 +65,7 @@
 //! See `docs/design/addons.md`.
 
 use serde_json::{Value, json};
+use std::time::Duration;
 
 /// Whether an addon repairs something or adds something. See the crate documentation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,6 +107,20 @@ pub struct Agent<'a> {
     pub capabilities: Option<&'a Value>,
     /// The operating system the daemon runs on: `macos`, `linux`, `windows`.
     pub os: &'static str,
+}
+
+/// Who a message is from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Origin<'a> {
+    /// An app, with the name it gave in its `initialize`.
+    App {
+        name: Option<&'a str>,
+    },
+    /// The daemon itself: `initialize`, waking a session, listing a harness's sessions.
+    Daemon,
+    Adapter,
+    /// Another addon, by its id.
+    Addon(&'a str),
 }
 
 /// How a request ended: the two things a JSON-RPC response can carry.
@@ -155,10 +183,11 @@ impl Outcome {
 
 /// A request on its way to an adapter.
 pub struct Request<'a> {
-    /// A number the daemon gives every request, to tell them apart: the same one comes back
+    /// A number the daemon gives every message, to tell them apart: a request's comes back
     /// in [`Response::id`], and it is what [`Cx::release`] takes. Not the JSON-RPC id.
     pub id: u64,
     pub agent: Agent<'a>,
+    pub from: Origin<'a>,
     pub method: &'a str,
     /// May be changed.
     pub params: &'a mut Value,
@@ -173,11 +202,18 @@ pub enum Verdict {
     Refuse { code: i64, message: String },
     /// Do not send it. Whoever asked gets this result, as if the other side had answered.
     Answer(Value),
-    /// Keep it here until the addon calls [`Cx::release`] with the request's id, from any
-    /// later hook. Nothing else waits: other requests go on meanwhile. A held request that
-    /// is never released is never answered, unless its adapter stops.
-    ///
-    /// Not available in [`Addon::agent_request`], where it means [`Verdict::Pass`].
+    /// Keep it here until the addon releases it by its id, from any later hook
+    /// ([`Cx::release`]). Nothing else waits: other messages go on meanwhile. A held request
+    /// that is never released is never answered, unless its adapter stops.
+    Hold,
+}
+
+/// What to do with a response or an answer. Its content is changed in place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Flow {
+    /// Let it go on, with whatever the addon changed.
+    Pass,
+    /// Keep it here until the addon releases it. See [`Verdict::Hold`].
     Hold,
 }
 
@@ -186,6 +222,8 @@ pub struct Response<'a> {
     /// The [`Request::id`] of the request this answers.
     pub id: u64,
     pub agent: Agent<'a>,
+    /// Who made the request.
+    pub from: Origin<'a>,
     pub method: &'a str,
     /// The request's params, as they were sent.
     pub params: &'a Value,
@@ -193,21 +231,43 @@ pub struct Response<'a> {
     pub outcome: &'a mut Outcome,
 }
 
-/// A notification an app sent for the adapter, such as `session/cancel`.
+/// A notification on its way to the adapter, such as an app's `session/cancel`.
+///
+/// One whose method starts with `_x/` is for the addons alone: it is shown to them and
+/// never reaches an adapter.
 pub struct Notification<'a> {
+    pub id: u64,
     pub agent: Agent<'a>,
+    pub from: Origin<'a>,
     pub method: &'a str,
     /// May be changed.
     pub params: &'a mut Value,
 }
 
-/// A `session/update` an adapter sent, before the daemon logs it and passes it to apps.
+/// A `session/update` on its way from the adapter, before the daemon logs it and passes it
+/// to apps.
 pub struct Update<'a> {
+    pub id: u64,
     pub agent: Agent<'a>,
+    pub from: Origin<'a>,
     /// The session the update is for, which may be a subagent's.
     pub session_id: &'a str,
     /// The update body. May be changed.
     pub update: &'a mut Value,
+}
+
+/// Any other notification from the adapter, such as `auth/status_update`.
+///
+/// The daemon passes none of these to apps: it only keeps the login state from
+/// `auth/status_update`. An addon that wants apps to have one drops it and sends its own
+/// ([`Cx::announce`]), which does go to apps.
+pub struct AgentNotification<'a> {
+    pub id: u64,
+    pub agent: Agent<'a>,
+    pub from: Origin<'a>,
+    pub method: &'a str,
+    /// May be changed.
+    pub params: &'a mut Value,
 }
 
 /// What to do with a notification or an update.
@@ -217,20 +277,31 @@ pub enum Keep {
     Yes,
     /// Drop it. A dropped update is neither logged nor passed on.
     No,
+    /// Keep it here until the addon releases or discards it. What comes after it goes on
+    /// meanwhile, so a held update ends up later in the log than it arrived.
+    Hold,
 }
 
-/// A request the adapter makes of the user, such as `session/request_permission` or
-/// `elicitation/create`, before the daemon logs it and shows it to apps.
+/// A request made of the user, such as `session/request_permission` or `elicitation/create`,
+/// before the daemon logs it and shows it to apps.
 pub struct AgentRequest<'a> {
+    /// Comes back in [`Answer::id`].
+    pub id: u64,
     pub agent: Agent<'a>,
+    /// The adapter, or an addon nearer the adapter ([`Cx::ask`]).
+    pub from: Origin<'a>,
     pub method: &'a str,
     /// May be changed.
     pub params: &'a mut Value,
 }
 
-/// An app's answer to a request of the adapter, on its way to the adapter.
+/// The answer to a request made of the user, on its way back to whoever asked.
 pub struct Answer<'a> {
+    /// The [`AgentRequest::id`] of the request this answers.
+    pub id: u64,
     pub agent: Agent<'a>,
+    /// Who answered: an app, or an addon nearer the app.
+    pub from: Origin<'a>,
     /// The method and params of the request this answers.
     pub method: &'a str,
     pub params: &'a Value,
@@ -240,10 +311,23 @@ pub struct Answer<'a> {
 
 /// An app's call of a method under `_x/`, which no adapter knows.
 pub struct MethodCall<'a> {
-    /// For [`Cx::release`], if the addon holds the call.
     pub id: u64,
+    pub from: Origin<'a>,
     pub method: &'a str,
     pub params: &'a Value,
+}
+
+/// A session, as the daemon's log knows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionInfo {
+    /// The session itself, or for a subagent's session the one it belongs to.
+    pub root: String,
+    /// The id of the agent that runs it.
+    pub agent: String,
+    pub cwd: String,
+    pub title: Option<String>,
+    /// The turn state last reported, such as `idle`.
+    pub state: Option<String>,
 }
 
 /// What the daemon's log holds.
@@ -251,6 +335,15 @@ pub trait Sessions {
     /// The most recent update of this kind (its `sessionUpdate`) in the session itself, not
     /// in its subagents.
     fn last_update(&self, session_id: &str, kind: &str) -> Option<Value>;
+
+    /// Every update of the session itself, oldest first.
+    fn updates(&self, _session_id: &str) -> Vec<Value> {
+        Vec::new()
+    }
+
+    fn session(&self, _session_id: &str) -> Option<SessionInfo> {
+        None
+    }
 }
 
 /// Something an addon asked for through [`Cx`]. The daemon carries these out; an addon's
@@ -262,21 +355,43 @@ pub enum Effect {
         method: String,
         params: Value,
     },
+    Notify {
+        method: String,
+        params: Value,
+    },
     Append {
         session_id: String,
         update: Value,
     },
+    Announce {
+        method: String,
+        params: Value,
+    },
+    Ask {
+        id: u64,
+        method: String,
+        params: Value,
+    },
+    Wake {
+        id: u64,
+        after: Duration,
+    },
     Release {
-        request: u64,
+        id: u64,
         verdict: Verdict,
     },
     ReleaseWith {
-        request: u64,
-        params: Value,
+        id: u64,
+        content: Value,
+    },
+    Discard {
+        id: u64,
     },
 }
 
 /// What a hook can read and do besides the message it was given.
+///
+/// What it sends goes to the adapter of the message at hand, or to the apps.
 pub struct Cx<'a> {
     sessions: &'a dyn Sessions,
     next_call: u64,
@@ -284,8 +399,7 @@ pub struct Cx<'a> {
 }
 
 impl<'a> Cx<'a> {
-    /// For the daemon, and for tests of an addon. `next_call` is the id the first
-    /// [`Cx::call`] returns.
+    /// For the daemon, and for tests of an addon. `next_call` is the first id handed out.
     #[must_use]
     pub fn new(sessions: &'a dyn Sessions, next_call: u64) -> Self {
         Self {
@@ -295,24 +409,49 @@ impl<'a> Cx<'a> {
         }
     }
 
+    fn next(&mut self) -> u64 {
+        let id = self.next_call;
+        self.next_call += 1;
+        id
+    }
+
     /// The most recent update of a kind in a session's log. See [`Sessions::last_update`].
     #[must_use]
     pub fn last_update(&self, session_id: &str, kind: &str) -> Option<Value> {
         self.sessions.last_update(session_id, kind)
     }
 
-    /// Sends a request of the addon's own to the adapter of the message at hand. The answer
-    /// arrives in [`Addon::reply`] with the id returned here. If the adapter stops first, the
-    /// reply is an error.
+    /// Every update in a session's log, oldest first. See [`Sessions::updates`].
+    #[must_use]
+    pub fn updates(&self, session_id: &str) -> Vec<Value> {
+        self.sessions.updates(session_id)
+    }
+
+    /// What the log knows about a session.
+    #[must_use]
+    pub fn session(&self, session_id: &str) -> Option<SessionInfo> {
+        self.sessions.session(session_id)
+    }
+
+    /// Sends a request of the addon's own to the adapter. The answer arrives in
+    /// [`Addon::reply`] with the id returned here. If the adapter stops first, the reply is
+    /// an error.
     pub fn call(&mut self, method: &str, params: Value) -> u64 {
-        let id = self.next_call;
-        self.next_call += 1;
+        let id = self.next();
         self.effects.push(Effect::Call {
             id,
             method: method.to_owned(),
             params,
         });
         id
+    }
+
+    /// Sends a notification of the addon's own to the adapter, such as `session/cancel`.
+    pub fn notify(&mut self, method: &str, params: Value) {
+        self.effects.push(Effect::Notify {
+            method: method.to_owned(),
+            params,
+        });
     }
 
     /// Adds an update to a session: it is logged, replayed and sent to every attached app
@@ -325,15 +464,60 @@ impl<'a> Cx<'a> {
         });
     }
 
-    /// Ends the hold on a request this addon held ([`Verdict::Hold`]): `Pass` lets it go on
-    /// as it was, `Refuse` and `Answer` end it here.
-    pub fn release(&mut self, request: u64, verdict: Verdict) {
-        self.effects.push(Effect::Release { request, verdict });
+    /// Sends apps a notification that is not a session update. It is not logged. With a
+    /// `sessionId` in its params it goes to the apps attached to that session, otherwise to
+    /// every app.
+    pub fn announce(&mut self, method: &str, params: Value) {
+        self.effects.push(Effect::Announce {
+            method: method.to_owned(),
+            params,
+        });
     }
 
-    /// Ends the hold on a request and lets it go on with other params.
-    pub fn release_with(&mut self, request: u64, params: Value) {
-        self.effects.push(Effect::ReleaseWith { request, params });
+    /// Asks the user something, the way an adapter asks for an approval: the request is
+    /// logged in the session its params name (`sessionId`), marked as this addon's, shown to
+    /// every attached app, and the first answer counts. The answer arrives in
+    /// [`Addon::reply`] with the id returned here. If the session is unknown the reply is an
+    /// error; if its adapter stops first, the reply is a cancellation.
+    pub fn ask(&mut self, method: &str, params: Value) -> u64 {
+        let id = self.next();
+        self.effects.push(Effect::Ask {
+            id,
+            method: method.to_owned(),
+            params,
+        });
+        id
+    }
+
+    /// Asks to be called back: [`Addon::timer`] runs with the id returned here once `after`
+    /// has passed. This is how an addon puts a time limit on something it holds.
+    pub fn wake(&mut self, after: Duration) -> u64 {
+        let id = self.next();
+        self.effects.push(Effect::Wake { id, after });
+        id
+    }
+
+    /// Ends the hold on a message this addon held, by the message's id.
+    ///
+    /// - `Pass` lets it go on as it is.
+    /// - `Answer` and `Refuse` give a held request its outcome here, and replace the outcome
+    ///   of a held response or answer, which then goes on.
+    ///
+    /// For a held notification or update, anything but `Pass` discards it.
+    pub fn release(&mut self, id: u64, verdict: Verdict) {
+        self.effects.push(Effect::Release { id, verdict });
+    }
+
+    /// Ends the hold on a message and lets it go on with other content: the params of a
+    /// request or notification, the body of an update, the result of a response or answer.
+    pub fn release_with(&mut self, id: u64, content: Value) {
+        self.effects.push(Effect::ReleaseWith { id, content });
+    }
+
+    /// Ends the hold on a notification or an update by dropping it. A held request, response
+    /// or answer cannot be dropped, since somebody waits for it: it ends as an error.
+    pub fn discard(&mut self, id: u64) {
+        self.effects.push(Effect::Discard { id });
     }
 
     /// What was asked for so far.
@@ -342,7 +526,7 @@ impl<'a> Cx<'a> {
         &self.effects
     }
 
-    /// For the daemon: what was asked for, and the next free call id.
+    /// For the daemon: what was asked for, and the next free id.
     #[must_use]
     pub fn finish(self) -> (Vec<Effect>, u64) {
         (self.effects, self.next_call)
@@ -356,21 +540,24 @@ pub trait Addon: Send + 'static {
 
     /// Whether the addon wants the messages of this agent. This is where an addon limits
     /// itself to a harness, an adapter version or an operating system. Asked for every
-    /// message, so it has to be cheap. Not asked for [`Addon::reply`] and [`Addon::method`].
+    /// message, so it has to be cheap. Not asked for [`Addon::reply`], [`Addon::method`]
+    /// and [`Addon::timer`].
     fn applies(&self, _agent: &Agent<'_>) -> bool {
         true
     }
 
-    /// A request on its way to the adapter: an app's or the daemon's own.
+    /// A request on its way to the adapter: an app's, the daemon's own, or another addon's.
     fn request(&mut self, _cx: &mut Cx<'_>, _request: &mut Request<'_>) -> Verdict {
         Verdict::Pass
     }
 
     /// The answer to a request, on its way back. Also the answer an addon nearer the adapter
     /// gave in the adapter's place.
-    fn response(&mut self, _cx: &mut Cx<'_>, _response: &mut Response<'_>) {}
+    fn response(&mut self, _cx: &mut Cx<'_>, _response: &mut Response<'_>) -> Flow {
+        Flow::Pass
+    }
 
-    /// A notification from an app on its way to the adapter.
+    /// A notification on its way to the adapter.
     fn notification(&mut self, _cx: &mut Cx<'_>, _notification: &mut Notification<'_>) -> Keep {
         Keep::Yes
     }
@@ -380,22 +567,41 @@ pub trait Addon: Send + 'static {
         Keep::Yes
     }
 
-    /// A request the adapter makes of the user. Answering it here keeps it from the user:
-    /// the log still shows the request and who answered.
+    /// Any other notification on its way from the adapter.
+    fn agent_notification(
+        &mut self,
+        _cx: &mut Cx<'_>,
+        _notification: &mut AgentNotification<'_>,
+    ) -> Keep {
+        Keep::Yes
+    }
+
+    /// A request made of the user. Answering it here keeps it from the user: the log still
+    /// shows the request and who answered. While it is held, it is neither logged nor shown.
     fn agent_request(&mut self, _cx: &mut Cx<'_>, _request: &mut AgentRequest<'_>) -> Verdict {
         Verdict::Pass
     }
 
-    /// An app's answer to a request of the adapter, on its way to the adapter. Also the
-    /// answer an addon nearer the app gave in the user's place.
-    fn answer(&mut self, _cx: &mut Cx<'_>, _answer: &mut Answer<'_>) {}
+    /// The answer to a request made of the user, on its way back. Also the answer an addon
+    /// nearer the app gave in the user's place.
+    fn answer(&mut self, _cx: &mut Cx<'_>, _answer: &mut Answer<'_>) -> Flow {
+        Flow::Pass
+    }
 
-    /// The answer to a request this addon made with [`Cx::call`].
-    fn reply(&mut self, _cx: &mut Cx<'_>, _call: u64, _outcome: &Outcome) {}
+    /// The answer to a request this addon made with [`Cx::call`] or [`Cx::ask`].
+    fn reply(&mut self, _cx: &mut Cx<'_>, _id: u64, _outcome: &Outcome) {}
 
     /// An app calls a method under `_x/`. Addons are asked in order; `Pass` means "not
     /// mine". If none takes it, it goes to the extension that registered the namespace.
     fn method(&mut self, _cx: &mut Cx<'_>, _call: &MethodCall<'_>) -> Verdict {
         Verdict::Pass
     }
+
+    /// The time asked for with [`Cx::wake`] has passed.
+    fn timer(&mut self, _cx: &mut Cx<'_>, _id: u64) {}
+
+    /// An adapter stopped: its process ended, or the daemon gave up on it. By now every
+    /// request that waited on it has failed, including this addon's own. The next request
+    /// for the agent starts a new adapter, beginning with `initialize`.
+    fn stopped(&mut self, _cx: &mut Cx<'_>, _agent: &Agent<'_>, _why: &str) {}
 }

@@ -22,11 +22,20 @@
 //!
 //! What an app may do depends on its scope: `observe` reads, `interact` also acts.
 //!
-//! An *addon* is code compiled into the daemon that sees every message to and from an adapter
-//! and may change, stop or answer it (`bridge-addon-api`). Addons are layers: the first added is
-//! nearest the apps. [`Daemon::dispatch`] takes a request through them to the adapter and
-//! [`Daemon::settle`] takes its outcome back; the other hooks are called where the message is
-//! handled.
+//! An *addon* is code compiled into the daemon that sees every message to and from an adapter,
+//! may change, stop, hold or answer it, and may send any of them itself (`bridge-addon-api`).
+//! Addons are layers: the first added is nearest the apps. Four pairs of functions take the
+//! messages through them:
+//!
+//! | Message | Through the layers | Then |
+//! |---|---|---|
+//! | a request to an adapter | [`Daemon::dispatch`] | [`Daemon::settle`] takes its outcome back |
+//! | a request made of the user | [`Daemon::ask`] | [`Daemon::answered`] takes the answer back |
+//! | a notification or an update, either way | [`Daemon::pass`] | |
+//! | an app's call of a method under `_x/` | [`Daemon::serve`] | |
+//!
+//! A message an addon holds waits in `held` until [`Daemon::release`] sends it on from the
+//! layer that held it.
 //!
 //! An *extension* is a connection that registered a namespace. It adds updates of its own kinds
 //! (`x.<namespace>.…`) to sessions and serves its own methods (`_x/<namespace>/…`). The daemon
@@ -82,6 +91,12 @@ pub(crate) enum Event {
     },
     /// Time for housekeeping.
     Tick,
+    /// The time an addon asked to be woken after has passed.
+    Timer {
+        addon: usize,
+        agent: String,
+        id: u64,
+    },
     Shutdown(oneshot::Sender<()>),
 }
 
@@ -117,9 +132,10 @@ pub(crate) struct Daemon {
     /// Code between the daemon and the adapters, in the order it was added: the first is
     /// nearest the apps. A slot is empty while its addon's hook runs. See [`addon`].
     addons: Vec<Option<Box<dyn addon::Addon>>>,
-    /// The last number given to a request or to an addon's call, for addons to tell them apart.
+    /// The last number given to a message or to something an addon started, for addons to
+    /// tell them apart.
     ids: u64,
-    /// Requests an addon holds, by the number the daemon gave them.
+    /// Messages an addon holds, by the number the daemon gave them.
     held: HashMap<u64, Held>,
 }
 
@@ -133,20 +149,96 @@ struct Sent {
     request: u64,
 }
 
-/// Something an addon said to keep until it releases it.
-enum Held {
-    /// A request on its way to an adapter, stopped at the layer `addon`.
-    Request {
-        agent: String,
-        addon: usize,
-        sent: Box<Sent>,
-    },
-    /// An app's call of a method under `_x/`.
-    Method {
-        addon: usize,
-        client: u64,
-        id: Value,
-    },
+/// Who a message is from, in a form that can be kept.
+#[derive(Clone)]
+enum Source {
+    /// An app, with the name it gave.
+    App(Option<String>),
+    Daemon,
+    Adapter,
+    /// The addon at this layer.
+    Addon(usize),
+}
+
+/// A message nobody answers, on its way through the addons.
+struct OneWay {
+    /// The number addons know it by.
+    id: u64,
+    source: Source,
+    what: What,
+    /// The params, or for a session update its body.
+    body: Value,
+}
+
+enum What {
+    /// Towards the adapter, with its method.
+    Notification(String),
+    /// A `session/update` towards the apps, with its session id.
+    Update(String),
+    /// Any other notification towards the apps, with its method.
+    AgentNotification(String),
+}
+
+/// A request made of the user, by an adapter or by an addon.
+struct Ask {
+    asker: Asker,
+    method: String,
+    params: Value,
+    /// The number addons know it by.
+    request: u64,
+}
+
+enum Asker {
+    /// With the JSON-RPC id the adapter used, for the answer.
+    Adapter(Value),
+    /// With the id the addon was given, for [`addon::Addon::reply`].
+    Addon { addon: usize, id: u64 },
+}
+
+/// The answer to an [`Ask`], on its way back to whoever asked.
+struct Answered {
+    ask: Ask,
+    outcome: addon::Outcome,
+    source: Source,
+    /// For the log: who answered.
+    by: Option<String>,
+    /// The request's place in the log, if it has one.
+    entry: Option<LogEntry>,
+}
+
+/// An app's call of a method under `_x/`.
+struct OwnCall {
+    client: u64,
+    id: Value,
+    method: String,
+    params: Value,
+    /// The number addons know it by.
+    request: u64,
+}
+
+/// A message the addon at layer `addon` said to keep until it releases it.
+struct Held {
+    addon: usize,
+    agent: String,
+    what: HeldWhat,
+}
+
+enum HeldWhat {
+    Request(Box<Sent>),
+    Response(Box<Sent>, addon::Outcome),
+    Method(Box<OwnCall>),
+    OneWay(Box<OneWay>),
+    Ask(Box<Ask>),
+    Answer(Box<Answered>),
+}
+
+/// How an addon ends a hold.
+enum Release {
+    /// The message goes on, with other content if given.
+    Pass(Option<Value>),
+    /// A request gets this outcome here; a response or an answer goes on as this.
+    Outcome(addon::Outcome),
+    Discard,
 }
 
 /// The log, as an addon may read it.
@@ -155,13 +247,43 @@ struct Logs<'a> {
     roots: &'a HashMap<String, String>,
 }
 
+impl Logs<'_> {
+    /// The updates of the session itself, oldest first.
+    fn own_updates(&self, session_id: &str) -> Vec<Value> {
+        let entries = self
+            .roots
+            .get(session_id)
+            .and_then(|root| self.store.after(root, 0).ok())
+            .unwrap_or_default();
+        entries
+            .iter()
+            .filter(|entry| entry.session_id == session_id)
+            .filter_map(|entry| entry.update().cloned())
+            .collect()
+    }
+}
+
 impl addon::Sessions for Logs<'_> {
     fn last_update(&self, session_id: &str, kind: &str) -> Option<Value> {
+        self.own_updates(session_id)
+            .into_iter()
+            .rev()
+            .find(|update| text(update, "/sessionUpdate") == Some(kind))
+    }
+
+    fn updates(&self, session_id: &str) -> Vec<Value> {
+        self.own_updates(session_id)
+    }
+
+    fn session(&self, session_id: &str) -> Option<addon::SessionInfo> {
         let root = self.roots.get(session_id)?;
-        let entries = self.store.after(root, 0).ok()?;
-        entries.iter().rev().find_map(|entry| {
-            let update = entry.update().filter(|_| entry.session_id == session_id)?;
-            (text(update, "/sessionUpdate") == Some(kind)).then(|| update.clone())
+        let record = self.store.session(root).ok()??;
+        Some(addon::SessionInfo {
+            root: root.clone(),
+            agent: record.agent_id,
+            cwd: record.cwd,
+            title: record.title,
+            state: record.state,
         })
     }
 }
@@ -278,8 +400,7 @@ struct Session {
 }
 
 struct Pending {
-    /// The JSON-RPC id the adapter used, for the answer.
-    agent_request_id: Value,
+    ask: Ask,
     entry: LogEntry,
 }
 
@@ -355,6 +476,9 @@ impl Daemon {
                     self.clients.insert(client, entry);
                 }
                 Event::Tick => self.prune(),
+                Event::Timer { addon, agent, id } => {
+                    self.hook(addon, &agent, false, |addon, cx, _| addon.timer(cx, id));
+                }
                 Event::FromClient { client, message } => self.client_message(client, message),
                 Event::ClientClosed { client } => self.drop_client(client),
                 Event::FromAgent {
@@ -425,7 +549,7 @@ impl Daemon {
         match (method, message.get("id").cloned()) {
             (Some(method), Some(id)) => self.client_request(client, &method, id, message),
             // Notifications and answers act on a session. From an observer they are ignored.
-            (Some(_), None) if may_act => self.client_notification(&message),
+            (Some(_), None) if may_act => self.client_notification(client, &message),
             (None, Some(id)) if may_act => self.client_answer(client, &id, &message),
             _ => {}
         }
@@ -1245,34 +1369,32 @@ impl Daemon {
         }
     }
 
-    /// A notification from an app, such as `session/cancel`: passed on if the session is live.
-    fn client_notification(&mut self, message: &Value) {
-        let Some(agent_id) = text(message, "/params/sessionId")
-            .and_then(|id| self.roots.get(id))
-            .and_then(|root| self.sessions.get(root))
-            .filter(|session| session.live)
-            .map(|session| session.record.agent_id.clone())
-        else {
-            return;
-        };
+    /// A notification from an app. One for a live session, such as `session/cancel`, is
+    /// passed to its adapter. One under `_x/` is for the addons and goes no further.
+    fn client_notification(&mut self, client: u64, message: &Value) {
         let method = text(message, "/method").unwrap_or_default().to_owned();
-        let mut params = message.get("params").cloned().unwrap_or(Value::Null);
-        for index in 0..self.addons.len() {
-            let kept = self.hook(index, &agent_id, true, |addon, cx, agent| {
-                addon.notification(
-                    cx,
-                    &mut addon::Notification {
-                        agent,
-                        method: &method,
-                        params: &mut params,
-                    },
-                )
-            });
-            if kept == Some(addon::Keep::No) {
-                return;
+        let params = message.get("params").cloned().unwrap_or(Value::Null);
+        let agent_id = if method.starts_with("_x/") {
+            self.agent_for(&params)
+        } else {
+            let live = text(&params, "/sessionId")
+                .and_then(|id| self.roots.get(id))
+                .and_then(|root| self.sessions.get(root))
+                .filter(|session| session.live)
+                .map(|session| session.record.agent_id.clone());
+            match live {
+                Some(agent) => agent,
+                None => return,
             }
-        }
-        self.to_adapter(&agent_id, wire::notification(&method, params));
+        };
+        self.ids += 1;
+        let notification = OneWay {
+            id: self.ids,
+            source: self.app(client),
+            what: What::Notification(method),
+            body: params,
+        };
+        self.pass(&agent_id, 0, notification);
     }
 
     fn to_adapter(&self, agent_id: &str, message: Value) {
@@ -1285,46 +1407,70 @@ impl Daemon {
         }
     }
 
-    /// An app calls a method under `_x/`. An addon may serve it; otherwise it is an
-    /// extension's.
-    fn own_method(&mut self, client: u64, method: &str, id: Value, params: Value) {
-        // An addon may want to talk to an adapter while serving: the session's, or the first.
-        let agent_id = text(&params, "/sessionId")
+    /// The agent an addon talks to while it looks at a message that belongs to no adapter:
+    /// the one of the session the params name, or the first.
+    fn agent_for(&self, params: &Value) -> String {
+        text(params, "/sessionId")
             .and_then(|id| self.roots.get(id))
             .and_then(|root| self.sessions.get(root))
             .map(|session| session.record.agent_id.clone())
             .or_else(|| self.agents.keys().next().cloned())
-            .unwrap_or_default();
+            .unwrap_or_default()
+    }
+
+    fn app(&self, client: u64) -> Source {
+        Source::App(
+            self.clients
+                .get(&client)
+                .and_then(|entry| entry.name.clone()),
+        )
+    }
+
+    /// An app calls a method under `_x/`. An addon may serve it; otherwise it is an
+    /// extension's.
+    fn own_method(&mut self, client: u64, method: &str, id: Value, params: Value) {
+        let agent_id = self.agent_for(&params);
         self.ids += 1;
-        let request = self.ids;
-        for index in 0..self.addons.len() {
-            let verdict = self.hook(index, &agent_id, false, |addon, cx, _| {
-                let call = addon::MethodCall {
-                    id: request,
-                    method,
-                    params: &params,
+        let call = OwnCall {
+            client,
+            id,
+            method: method.to_owned(),
+            params,
+            request: self.ids,
+        };
+        self.serve(&agent_id, 0, call);
+    }
+
+    /// Offers an app's `_x/` call to the addons from layer `from` on, then to an extension.
+    fn serve(&mut self, agent_id: &str, from: usize, call: OwnCall) {
+        let source = self.app(call.client);
+        for index in from..self.addons.len() {
+            let origin = self.origin(&source);
+            let verdict = self.hook(index, agent_id, false, |addon, cx, _| {
+                let shown = addon::MethodCall {
+                    id: call.request,
+                    from: origin,
+                    method: &call.method,
+                    params: &call.params,
                 };
-                addon.method(cx, &call)
+                addon.method(cx, &shown)
             });
             match verdict {
                 None | Some(addon::Verdict::Pass) => {}
                 Some(addon::Verdict::Hold) => {
-                    let held = Held::Method {
-                        addon: index,
-                        client,
-                        id,
-                    };
-                    self.held.insert(request, held);
-                    return;
+                    return self.hold(index, agent_id, call.request, HeldWhat::Method(call.into()));
                 }
-                Some(addon::Verdict::Answer(result)) => return self.reply(client, &id, result),
+                Some(addon::Verdict::Answer(result)) => {
+                    return self.reply(call.client, &call.id, result);
+                }
                 Some(addon::Verdict::Refuse { code, message }) => {
                     let data = json!({"addon": self.addon_id(index)});
-                    return self.send(client, wire::error_with(&id, code, &message, data));
+                    let refusal = wire::error_with(&call.id, code, &message, data);
+                    return self.send(call.client, refusal);
                 }
             }
         }
-        self.call_extension(client, method, id, params);
+        self.call_extension(call.client, &call.method, call.id, call.params);
     }
 
     /// An extension says who it is.
@@ -1462,22 +1608,18 @@ impl Daemon {
         };
         let agent_id = session.record.agent_id.clone();
         self.requests.remove(request_id);
-        let mut outcome = addon::Outcome::of(message);
-        if let Record::Request { method, params, .. } = &pending.entry.record {
-            self.addons_on_answer(&agent_id, 0, method, params, &mut outcome);
-        }
-        let answer = outcome.to_json();
-        self.to_adapter(&agent_id, wire::relay(&pending.agent_request_id, &answer));
-        let outcome = answer
-            .get("result")
-            .or_else(|| answer.get("error"))
-            .cloned()
-            .unwrap_or(Value::Null);
-        let resolved_by = self
+        let by = self
             .clients
             .get(&client)
             .and_then(|entry| entry.name.clone());
-        self.resolve(&root, &pending.entry, outcome, resolved_by);
+        let answered = Answered {
+            ask: pending.ask,
+            outcome: addon::Outcome::of(message),
+            source: Source::App(by.clone()),
+            by,
+            entry: Some(pending.entry),
+        };
+        self.answered(&agent_id, 0, answered);
     }
 
     fn resolve(&mut self, root: &str, request: &LogEntry, outcome: Value, by: Option<String>) {
@@ -1637,6 +1779,7 @@ impl Daemon {
             .state
             .as_deref()
             .is_some_and(|state| state != "idle");
+        let agent_id = session.record.agent_id.clone();
         for pending in pending {
             if let Record::Request {
                 request_id, method, ..
@@ -1646,6 +1789,9 @@ impl Daemon {
                 let outcome = wire::cancelled(method);
                 self.resolve(root, &pending.entry, outcome, Some("daemon".to_owned()));
             }
+            // An addon that asked is told; an adapter that asked is gone.
+            let outcome = cancelled(&pending.ask.method);
+            self.deliver(&agent_id, &pending.ask.asker, &outcome);
         }
         if was_busy {
             self.cancel_open_tool_calls(root);
@@ -1828,91 +1974,222 @@ impl Daemon {
         Some(out)
     }
 
+    /// Who a kept message is from, as an addon is told.
+    fn origin<'a>(&self, source: &'a Source) -> addon::Origin<'a> {
+        match source {
+            Source::App(name) => addon::Origin::App {
+                name: name.as_deref(),
+            },
+            Source::Daemon => addon::Origin::Daemon,
+            Source::Adapter => addon::Origin::Adapter,
+            Source::Addon(index) => addon::Origin::Addon(self.addon_id(*index)),
+        }
+    }
+
+    /// Who made a request to an adapter.
+    fn source(&self, call: &Call) -> Source {
+        match call {
+            Call::Initialize | Call::List { .. } | Call::Resume { .. } => Source::Daemon,
+            Call::New { client, .. }
+            | Call::Fork { client, .. }
+            | Call::Delete { client, .. }
+            | Call::Forward { client, .. } => self.app(*client),
+            Call::Addon { addon, .. } => Source::Addon(*addon),
+        }
+    }
+
+    /// Marks something an addon sends towards the apps as that addon's.
+    fn mark(&self, index: usize, value: &mut Value) {
+        if !value.is_object() {
+            return;
+        }
+        if !value["_meta"].is_object() {
+            value["_meta"] = json!({});
+        }
+        value["_meta"][ext::META_KEY] = json!({"origin": "addon", "addon": self.addon_id(index)});
+    }
+
     /// Carries out one thing the addon `index` asked for while looking at a message of
-    /// `agent_id`.
+    /// `agent_id`. What it sends starts beyond its own layer, in the direction it travels.
     fn effect(&mut self, index: usize, agent_id: &str, effect: addon::Effect) {
+        self.ids += 1;
+        let number = self.ids;
         match effect {
             addon::Effect::Call { id, method, params } => {
-                self.ids += 1;
                 let sent = Sent {
                     call: Call::Addon { addon: index, id },
                     method,
                     params,
-                    request: self.ids,
+                    request: number,
                 };
-                // Its own layer has seen it; the layers nearer the adapter have not.
                 self.dispatch(agent_id, index + 1, sent);
             }
-            addon::Effect::Append { session_id, update } => {
-                self.append_from_addon(index, agent_id, &session_id, update);
+            addon::Effect::Notify { method, params } => {
+                let notification = OneWay {
+                    id: number,
+                    source: Source::Addon(index),
+                    what: What::Notification(method),
+                    body: params,
+                };
+                self.pass(agent_id, index + 1, notification);
             }
-            addon::Effect::Release { request, verdict } => {
-                self.release(index, request, verdict, None);
+            addon::Effect::Append {
+                session_id,
+                mut update,
+            } => {
+                if !self.roots.contains_key(&session_id) {
+                    return;
+                }
+                self.mark(index, &mut update);
+                let update = OneWay {
+                    id: number,
+                    source: Source::Addon(index),
+                    what: What::Update(session_id),
+                    body: update,
+                };
+                self.pass(agent_id, index, update);
             }
-            addon::Effect::ReleaseWith { request, params } => {
-                self.release(index, request, addon::Verdict::Pass, Some(params));
+            addon::Effect::Announce { method, params } => {
+                let notification = OneWay {
+                    id: number,
+                    source: Source::Addon(index),
+                    what: What::AgentNotification(method),
+                    body: params,
+                };
+                self.pass(agent_id, index, notification);
             }
+            addon::Effect::Ask {
+                id,
+                method,
+                mut params,
+            } => {
+                self.mark(index, &mut params);
+                let ask = Ask {
+                    asker: Asker::Addon { addon: index, id },
+                    method,
+                    params,
+                    request: number,
+                };
+                self.ask(agent_id, index, ask);
+            }
+            addon::Effect::Wake { id, after } => {
+                let (events, agent) = (self.events.clone(), agent_id.to_owned());
+                tokio::spawn(async move {
+                    tokio::time::sleep(after).await;
+                    let woken = Event::Timer {
+                        addon: index,
+                        agent,
+                        id,
+                    };
+                    let _ = events.send(woken).await;
+                });
+            }
+            addon::Effect::Release { id, verdict } => {
+                let how = match verdict {
+                    addon::Verdict::Hold => return,
+                    addon::Verdict::Pass => Release::Pass(None),
+                    addon::Verdict::Answer(result) => {
+                        Release::Outcome(addon::Outcome::Result(result))
+                    }
+                    addon::Verdict::Refuse { code, message } => {
+                        Release::Outcome(addon::Outcome::Error {
+                            code,
+                            message,
+                            data: Some(json!({"addon": self.addon_id(index)})),
+                        })
+                    }
+                };
+                self.release(index, id, how);
+            }
+            addon::Effect::ReleaseWith { id, content } => {
+                self.release(index, id, Release::Pass(Some(content)));
+            }
+            addon::Effect::Discard { id } => self.release(index, id, Release::Discard),
         }
     }
 
-    /// Ends a hold. Only the addon that holds a request can release it.
-    fn release(
-        &mut self,
-        index: usize,
-        request: u64,
-        verdict: addon::Verdict,
-        params: Option<Value>,
-    ) {
-        let holder = match self.held.get(&request) {
-            Some(Held::Request { addon, .. } | Held::Method { addon, .. }) => *addon,
-            None => return,
+    /// Keeps a message for the addon at layer `index` until it releases it.
+    fn hold(&mut self, index: usize, agent_id: &str, id: u64, what: HeldWhat) {
+        let held = Held {
+            addon: index,
+            agent: agent_id.to_owned(),
+            what,
         };
-        if holder != index || verdict == addon::Verdict::Hold {
+        self.held.insert(id, held);
+    }
+
+    /// Ends a hold: the message goes on from the layer that held it. Only the addon that
+    /// holds a message can release it.
+    fn release(&mut self, index: usize, id: u64, how: Release) {
+        if self.held.get(&id).is_none_or(|held| held.addon != index) {
             return;
         }
-        let marked = json!({"addon": self.addon_id(index)});
-        match self.held.remove(&request) {
-            Some(Held::Request {
-                agent,
-                addon,
-                mut sent,
-            }) => {
-                if let Some(params) = params {
-                    sent.params = params;
+        let Some(Held { addon, agent, what }) = self.held.remove(&id) else {
+            return;
+        };
+        // Somebody waits for a request, a response or an answer, so it cannot just vanish.
+        let dropped = addon::Outcome::Error {
+            code: wire::INTERNAL_ERROR,
+            message: "an addon dropped the message".to_owned(),
+            data: Some(json!({"addon": self.addon_id(index)})),
+        };
+        match what {
+            HeldWhat::Request(mut sent) => match how {
+                Release::Pass(params) => {
+                    if let Some(params) = params {
+                        sent.params = params;
+                    }
+                    self.dispatch(&agent, addon + 1, *sent);
                 }
-                let sent = *sent;
-                match verdict {
-                    addon::Verdict::Pass | addon::Verdict::Hold => {
-                        self.dispatch(&agent, addon + 1, sent);
-                    }
-                    addon::Verdict::Answer(result) => {
-                        self.settle(&agent, addon, sent, addon::Outcome::Result(result));
-                    }
-                    addon::Verdict::Refuse { code, message } => {
-                        let outcome = addon::Outcome::Error {
-                            code,
-                            message,
-                            data: Some(marked),
-                        };
-                        self.settle(&agent, addon, sent, outcome);
-                    }
-                }
+                Release::Outcome(outcome) => self.settle(&agent, addon, *sent, outcome),
+                Release::Discard => self.settle(&agent, addon, *sent, dropped),
+            },
+            HeldWhat::Response(sent, outcome) => {
+                let outcome = how.over(outcome, dropped);
+                self.settle(&agent, addon, *sent, outcome);
             }
-            Some(Held::Method { client, id, .. }) => match verdict {
-                addon::Verdict::Answer(result) => self.reply(client, &id, result),
-                addon::Verdict::Refuse { code, message } => {
-                    self.send(client, wire::error_with(&id, code, &message, marked));
+            HeldWhat::Method(mut call) => match how {
+                Release::Pass(params) => {
+                    if let Some(params) = params {
+                        call.params = params;
+                    }
+                    self.serve(&agent, addon + 1, *call);
                 }
-                addon::Verdict::Pass | addon::Verdict::Hold => {
-                    self.refuse(
-                        client,
-                        &id,
-                        wire::METHOD_NOT_FOUND,
-                        "nothing serves this method",
-                    );
+                Release::Outcome(outcome) => {
+                    self.send(call.client, wire::relay(&call.id, &outcome.to_json()));
+                }
+                Release::Discard => {
+                    self.send(call.client, wire::relay(&call.id, &dropped.to_json()));
                 }
             },
-            None => {}
+            HeldWhat::OneWay(mut message) => {
+                let Release::Pass(body) = how else {
+                    return;
+                };
+                if let Some(body) = body {
+                    message.body = body;
+                }
+                let next = match message.what {
+                    What::Notification(_) => addon + 1,
+                    What::Update(_) | What::AgentNotification(_) => addon,
+                };
+                self.pass(&agent, next, *message);
+            }
+            HeldWhat::Ask(mut ask) => match how {
+                Release::Pass(params) => {
+                    if let Some(params) = params {
+                        ask.params = params;
+                    }
+                    self.ask(&agent, addon, *ask);
+                }
+                Release::Outcome(outcome) => self.answered_by(&agent, addon, *ask, outcome),
+                Release::Discard => self.answered_by(&agent, addon, *ask, dropped),
+            },
+            HeldWhat::Answer(answered) => {
+                let mut answered = *answered;
+                answered.outcome = how.over(answered.outcome, dropped);
+                self.answered(&agent, addon + 1, answered);
+            }
         }
     }
 
@@ -1930,14 +2207,16 @@ impl Daemon {
 
     /// Passes a request through the addons from layer `from` on, then to the adapter.
     fn dispatch(&mut self, agent_id: &str, from: usize, mut sent: Sent) {
-        let request = sent.request;
+        let source = self.source(&sent.call);
         for index in from..self.addons.len() {
+            let origin = self.origin(&source);
             let verdict = self.hook(index, agent_id, true, |addon, cx, agent| {
                 addon.request(
                     cx,
                     &mut addon::Request {
                         id: sent.request,
                         agent,
+                        from: origin,
                         method: &sent.method,
                         params: &mut sent.params,
                     },
@@ -1946,13 +2225,8 @@ impl Daemon {
             match verdict {
                 None | Some(addon::Verdict::Pass) => {}
                 Some(addon::Verdict::Hold) => {
-                    let held = Held::Request {
-                        agent: agent_id.to_owned(),
-                        addon: index,
-                        sent: Box::new(sent),
-                    };
-                    self.held.insert(request, held);
-                    return;
+                    let what = HeldWhat::Request(sent.into());
+                    return self.hold(index, agent_id, what_id(&what), what);
                 }
                 Some(addon::Verdict::Answer(result)) => {
                     return self.settle(agent_id, index, sent, addon::Outcome::Result(result));
@@ -1992,19 +2266,26 @@ impl Daemon {
             Call::Addon { addon, .. } => addon + 1,
             _ => 0,
         };
+        let source = self.source(&sent.call);
         for index in (lowest..upto.min(self.addons.len())).rev() {
-            self.hook(index, agent_id, true, |addon, cx, agent| {
+            let origin = self.origin(&source);
+            let flow = self.hook(index, agent_id, true, |addon, cx, agent| {
                 addon.response(
                     cx,
                     &mut addon::Response {
                         id: sent.request,
                         agent,
+                        from: origin,
                         method: &sent.method,
                         params: &sent.params,
                         outcome: &mut outcome,
                     },
-                );
+                )
             });
+            if flow == Some(addon::Flow::Hold) {
+                let what = HeldWhat::Response(sent.into(), outcome);
+                return self.hold(index, agent_id, what_id(&what), what);
+            }
         }
         let generation = self
             .agents
@@ -2053,75 +2334,240 @@ impl Daemon {
         }
     }
 
-    /// Shows an update to the addons at the layers below `upto`, nearest the adapter first.
-    /// Returns it as they left it, or `None` if one dropped it.
-    fn addons_on_update(
-        &mut self,
-        agent_id: &str,
-        upto: usize,
-        session_id: &str,
-        mut update: Value,
-    ) -> Option<Value> {
-        for index in (0..upto.min(self.addons.len())).rev() {
+    /// Passes a message nobody answers through the addons, then acts on it. A notification
+    /// travels towards the adapter and starts at layer `next`; an update or another
+    /// notification of the adapter travels towards the apps and starts below layer `next`.
+    fn pass(&mut self, agent_id: &str, next: usize, mut message: OneWay) {
+        let layers = self.addons.len();
+        let order: Vec<usize> = match message.what {
+            What::Notification(_) => (next..layers).collect(),
+            What::Update(_) | What::AgentNotification(_) => (0..next.min(layers)).rev().collect(),
+        };
+        for index in order {
+            let (id, from) = (message.id, self.origin(&message.source));
             let kept = self.hook(index, agent_id, true, |addon, cx, agent| {
-                addon.update(
+                match &message.what {
+                    What::Notification(method) => addon.notification(
+                        cx,
+                        &mut addon::Notification {
+                            id,
+                            agent,
+                            from,
+                            method,
+                            params: &mut message.body,
+                        },
+                    ),
+                    What::Update(session_id) => addon.update(
+                        cx,
+                        &mut addon::Update {
+                            id,
+                            agent,
+                            from,
+                            session_id,
+                            update: &mut message.body,
+                        },
+                    ),
+                    What::AgentNotification(method) => addon.agent_notification(
+                        cx,
+                        &mut addon::AgentNotification {
+                            id,
+                            agent,
+                            from,
+                            method,
+                            params: &mut message.body,
+                        },
+                    ),
+                }
+            });
+            match kept {
+                None | Some(addon::Keep::Yes) => {}
+                Some(addon::Keep::No) => return,
+                Some(addon::Keep::Hold) => {
+                    return self.hold(index, agent_id, id, HeldWhat::OneWay(message.into()));
+                }
+            }
+        }
+        match (message.what, message.source) {
+            // One under `_x/` was for the addons.
+            (What::Notification(method), _) => {
+                if !method.starts_with("_x/") {
+                    self.to_adapter(agent_id, wire::notification(&method, message.body));
+                }
+            }
+            (What::Update(session_id), _) => {
+                if let Some(root) = self.roots.get(&session_id).cloned() {
+                    let update = message.body;
+                    self.log(&root, &session_id, Record::Update { update });
+                }
+            }
+            // An addon's own goes to the apps of the session it names, or to all of them.
+            (What::AgentNotification(method), Source::Addon(_)) => {
+                let attached = text(&message.body, "/sessionId")
+                    .and_then(|id| self.roots.get(id))
+                    .and_then(|root| self.sessions.get(root))
+                    .map(|session| session.subscribers.iter().copied().collect());
+                let clients: Vec<u64> =
+                    attached.unwrap_or_else(|| self.clients.keys().copied().collect());
+                let notification = wire::notification(&method, message.body);
+                for client in clients {
+                    self.send(client, notification.clone());
+                }
+            }
+            // An adapter's is neither stored nor passed on. Claude's adapter sends
+            // `auth/status_update` with the account's email address; only its state is kept.
+            (What::AgentNotification(method), _) => {
+                if method == "auth/status_update"
+                    && let Some(adapter) = self
+                        .agents
+                        .get_mut(agent_id)
+                        .and_then(|agent| agent.running.as_mut())
+                {
+                    adapter.auth = text(&message.body, "/state").map(str::to_owned);
+                }
+            }
+        }
+    }
+
+    /// Somebody asks the user something: an adapter (`upto` is then the number of layers),
+    /// or the addon at layer `upto`. The layers nearer the app see it first and may answer
+    /// in the user's place. Otherwise it is logged and stays pending until an app answers,
+    /// however long that takes and whether or not an app is attached right now.
+    fn ask(&mut self, agent_id: &str, upto: usize, mut ask: Ask) {
+        let source = match ask.asker {
+            Asker::Adapter(_) => Source::Adapter,
+            Asker::Addon { addon, .. } => Source::Addon(addon),
+        };
+        for index in (0..upto.min(self.addons.len())).rev() {
+            let origin = self.origin(&source);
+            let verdict = self.hook(index, agent_id, true, |addon, cx, agent| {
+                addon.agent_request(
                     cx,
-                    &mut addon::Update {
+                    &mut addon::AgentRequest {
+                        id: ask.request,
                         agent,
-                        session_id,
-                        update: &mut update,
+                        from: origin,
+                        method: &ask.method,
+                        params: &mut ask.params,
                     },
                 )
             });
-            if kept == Some(addon::Keep::No) {
-                return None;
-            }
+            let outcome = match verdict {
+                None | Some(addon::Verdict::Pass) => continue,
+                Some(addon::Verdict::Hold) => {
+                    return self.hold(index, agent_id, ask.request, HeldWhat::Ask(ask.into()));
+                }
+                Some(addon::Verdict::Answer(result)) => addon::Outcome::Result(result),
+                Some(addon::Verdict::Refuse { code, message }) => addon::Outcome::Error {
+                    code,
+                    message,
+                    data: Some(json!({"addon": self.addon_id(index)})),
+                },
+            };
+            return self.answered_by(agent_id, index, ask, outcome);
         }
-        Some(update)
-    }
-
-    /// An addon adds an update of its own to a session.
-    fn append_from_addon(
-        &mut self,
-        index: usize,
-        agent_id: &str,
-        session_id: &str,
-        mut update: Value,
-    ) {
-        let Some(root) = self.roots.get(session_id).cloned() else {
-            return;
+        let Some(entry) = self.log_ask(&ask) else {
+            let outcome = addon::Outcome::Error {
+                code: wire::METHOD_NOT_FOUND,
+                message: "the request names no session the daemon knows".to_owned(),
+                data: None,
+            };
+            return self.deliver(agent_id, &ask.asker, &outcome);
         };
-        if !update["_meta"].is_object() {
-            update["_meta"] = json!({});
-        }
-        update["_meta"][ext::META_KEY] = json!({"origin": "addon", "addon": self.addon_id(index)});
-        if let Some(update) = self.addons_on_update(agent_id, index, session_id, update) {
-            self.log(&root, session_id, Record::Update { update });
+        let root = self.roots.get(&entry.session_id).cloned();
+        if let (Record::Request { request_id, .. }, Some(root)) = (&entry.record, root)
+            && let Some(session) = self.sessions.get_mut(&root)
+        {
+            let request_id = request_id.clone();
+            self.requests.insert(request_id.clone(), root);
+            session.pending.insert(request_id, Pending { ask, entry });
         }
     }
 
-    /// Shows the answer to a request of the adapter to the addons from layer `from` on,
-    /// nearest the app first. They may change it.
-    fn addons_on_answer(
-        &mut self,
-        agent_id: &str,
-        from: usize,
-        method: &str,
-        params: &Value,
-        outcome: &mut addon::Outcome,
-    ) {
-        for index in from..self.addons.len() {
-            self.hook(index, agent_id, true, |addon, cx, agent| {
+    /// Writes a request made of the user into its session's log, which shows it to the apps.
+    fn log_ask(&mut self, ask: &Ask) -> Option<LogEntry> {
+        let session_id = text(&ask.params, "/sessionId")?.to_owned();
+        let root = self.roots.get(&session_id)?.clone();
+        let head = self.sessions.get(&root)?.record.head_seq;
+        let record = Record::Request {
+            request_id: format!("{root}#{}", head + 1),
+            method: ask.method.clone(),
+            params: ask.params.clone(),
+            outcome: None,
+        };
+        self.log(&root, &session_id, record)
+    }
+
+    /// The addon at layer `index` answers a request in the user's place. The log holds the
+    /// request and who answered, and no app is asked.
+    fn answered_by(&mut self, agent_id: &str, index: usize, ask: Ask, outcome: addon::Outcome) {
+        let answered = Answered {
+            entry: self.log_ask(&ask),
+            ask,
+            outcome,
+            source: Source::Addon(index),
+            by: Some(format!("addon {}", self.addon_id(index))),
+        };
+        // The layers nearer the asker see the answer as they would the user's.
+        self.answered(agent_id, index + 1, answered);
+    }
+
+    /// A request made of the user has its answer. The layers from `from` on see it, up to
+    /// whoever asked; then it is handed over and logged.
+    fn answered(&mut self, agent_id: &str, from: usize, mut answered: Answered) {
+        let end = match answered.ask.asker {
+            Asker::Adapter(_) => self.addons.len(),
+            Asker::Addon { addon, .. } => addon,
+        };
+        for index in from..end.min(self.addons.len()) {
+            let origin = self.origin(&answered.source);
+            let flow = self.hook(index, agent_id, true, |addon, cx, agent| {
                 addon.answer(
                     cx,
                     &mut addon::Answer {
+                        id: answered.ask.request,
                         agent,
-                        method,
-                        params,
-                        outcome,
+                        from: origin,
+                        method: &answered.ask.method,
+                        params: &answered.ask.params,
+                        outcome: &mut answered.outcome,
                     },
-                );
+                )
             });
+            if flow == Some(addon::Flow::Hold) {
+                let id = answered.ask.request;
+                return self.hold(index, agent_id, id, HeldWhat::Answer(answered.into()));
+            }
+        }
+        let answer = answered.outcome.to_json();
+        if let Asker::Adapter(id) = &answered.ask.asker {
+            self.to_adapter(agent_id, wire::relay(id, &answer));
+        }
+        if let Some(entry) = &answered.entry
+            && let Some(root) = self.roots.get(&entry.session_id).cloned()
+        {
+            let outcome = answer
+                .get("result")
+                .or_else(|| answer.get("error"))
+                .cloned()
+                .unwrap_or(Value::Null);
+            self.resolve(&root, entry, outcome, answered.by);
+        }
+        if let Asker::Addon { .. } = answered.ask.asker {
+            self.deliver(agent_id, &answered.ask.asker, &answered.outcome);
+        }
+    }
+
+    /// Hands an outcome to whoever asked the user.
+    fn deliver(&mut self, agent_id: &str, asker: &Asker, outcome: &addon::Outcome) {
+        match *asker {
+            Asker::Adapter(ref id) => {
+                self.to_adapter(agent_id, wire::relay(id, &outcome.to_json()));
+            }
+            Asker::Addon { addon, id } => {
+                self.hook(addon, agent_id, false, |addon, cx, _| {
+                    addon.reply(cx, id, outcome);
+                });
+            }
         }
     }
 
@@ -2143,11 +2589,27 @@ impl Daemon {
                 }
             }
             (Some("session/update"), None) => self.agent_update(agent_id, params),
-            (Some(method), Some(id)) => self.agent_request(agent_id, method, id, params),
-            // Other notifications are neither stored nor passed on. Claude's adapter sends
-            // `auth/status_update` with the account's email address; only its state is kept.
-            (Some("auth/status_update"), None) => {
-                adapter.auth = text(&params, "/state").map(str::to_owned);
+            (Some(method), Some(id)) => {
+                self.ids += 1;
+                let ask = Ask {
+                    asker: Asker::Adapter(id.clone()),
+                    method: method.to_owned(),
+                    params,
+                    request: self.ids,
+                };
+                let layers = self.addons.len();
+                self.ask(agent_id, layers, ask);
+            }
+            (Some(method), None) => {
+                self.ids += 1;
+                let notification = OneWay {
+                    id: self.ids,
+                    source: Source::Adapter,
+                    what: What::AgentNotification(method.to_owned()),
+                    body: params,
+                };
+                let layers = self.addons.len();
+                self.pass(agent_id, layers, notification);
             }
             _ => {}
         }
@@ -2336,94 +2798,15 @@ impl Daemon {
         if text(update, "/sessionUpdate") == Some("replay_complete") {
             return; // The end of the harness's own replay, while adopting. Not content.
         }
-        let layers = self.addons.len();
-        if let Some(update) = self.addons_on_update(agent_id, layers, session_id, update.clone()) {
-            self.log(&root, session_id, Record::Update { update });
-        }
-    }
-
-    /// The agent asks the user something. It stays pending until an app answers, however long
-    /// that takes and whether or not an app is attached right now. An addon may answer in the
-    /// user's place: the log then holds the request and who answered, and no app is asked.
-    fn agent_request(&mut self, agent_id: &str, method: &str, id: &Value, mut params: Value) {
-        let layers = self.addons.len();
-        let mut answered = None;
-        for index in (0..layers).rev() {
-            let verdict = self.hook(index, agent_id, true, |addon, cx, agent| {
-                addon.agent_request(
-                    cx,
-                    &mut addon::AgentRequest {
-                        agent,
-                        method,
-                        params: &mut params,
-                    },
-                )
-            });
-            let outcome = match verdict {
-                Some(addon::Verdict::Answer(result)) => addon::Outcome::Result(result),
-                Some(addon::Verdict::Refuse { code, message }) => addon::Outcome::Error {
-                    code,
-                    message,
-                    data: Some(json!({"addon": self.addon_id(index)})),
-                },
-                _ => continue,
-            };
-            answered = Some((index, outcome));
-            break;
-        }
-        if let Some((index, outcome)) = &mut answered {
-            // The layers nearer the adapter see the answer as they would the user's.
-            self.addons_on_answer(agent_id, *index + 1, method, &params, outcome);
-        }
-        let session_id = text(&params, "/sessionId").map(str::to_owned);
-        let root = session_id
-            .as_ref()
-            .and_then(|session| self.roots.get(session))
-            .filter(|root| self.sessions.contains_key(*root))
-            .cloned();
-        let logged = match (&root, &session_id) {
-            (Some(root), Some(session_id)) => {
-                let request_id = format!("{root}#{}", self.sessions[root].record.head_seq + 1);
-                let record = Record::Request {
-                    request_id,
-                    method: method.to_owned(),
-                    params,
-                    outcome: None,
-                };
-                self.log(root, session_id, record)
-            }
-            _ => None,
+        self.ids += 1;
+        let update = OneWay {
+            id: self.ids,
+            source: Source::Adapter,
+            what: What::Update(session_id.to_owned()),
+            body: update.clone(),
         };
-        if let Some((index, outcome)) = answered {
-            let answer = outcome.to_json();
-            self.to_adapter(agent_id, wire::relay(id, &answer));
-            if let (Some(root), Some(entry)) = (root, logged) {
-                let outcome = answer
-                    .get("result")
-                    .or_else(|| answer.get("error"))
-                    .cloned()
-                    .unwrap_or(Value::Null);
-                let by = format!("addon {}", self.addon_id(index));
-                self.resolve(&root, &entry, outcome, Some(by));
-            }
-            return;
-        }
-        let (Some(root), Some(entry)) = (root, logged) else {
-            let refusal = wire::error(id, wire::METHOD_NOT_FOUND, "not supported by the daemon");
-            return self.to_adapter(agent_id, refusal);
-        };
-        if let (Record::Request { request_id, .. }, Some(session)) =
-            (&entry.record, self.sessions.get_mut(&root))
-        {
-            self.requests.insert(request_id.clone(), root.clone());
-            session.pending.insert(
-                request_id.clone(),
-                Pending {
-                    agent_request_id: id.clone(),
-                    entry,
-                },
-            );
-        }
+        let layers = self.addons.len();
+        self.pass(agent_id, layers, update);
     }
 
     /// An adapter is gone (it exited, or the daemon gives up on it). Everything waiting on it
@@ -2439,19 +2822,36 @@ impl Daemon {
             return;
         };
         agent.last_error = Some(why.to_owned());
+        // What addons held for this adapter ends with it. A call of an addon's own method
+        // belongs to no adapter and stays.
         let held: Vec<u64> = self
             .held
             .iter()
-            .filter(|(_, held)| matches!(held, Held::Request { agent, .. } if agent == agent_id))
-            .map(|(request, _)| *request)
+            .filter(|(_, held)| held.agent == agent_id && !matches!(held.what, HeldWhat::Method(_)))
+            .map(|(id, _)| *id)
             .collect();
-        let held = held
-            .into_iter()
-            .filter_map(|request| match self.held.remove(&request) {
-                Some(Held::Request { sent, .. }) => Some(*sent),
-                _ => None,
-            });
-        let unanswered: Vec<Sent> = adapter.calls.into_values().chain(held).collect();
+        let mut unanswered: Vec<Sent> = adapter.calls.into_values().collect();
+        for id in held {
+            match self.held.remove(&id).map(|held| held.what) {
+                Some(HeldWhat::Request(sent) | HeldWhat::Response(sent, _)) => {
+                    unanswered.push(*sent);
+                }
+                Some(HeldWhat::Ask(ask)) => {
+                    self.deliver(agent_id, &ask.asker, &cancelled(&ask.method));
+                }
+                Some(HeldWhat::Answer(answered)) => {
+                    let method = &answered.ask.method;
+                    if let Some(entry) = &answered.entry
+                        && let Some(root) = self.roots.get(&entry.session_id).cloned()
+                    {
+                        let by = Some("daemon".to_owned());
+                        self.resolve(&root, entry, wire::cancelled(method), by);
+                    }
+                    self.deliver(agent_id, &answered.ask.asker, &cancelled(method));
+                }
+                _ => {}
+            }
+        }
         for sent in unanswered {
             self.fail(agent_id, sent.call, why);
         }
@@ -2479,6 +2879,43 @@ impl Daemon {
             self.end_turn(&root, why);
             self.announce(&root);
         }
+        for index in (0..self.addons.len()).rev() {
+            self.hook(index, agent_id, true, |addon, cx, agent| {
+                addon.stopped(cx, &agent, why);
+            });
+        }
+    }
+}
+
+impl Release {
+    /// The outcome a held response or answer goes on with.
+    fn over(self, was: addon::Outcome, dropped: addon::Outcome) -> addon::Outcome {
+        match self {
+            Self::Pass(None) => was,
+            Self::Pass(Some(result)) => addon::Outcome::Result(result),
+            Self::Outcome(outcome) => outcome,
+            Self::Discard => dropped,
+        }
+    }
+}
+
+/// The number addons know a held request by.
+fn what_id(what: &HeldWhat) -> u64 {
+    match what {
+        HeldWhat::Request(sent) | HeldWhat::Response(sent, _) => sent.request,
+        HeldWhat::Method(call) => call.request,
+        HeldWhat::OneWay(message) => message.id,
+        HeldWhat::Ask(ask) => ask.request,
+        HeldWhat::Answer(answered) => answered.ask.request,
+    }
+}
+
+/// What whoever asked the user is told when the request can no longer be answered.
+fn cancelled(method: &str) -> addon::Outcome {
+    let outcome = wire::cancelled(method);
+    match method {
+        "session/request_permission" | "elicitation/create" => addon::Outcome::Result(outcome),
+        _ => addon::Outcome::of(&json!({ "error": outcome })),
     }
 }
 

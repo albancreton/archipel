@@ -103,6 +103,7 @@ mod tests {
         let mut request = Request {
             id: 1,
             agent,
+            from: bridge_addon_api::Origin::App { name: None },
             method,
             params: &mut params,
         };
