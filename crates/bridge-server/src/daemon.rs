@@ -8,12 +8,18 @@
 //! | adapter | a request (approval, question) | number and log it, send it to every attached app, remember it as pending |
 //! | app | an answer to a pending request | first answer wins: pass it to the adapter, log it, tell every app |
 //! | app | `_bridge/session/attach` | send what the app missed (or a full replay), then live messages |
+//! | app | `_bridge/sessions/list` | the daemon's sessions, plus those each harness reports |
 //! | app | `session/new` | pass to the adapter, record the session, attach the app |
 //! | app | any other request for a session | pass to the adapter, waking the session first if needed |
 //!
 //! A session is *live* while an adapter process holds it. A session that is not live can still be
 //! attached to and replayed from the log; the first request for it restarts the adapter and
 //! resumes the session there.
+//!
+//! A session the daemon has never seen (started in the harness's own UI) is *adopted* the first
+//! time an app opens it: the adapter replays its history, which becomes the session's log.
+//!
+//! What an app may do depends on its scope: `observe` reads, `interact` also acts.
 
 use crate::wire;
 use bridge_agents::{AgentSpec, initialize_params};
@@ -22,7 +28,10 @@ use bridge_core::{
     state::SessionState,
     store::{SessionRecord, Store, rfc3339},
 };
-use bridge_schema::{ext, rules::RuleSet};
+use bridge_schema::{
+    ext::{self, Scope},
+    rules::RuleSet,
+};
 use bridge_transport::Link;
 use indexmap::IndexMap;
 use serde_json::{Value, json};
@@ -40,6 +49,7 @@ const MAX_EARLY_UPDATES: usize = 1000;
 pub(crate) enum Event {
     ClientOpened {
         client: u64,
+        scope: Scope,
         tx: mpsc::Sender<Value>,
     },
     FromClient {
@@ -58,6 +68,8 @@ pub(crate) enum Event {
         agent: String,
         generation: u64,
     },
+    /// Time for housekeeping.
+    Tick,
     Shutdown(oneshot::Sender<()>),
 }
 
@@ -76,9 +88,34 @@ pub(crate) struct Daemon {
     clients: HashMap<u64, Client>,
     /// Counts adapter starts, to tell a restarted adapter's messages from its predecessor's.
     generations: u64,
+    /// Sessions a harness reported that are not in the log, by session id.
+    harness: HashMap<String, HarnessSession>,
+    /// `_bridge/sessions/list` requests waiting for adapters to answer.
+    lists: HashMap<u64, ListJob>,
+    next_list: u64,
+    /// Sessions untouched for longer than this many milliseconds are removed from the log.
+    retention: Option<u64>,
+}
+
+/// A session only the harness knows, as its adapter listed it.
+#[derive(Clone)]
+struct HarnessSession {
+    agent: String,
+    cwd: String,
+    title: Option<String>,
+}
+
+struct ListJob {
+    client: u64,
+    id: Value,
+    sessions: Vec<ext::SessionSummary>,
+    /// Adapters that have not finished answering.
+    waiting: usize,
+    cwd: Option<String>,
 }
 
 struct Client {
+    scope: Scope,
     tx: mpsc::Sender<Value>,
     /// From the client's `initialize`, used to say who answered a request.
     name: Option<String>,
@@ -104,6 +141,8 @@ struct Adapter {
     waiting: Vec<(u64, Value)>,
     /// Updates for a session id not known yet. See [`MAX_EARLY_UPDATES`].
     early: Vec<Value>,
+    /// The login state the adapter last reported, such as `authenticated`.
+    auth: Option<String>,
 }
 
 /// Why the daemon sent a request to an adapter, and what to do with the answer.
@@ -115,8 +154,14 @@ enum Call {
         id: Value,
         agent: String,
         cwd: String,
+        setup: Value,
     },
-    /// The daemon waking a session that is not live.
+    /// The daemon asking a harness for its sessions, for a [`ListJob`].
+    List {
+        job: u64,
+        agent: String,
+    },
+    /// The daemon waking a session that is not live, or adopting one.
     Resume {
         root: String,
     },
@@ -133,6 +178,9 @@ struct Session {
     live: bool,
     /// The daemon has asked the adapter to resume the session and waits for the answer.
     resuming: bool,
+    /// The session's history is being loaded from the harness. Until that is done its log is
+    /// incomplete, so apps that want it wait.
+    adopting: bool,
     /// App requests held back until the session is live again.
     queued: Vec<(u64, Value)>,
     /// Attached apps.
@@ -169,6 +217,7 @@ impl Daemon {
         agents: Vec<AgentSpec>,
         store: Box<dyn Store>,
         events: mpsc::Sender<Event>,
+        retention: Option<u64>,
     ) -> Self {
         Self {
             rules: RuleSet::pinned(),
@@ -190,15 +239,25 @@ impl Daemon {
             requests: HashMap::new(),
             clients: HashMap::new(),
             generations: 0,
+            harness: HashMap::new(),
+            lists: HashMap::new(),
+            next_list: 0,
+            retention,
         }
     }
 
     pub(crate) async fn run(mut self, mut inbox: mpsc::Receiver<Event>) {
         while let Some(event) = inbox.recv().await {
             match event {
-                Event::ClientOpened { client, tx } => {
-                    self.clients.insert(client, Client { tx, name: None });
+                Event::ClientOpened { client, scope, tx } => {
+                    let entry = Client {
+                        scope,
+                        tx,
+                        name: None,
+                    };
+                    self.clients.insert(client, entry);
                 }
+                Event::Tick => self.prune(),
                 Event::FromClient { client, message } => self.client_message(client, message),
                 Event::ClientClosed { client } => self.drop_client(client),
                 Event::FromAgent {
@@ -251,17 +310,52 @@ impl Daemon {
         if !self.clients.contains_key(&client) {
             return;
         }
+        let may_act = self.scope(client) >= Scope::Interact;
         let method = text(&message, "/method").map(str::to_owned);
         match (method, message.get("id").cloned()) {
             (Some(method), Some(id)) => self.client_request(client, &method, id, message),
-            (Some(_), None) => self.client_notification(&message),
-            (None, Some(id)) => self.client_answer(client, &id, &message),
-            (None, None) => {}
+            // Notifications and answers act on a session. From an observer they are ignored.
+            (Some(_), None) if may_act => self.client_notification(&message),
+            (None, Some(id)) if may_act => self.client_answer(client, &id, &message),
+            _ => {}
         }
+    }
+
+    fn scope(&self, client: u64) -> Scope {
+        self.clients
+            .get(&client)
+            .map_or(Scope::Observe, |entry| entry.scope)
+    }
+
+    /// Refuses a request the app's scope does not allow. Returns whether it was allowed.
+    fn allowed(&mut self, client: u64, id: &Value, needed: Scope) -> bool {
+        let allowed = self.scope(client) >= needed;
+        if !allowed {
+            self.refuse(
+                client,
+                id,
+                wire::FORBIDDEN,
+                "this connection may only observe",
+            );
+        }
+        allowed
     }
 
     fn client_request(&mut self, client: u64, method: &str, id: Value, message: Value) {
         let params = message.get("params").cloned().unwrap_or(Value::Null);
+        let reads = matches!(
+            method,
+            "initialize"
+                | "session/resume"
+                | ext::METHOD_AGENTS_LIST
+                | ext::METHOD_SESSIONS_LIST
+                | ext::METHOD_SESSION_ATTACH
+                | ext::METHOD_SESSION_DETACH
+        );
+        // Everything else acts on a session or reaches an agent.
+        if !reads && !self.allowed(client, &id, Scope::Interact) {
+            return;
+        }
         match method {
             "initialize" => {
                 if let (Some(name), Some(entry)) =
@@ -275,7 +369,7 @@ impl Daemon {
                     None => Ready::No("no agent is configured".to_owned()),
                 };
                 if !matches!(ready, Ready::Later) {
-                    let result = self.initialize_result();
+                    let result = self.initialize_result(client);
                     self.reply(client, &id, result);
                 }
             }
@@ -283,8 +377,8 @@ impl Daemon {
                 let agents = self.agent_infos();
                 self.reply(client, &id, json!({ "agents": agents }));
             }
-            ext::METHOD_SESSIONS_LIST => self.list_sessions(client, &id, &params),
-            ext::METHOD_SESSION_ATTACH => self.attach(client, &id, params),
+            ext::METHOD_SESSIONS_LIST => self.list_sessions(client, &id, &message),
+            ext::METHOD_SESSION_ATTACH => self.attach(client, &id, &message),
             ext::METHOD_SESSION_DETACH => {
                 if let Some(root) = text(&params, "/sessionId").and_then(|id| self.roots.get(id))
                     && let Some(session) = self.sessions.get_mut(root)
@@ -293,7 +387,7 @@ impl Daemon {
                 }
                 self.reply(client, &id, json!({}));
             }
-            "session/resume" => self.resume_for_client(client, &id, &params),
+            "session/resume" => self.resume_for_client(client, &id, &message),
             "session/new" => self.new_session(client, id, &message),
             _ => match text(&params, "/sessionId").map(str::to_owned) {
                 Some(session_id) => self.forward(client, id, &session_id, message),
@@ -305,7 +399,7 @@ impl Daemon {
     /// What the daemon answers to an app's `initialize`: the default agent's capabilities under
     /// the daemon's own name. Without a working agent the capabilities are empty, and the app
     /// can still list and read sessions.
-    fn initialize_result(&self) -> Value {
+    fn initialize_result(&self, client: u64) -> Value {
         let agent = self
             .agents
             .values()
@@ -324,7 +418,9 @@ impl Daemon {
                     ext::METHOD_SESSION_ATTACH,
                     ext::METHOD_SESSION_DETACH,
                     ext::NOTIFICATION_REQUEST_RESOLVED,
+                    ext::NOTIFICATION_SESSIONS_UPDATED,
                 ],
+                "scope": self.scope(client),
                 "agent": agent.and_then(|result| result.get("info")),
             }},
         })
@@ -347,6 +443,10 @@ impl Daemon {
                         .map(str::to_owned),
                     readiness: if failed {
                         ext::AgentReadiness::Error
+                    } else if agent.running.as_ref().and_then(|a| a.auth.as_deref())
+                        == Some("unauthenticated")
+                    {
+                        ext::AgentReadiness::NeedsLogin
                     } else {
                         ext::AgentReadiness::Ready
                     },
@@ -356,39 +456,301 @@ impl Daemon {
             .collect()
     }
 
-    fn list_sessions(&mut self, client: u64, id: &Value, params: &Value) {
-        let only = text(params, "/agentId");
-        match self.store.sessions() {
-            Ok(records) => {
-                let sessions: Vec<ext::SessionSummary> = records
-                    .into_iter()
-                    .filter(|record| only.is_none_or(|agent| agent == record.agent_id))
-                    .map(|record| ext::SessionSummary {
-                        live: self
-                            .sessions
-                            .get(&record.session_id)
-                            .is_some_and(|session| session.live),
-                        updated_at: Some(rfc3339(record.updated_at)),
-                        session_id: record.session_id,
-                        agent_id: record.agent_id,
-                        title: record.title,
-                        cwd: record.cwd,
-                        state: record.state,
-                        head_seq: record.head_seq,
-                    })
-                    .collect();
-                self.reply(client, id, json!({ "sessions": sessions }));
-            }
-            Err(error) => self.refuse(client, id, wire::INTERNAL_ERROR, &error.to_string()),
+    fn summary(&self, record: &SessionRecord) -> ext::SessionSummary {
+        ext::SessionSummary {
+            live: self
+                .sessions
+                .get(&record.session_id)
+                .is_some_and(|session| session.live),
+            logged: true,
+            updated_at: Some(rfc3339(record.updated_at)),
+            session_id: record.session_id.clone(),
+            agent_id: record.agent_id.clone(),
+            title: record.title.clone(),
+            cwd: record.cwd.clone(),
+            state: record.state.clone(),
+            head_seq: record.head_seq,
         }
     }
 
-    fn attach(&mut self, client: u64, id: &Value, params: Value) {
+    /// Tells every connected app that a session appeared or that its summary changed.
+    fn announce(&mut self, root: &str) {
+        let Some(session) = self.sessions.get(root) else {
+            return;
+        };
+        let summary = self.summary(&session.record);
+        let message = wire::notification(
+            ext::NOTIFICATION_SESSIONS_UPDATED,
+            json!({ "session": summary }),
+        );
+        let clients: Vec<u64> = self.clients.keys().copied().collect();
+        for client in clients {
+            self.send(client, message.clone());
+        }
+    }
+
+    /// Lists the daemon's sessions and, unless asked not to, those each harness reports.
+    fn list_sessions(&mut self, client: u64, id: &Value, message: &Value) {
+        let params = message.get("params").cloned().unwrap_or_else(|| json!({}));
+        let Ok(request) = serde_json::from_value::<ext::ListSessionsRequest>(params) else {
+            return self.refuse(client, id, wire::INVALID_PARAMS, "unexpected params");
+        };
+        let records = match self.store.sessions() {
+            Ok(records) => records,
+            Err(error) => {
+                return self.refuse(client, id, wire::INTERNAL_ERROR, &error.to_string());
+            }
+        };
+        let wanted = |agent: &str, cwd: &str| {
+            request.agent_id.as_deref().is_none_or(|only| only == agent)
+                && request.cwd.as_deref().is_none_or(|only| only == cwd)
+        };
+        let sessions: Vec<ext::SessionSummary> = records
+            .iter()
+            .filter(|record| wanted(&record.agent_id, &record.cwd))
+            .map(|record| self.summary(record))
+            .collect();
+        // Ask every agent that can be reached. One that cannot start is left out.
+        let mut asked = Vec::new();
+        if !request.logged_only {
+            let agents: Vec<String> = self
+                .agents
+                .keys()
+                .filter(|agent| {
+                    request
+                        .agent_id
+                        .as_deref()
+                        .is_none_or(|only| only == *agent)
+                })
+                .cloned()
+                .collect();
+            for agent in agents {
+                match self.ensure_ready(&agent, client, message) {
+                    Ready::Yes => asked.push(agent),
+                    Ready::Later => return, // comes back when that adapter is up
+                    Ready::No(_) => {}
+                }
+            }
+        }
+        let job = self.next_list;
+        self.next_list += 1;
+        self.lists.insert(
+            job,
+            ListJob {
+                client,
+                id: id.clone(),
+                sessions,
+                waiting: asked.len(),
+                cwd: request.cwd.clone(),
+            },
+        );
+        if asked.is_empty() {
+            return self.finish_list(job);
+        }
+        for agent in asked {
+            self.ask_for_sessions(job, &agent, None);
+        }
+    }
+
+    fn ask_for_sessions(&mut self, job: u64, agent: &str, cursor: Option<&str>) {
+        let Some(list) = self.lists.get(&job) else {
+            return;
+        };
+        let mut params = json!({});
+        if let Some(cwd) = &list.cwd {
+            params["cwd"] = cwd.as_str().into();
+        }
+        if let Some(cursor) = cursor {
+            params["cursor"] = cursor.into();
+        }
+        let call = Call::List {
+            job,
+            agent: agent.to_owned(),
+        };
+        self.call(agent, call, "session/list", params);
+    }
+
+    /// One adapter answered (or failed) a list request.
+    fn sessions_listed(&mut self, job: u64, agent: &str, response: &Value) {
+        let Some(list) = self.lists.get_mut(&job) else {
+            return;
+        };
+        let found = response
+            .pointer("/result/sessions")
+            .and_then(Value::as_array);
+        for session in found.into_iter().flatten() {
+            let (Some(session_id), Some(cwd)) =
+                (text(session, "/sessionId"), text(session, "/cwd"))
+            else {
+                continue;
+            };
+            if self.roots.contains_key(session_id)
+                || list
+                    .sessions
+                    .iter()
+                    .any(|known| known.session_id == session_id)
+                || matches!(self.store.session(session_id), Ok(Some(_)))
+            {
+                continue; // already in the log
+            }
+            let title = text(session, "/title").map(str::to_owned);
+            self.harness.insert(
+                session_id.to_owned(),
+                HarnessSession {
+                    agent: agent.to_owned(),
+                    cwd: cwd.to_owned(),
+                    title: title.clone(),
+                },
+            );
+            list.sessions.push(ext::SessionSummary {
+                session_id: session_id.to_owned(),
+                agent_id: agent.to_owned(),
+                title,
+                cwd: cwd.to_owned(),
+                live: false,
+                logged: false,
+                state: None,
+                head_seq: 0,
+                updated_at: text(session, "/updatedAt").map(str::to_owned),
+            });
+        }
+        if let Some(cursor) = text(response, "/result/nextCursor") {
+            return self.ask_for_sessions(job, agent, Some(cursor));
+        }
+        list.waiting = list.waiting.saturating_sub(1);
+        if list.waiting == 0 {
+            self.finish_list(job);
+        }
+    }
+
+    fn finish_list(&mut self, job: u64) {
+        let Some(mut list) = self.lists.remove(&job) else {
+            return;
+        };
+        list.sessions
+            .sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        self.reply(list.client, &list.id, json!({ "sessions": list.sessions }));
+    }
+
+    /// Gets a session ready for an app: finds it in memory or in the store, or starts adopting
+    /// it from its harness. Returns the root session id when the app's request can go ahead.
+    /// Otherwise the request has been refused, or put aside to come back later.
+    fn open(
+        &mut self,
+        client: u64,
+        id: &Value,
+        session_id: &str,
+        message: &Value,
+    ) -> Option<String> {
+        if let Some(root) = self.load(session_id) {
+            if let Some(session) = self.sessions.get_mut(&root)
+                && session.adopting
+            {
+                session.queued.push((client, message.clone()));
+                return None;
+            }
+            return Some(root);
+        }
+        let Some(known) = self.harness.get(session_id).cloned() else {
+            self.refuse(
+                client,
+                id,
+                wire::INVALID_PARAMS,
+                "unknown session; list the sessions first",
+            );
+            return None;
+        };
+        // Adopting starts the harness, so reading alone does not allow it.
+        if !self.allowed(client, id, Scope::Interact) {
+            return None;
+        }
+        match self.ensure_ready(&known.agent, client, message) {
+            Ready::Later => {}
+            Ready::No(why) => self.refuse(client, id, wire::INTERNAL_ERROR, &why),
+            Ready::Yes => {
+                let at = now();
+                let record = SessionRecord {
+                    session_id: session_id.to_owned(),
+                    agent_id: known.agent.clone(),
+                    cwd: known.cwd,
+                    title: known.title,
+                    state: None,
+                    setup: json!({}),
+                    head_seq: 0,
+                    created_at: at,
+                    updated_at: at,
+                };
+                if let Err(error) = self.store.put_session(&record) {
+                    self.refuse(client, id, wire::INTERNAL_ERROR, &error.to_string());
+                    return None;
+                }
+                let params = resume_params(&record, true);
+                self.harness.remove(session_id);
+                self.roots
+                    .insert(session_id.to_owned(), session_id.to_owned());
+                self.sessions.insert(
+                    session_id.to_owned(),
+                    Session {
+                        record,
+                        live: false,
+                        resuming: true,
+                        adopting: true,
+                        queued: vec![(client, message.clone())],
+                        subscribers: BTreeSet::new(),
+                        pending: IndexMap::new(),
+                    },
+                );
+                let call = Call::Resume {
+                    root: session_id.to_owned(),
+                };
+                self.call(&known.agent, call, "session/resume", params);
+            }
+        }
+        None
+    }
+
+    /// Forgets a session entirely: memory and store.
+    fn forget(&mut self, root: &str) {
+        self.sessions.remove(root);
+        self.roots.retain(|_, of| of != root);
+        self.requests.retain(|_, of| of != root);
+        if let Err(error) = self.store.delete_session(root) {
+            eprintln!("bridge: {error}");
+        }
+    }
+
+    /// Removes sessions nobody has touched for longer than the retention time. The harness
+    /// still has them, so they stay listed and can be adopted again.
+    fn prune(&mut self) {
+        let Some(retention) = self.retention else {
+            return;
+        };
+        let limit = now().saturating_sub(retention);
+        let old: Vec<String> = self
+            .store
+            .sessions()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|record| record.updated_at < limit)
+            .map(|record| record.session_id)
+            .filter(|id| {
+                self.sessions
+                    .get(id)
+                    .is_none_or(|session| !session.live && session.subscribers.is_empty())
+            })
+            .collect();
+        for root in old {
+            self.forget(&root);
+        }
+    }
+
+    fn attach(&mut self, client: u64, id: &Value, message: &Value) {
+        let params = message.get("params").cloned().unwrap_or(Value::Null);
         let Ok(request) = serde_json::from_value::<ext::AttachSessionRequest>(params) else {
             return self.refuse(client, id, wire::INVALID_PARAMS, "expected a sessionId");
         };
-        let Some(root) = self.load(&request.session_id) else {
-            return self.refuse(client, id, wire::INVALID_PARAMS, "unknown session");
+        let Some(root) = self.open(client, id, &request.session_id, message) else {
+            return;
         };
         let head = self.sessions[&root].record.head_seq;
         // A position beyond the log's end is from another log: start over.
@@ -460,9 +822,11 @@ impl Daemon {
 
     /// ACP's own way to open an existing session, so a plain ACP v2 client can use the daemon.
     /// As ACP asks: any replay first, then the current state, then the response.
-    fn resume_for_client(&mut self, client: u64, id: &Value, params: &Value) {
-        let Some(root) = text(params, "/sessionId").and_then(|session| self.load(session)) else {
-            return self.refuse(client, id, wire::INVALID_PARAMS, "unknown session");
+    fn resume_for_client(&mut self, client: u64, id: &Value, message: &Value) {
+        let params = &message["params"];
+        let session_id = text(params, "/sessionId").unwrap_or_default().to_owned();
+        let Some(root) = self.open(client, id, &session_id, message) else {
+            return;
         };
         let entries = self.store.after(&root, 0).unwrap_or_default();
         let mut result = json!({});
@@ -509,11 +873,19 @@ impl Daemon {
             Ready::Yes => {
                 let params = message.get("params").cloned().unwrap_or(Value::Null);
                 let cwd = text(&params, "/cwd").unwrap_or_default().to_owned();
+                // Kept to resume the session later with the same servers and directories.
+                let mut setup = json!({});
+                for field in ["mcpServers", "additionalDirectories"] {
+                    if let Some(value) = params.get(field) {
+                        setup[field] = value.clone();
+                    }
+                }
                 let call = Call::New {
                     client,
                     id,
                     agent: agent.clone(),
                     cwd,
+                    setup,
                 };
                 self.call(&agent, call, "session/new", params);
             }
@@ -524,8 +896,8 @@ impl Daemon {
 
     /// Passes an app's request about a session to the adapter that holds it.
     fn forward(&mut self, client: u64, id: Value, session_id: &str, message: Value) {
-        let Some(root) = self.load(session_id) else {
-            return self.refuse(client, &id, wire::INVALID_PARAMS, "unknown session");
+        let Some(root) = self.open(client, &id, session_id, &message) else {
+            return;
         };
         let session = &self.sessions[&root];
         let agent = session.record.agent_id.clone();
@@ -545,11 +917,7 @@ impl Daemon {
                 session.queued.push((client, message));
                 if !session.resuming {
                     session.resuming = true;
-                    let params = json!({
-                        "sessionId": root,
-                        "cwd": session.record.cwd,
-                        "mcpServers": [],
-                    });
+                    let params = resume_params(&session.record, false);
                     self.call(&agent, Call::Resume { root }, "session/resume", params);
                 }
             }
@@ -681,6 +1049,7 @@ impl Daemon {
                 record,
                 live: false,
                 resuming: false,
+                adopting: false,
                 queued: Vec::new(),
                 subscribers: BTreeSet::new(),
                 pending: IndexMap::new(),
@@ -715,6 +1084,7 @@ impl Daemon {
         let session = self.sessions.get_mut(root)?;
         session.record.head_seq = seq;
         session.record.updated_at = at;
+        let mut summary_changed = false;
         if session_id == root
             && let Record::Update { update } = &entry.record
         {
@@ -739,8 +1109,11 @@ impl Daemon {
                         changed = true;
                     }
                 }
-                if changed && let Err(error) = self.store.put_session(&session.record) {
-                    eprintln!("bridge: {error}");
+                if changed {
+                    if let Err(error) = self.store.put_session(&session.record) {
+                        eprintln!("bridge: {error}");
+                    }
+                    summary_changed = true;
                 }
             }
         }
@@ -748,6 +1121,9 @@ impl Daemon {
         let subscribers: Vec<u64> = session.subscribers.iter().copied().collect();
         for client in subscribers {
             self.send(client, message.clone());
+        }
+        if summary_changed {
+            self.announce(root);
         }
         Some(entry)
     }
@@ -793,6 +1169,7 @@ impl Daemon {
             }
         }
         if was_busy {
+            self.cancel_open_tool_calls(root);
             for update in [
                 json!({"sessionUpdate": "notice", "severity": "error", "title": "The turn was interrupted", "description": why}),
                 json!({"sessionUpdate": "state_update", "state": "idle", "stopReason": "cancelled", "background": []}),
@@ -800,6 +1177,43 @@ impl Daemon {
                 let update = wire::own_update(update);
                 self.log(root, root, Record::Update { update });
             }
+        }
+    }
+
+    /// Marks tool calls that were still waiting or running as cancelled. Their turn is over,
+    /// and the agent that would have finished them is gone.
+    fn cancel_open_tool_calls(&mut self, root: &str) {
+        let entries = self.store.after(root, 0).unwrap_or_default();
+        let mut sessions: IndexMap<String, SessionState> = IndexMap::new();
+        for entry in &entries {
+            let state = sessions.entry(entry.session_id.clone()).or_default();
+            let _ = match &entry.record {
+                Record::Update { update } => state.apply_update(&self.rules, update),
+                Record::Request {
+                    request_id,
+                    method,
+                    params,
+                    ..
+                } => state.apply_request(&self.rules, request_id, method, params),
+                Record::Resolved { .. } => continue,
+            };
+        }
+        let mut open = Vec::new();
+        for (session_id, state) in &sessions {
+            for (id, call) in state.collections.get("toolCall").into_iter().flatten() {
+                if matches!(
+                    text(call, "/status"),
+                    Some("pending" | "in_progress" | "paused")
+                ) {
+                    open.push((session_id.clone(), id.clone()));
+                }
+            }
+        }
+        for (session_id, id) in open {
+            let update = wire::own_update(
+                json!({"sessionUpdate": "tool_call_update", "toolCallId": id, "status": "cancelled"}),
+            );
+            self.log(root, &session_id, Record::Update { update });
         }
     }
 
@@ -870,6 +1284,7 @@ impl Daemon {
             calls: HashMap::from([(0, Call::Initialize)]),
             waiting: Vec::new(),
             early: Vec::new(),
+            auth: None,
         });
         Ok(())
     }
@@ -915,7 +1330,10 @@ impl Daemon {
             (Some("session/update"), None) => self.agent_update(agent_id, params),
             (Some(method), Some(id)) => self.agent_request(agent_id, method, id, params),
             // Other notifications are neither stored nor passed on. Claude's adapter sends
-            // `auth/status_update` with the account's email address.
+            // `auth/status_update` with the account's email address; only its state is kept.
+            (Some("auth/status_update"), None) => {
+                adapter.auth = text(&params, "/state").map(str::to_owned);
+            }
             _ => {}
         }
     }
@@ -938,11 +1356,13 @@ impl Daemon {
                     self.client_message(client, message);
                 }
             }
+            Call::List { job, agent } => self.sessions_listed(job, &agent, response),
             Call::New {
                 client,
                 id,
                 agent,
                 cwd,
+                setup,
             } => {
                 let session_id = text(response, "/result/sessionId").map(str::to_owned);
                 let Some(session_id) = session_id else {
@@ -955,6 +1375,7 @@ impl Daemon {
                     cwd,
                     title: None,
                     state: None,
+                    setup,
                     head_seq: 0,
                     created_at: at,
                     updated_at: at,
@@ -962,6 +1383,7 @@ impl Daemon {
                 if let Err(error) = self.store.put_session(&record) {
                     return self.refuse(client, &id, wire::INTERNAL_ERROR, &error.to_string());
                 }
+                self.harness.remove(&session_id);
                 self.roots.insert(session_id.clone(), session_id.clone());
                 self.sessions.insert(
                     session_id.clone(),
@@ -969,12 +1391,14 @@ impl Daemon {
                         record,
                         live: true,
                         resuming: false,
+                        adopting: false,
                         queued: Vec::new(),
                         subscribers: BTreeSet::from([client]),
                         pending: IndexMap::new(),
                     },
                 );
                 self.send(client, wire::relay(&id, response));
+                self.announce(&session_id);
                 self.log_setup(&session_id, &response["result"]);
                 let early = self.agents[agent_id]
                     .running
@@ -990,14 +1414,20 @@ impl Daemon {
                     return;
                 };
                 session.resuming = false;
+                let adopting = std::mem::take(&mut session.adopting);
                 let queued = std::mem::take(&mut session.queued);
                 if let Some(result) = response.get("result") {
                     session.live = true;
                     self.log_setup(&root, result);
+                    self.announce(&root);
                     for (client, message) in queued {
                         self.client_message(client, message);
                     }
                 } else {
+                    if adopting {
+                        // Nothing usable was loaded: do not keep a half-empty log.
+                        self.forget(&root);
+                    }
                     for (client, message) in queued {
                         if let Some(id) = message.get("id") {
                             self.send(client, wire::relay(id, response));
@@ -1025,6 +1455,9 @@ impl Daemon {
         };
         if let Some(child) = subagent_session(update) {
             self.roots.insert(child.to_owned(), root.clone());
+        }
+        if text(update, "/sessionUpdate") == Some("replay_complete") {
+            return; // The end of the harness's own replay, while adopting. Not content.
         }
         let record = Record::Update {
             update: update.clone(),
@@ -1097,13 +1530,19 @@ impl Daemon {
                 Call::Resume { root } => {
                     if let Some(session) = self.sessions.get_mut(&root) {
                         session.resuming = false;
-                        for (client, message) in std::mem::take(&mut session.queued) {
+                        let adopting = std::mem::take(&mut session.adopting);
+                        let queued = std::mem::take(&mut session.queued);
+                        if adopting {
+                            self.forget(&root);
+                        }
+                        for (client, message) in queued {
                             if let Some(id) = message.get("id") {
                                 self.refuse(client, id, wire::INTERNAL_ERROR, why);
                             }
                         }
                     }
                 }
+                Call::List { job, agent } => self.sessions_listed(job, &agent, &Value::Null),
                 Call::Initialize => {}
             }
         }
@@ -1112,7 +1551,7 @@ impl Daemon {
                 continue;
             };
             if text(&message, "/method") == Some("initialize") {
-                let result = self.initialize_result();
+                let result = self.initialize_result(client);
                 self.reply(client, id, result);
             } else {
                 self.refuse(client, id, wire::INTERNAL_ERROR, why);
@@ -1129,8 +1568,25 @@ impl Daemon {
                 session.live = false;
             }
             self.end_turn(&root, why);
+            self.announce(&root);
         }
     }
+}
+
+/// The params to resume a session at its adapter, with or without a replay of its history.
+fn resume_params(record: &SessionRecord, replay: bool) -> Value {
+    let mut params = json!({
+        "sessionId": record.session_id,
+        "cwd": record.cwd,
+        "mcpServers": record.setup.get("mcpServers").cloned().unwrap_or_else(|| json!([])),
+    });
+    if let Some(directories) = record.setup.get("additionalDirectories") {
+        params["additionalDirectories"] = directories.clone();
+    }
+    if replay {
+        params["replayFrom"] = json!({"type": "start"});
+    }
+    params
 }
 
 /// The child session id that a `subagent_update` announces.

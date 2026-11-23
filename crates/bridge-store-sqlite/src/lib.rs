@@ -12,7 +12,7 @@ use rusqlite::{Connection, OptionalExtension, Row, params};
 use std::path::Path;
 
 /// Version of the tables, kept in SQLite's `user_version`.
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS sessions (
@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     cwd        TEXT NOT NULL,
     title      TEXT,
     state      TEXT,
+    setup      TEXT NOT NULL DEFAULT '{}',
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );
@@ -35,7 +36,7 @@ CREATE TABLE IF NOT EXISTS entries (
 ";
 
 const SESSION_COLUMNS: &str = "session_id, agent_id, cwd, title, state, created_at, updated_at,
-    (SELECT COALESCE(MAX(seq), 0) FROM entries WHERE root = sessions.session_id)";
+    (SELECT COALESCE(MAX(seq), 0) FROM entries WHERE root = sessions.session_id), setup";
 
 /// A [`Store`] backed by a SQLite file.
 #[derive(Debug)]
@@ -44,12 +45,22 @@ pub struct SqliteStore {
 }
 
 impl SqliteStore {
-    /// Opens the file, creating it and its tables when missing.
+    /// Opens the file, creating it and its tables when missing. The file is made readable by
+    /// its owner only: it holds conversations, and possibly the secrets of MCP servers.
     ///
     /// # Errors
     /// When the file cannot be opened, or was written by a newer version of this code.
     pub fn open(path: &Path) -> Result<Self, StoreError> {
-        Self::prepare(Connection::open(path).map_err(failed)?)
+        let store = Self::prepare(Connection::open(path).map_err(failed)?)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            for suffix in ["", "-wal", "-shm"] {
+                let file = format!("{}{suffix}", path.display());
+                let _ = std::fs::set_permissions(file, std::fs::Permissions::from_mode(0o600));
+            }
+        }
+        Ok(store)
     }
 
     /// A store that lives in memory, for tests.
@@ -73,6 +84,11 @@ impl SqliteStore {
                 "the log file has version {version}, this program knows up to {SCHEMA_VERSION}"
             )));
         }
+        if version == 1 {
+            // Version 2 added what a session was created with.
+            db.execute_batch("ALTER TABLE sessions ADD COLUMN setup TEXT NOT NULL DEFAULT '{}'")
+                .map_err(failed)?;
+        }
         db.execute_batch(SCHEMA).map_err(failed)?;
         db.pragma_update(None, "user_version", SCHEMA_VERSION)
             .map_err(failed)?;
@@ -94,6 +110,7 @@ fn session_from(row: &Row<'_>) -> rusqlite::Result<SessionRecord> {
         created_at: row.get::<_, i64>(5)?.cast_unsigned(),
         updated_at: row.get::<_, i64>(6)?.cast_unsigned(),
         head_seq: row.get::<_, i64>(7)?.cast_unsigned(),
+        setup: serde_json::from_str(&row.get::<_, String>(8)?).unwrap_or_default(),
     })
 }
 
@@ -101,10 +118,10 @@ impl Store for SqliteStore {
     fn put_session(&mut self, record: &SessionRecord) -> Result<(), StoreError> {
         self.db
             .execute(
-                "INSERT INTO sessions (session_id, agent_id, cwd, title, state, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                "INSERT INTO sessions (session_id, agent_id, cwd, title, state, created_at, updated_at, setup)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
                  ON CONFLICT (session_id) DO UPDATE SET
-                    agent_id = ?2, cwd = ?3, title = ?4, state = ?5, updated_at = ?7",
+                    agent_id = ?2, cwd = ?3, title = ?4, state = ?5, updated_at = ?7, setup = ?8",
                 params![
                     record.session_id,
                     record.agent_id,
@@ -113,6 +130,7 @@ impl Store for SqliteStore {
                     record.state,
                     record.created_at.cast_signed(),
                     record.updated_at.cast_signed(),
+                    record.setup.to_string(),
                 ],
             )
             .map(drop)
@@ -139,6 +157,15 @@ impl Store for SqliteStore {
             ))
             .and_then(|mut query| query.query_row([session_id], session_from).optional())
             .map_err(failed)
+    }
+
+    fn delete_session(&mut self, session_id: &str) -> Result<(), StoreError> {
+        let tx = self.db.transaction().map_err(failed)?;
+        tx.execute("DELETE FROM entries WHERE root = ?1", [session_id])
+            .map_err(failed)?;
+        tx.execute("DELETE FROM sessions WHERE session_id = ?1", [session_id])
+            .map_err(failed)?;
+        tx.commit().map_err(failed)
     }
 
     fn append(
@@ -213,6 +240,7 @@ mod tests {
             cwd: "/work".into(),
             title: None,
             state: None,
+            setup: json!({"mcpServers": [{"name": "docs"}]}),
             head_seq: 0,
             created_at: at,
             updated_at: at,
@@ -246,6 +274,12 @@ mod tests {
             .map(|s| (s.session_id.as_str(), s.head_seq, s.updated_at))
             .collect();
         assert_eq!(listed, vec![("a", 2, 11), ("b", 1, 5)]);
+        assert_eq!(sessions[0].setup["mcpServers"][0]["name"], json!("docs"));
+
+        store.delete_session("a").unwrap();
+        assert_eq!(store.session("a").unwrap(), None);
+        assert!(store.after("a", 0).unwrap().is_empty());
+        assert_eq!(store.after("b", 0).unwrap().len(), 1, "other logs are kept");
     }
 
     #[test]

@@ -7,6 +7,8 @@ use serde_json::{Map, Value, json};
 pub(crate) const INVALID_PARAMS: i64 = -32602;
 pub(crate) const METHOD_NOT_FOUND: i64 = -32601;
 pub(crate) const INTERNAL_ERROR: i64 = -32603;
+/// The connection's scope does not allow the request.
+pub(crate) const FORBIDDEN: i64 = -32003;
 
 pub(crate) fn request(id: impl Into<Value>, method: &str, params: Value) -> Value {
     json!({"jsonrpc": "2.0", "id": id.into(), "method": method, "params": params})

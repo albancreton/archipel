@@ -16,6 +16,10 @@ pub struct SessionRecord {
     pub title: Option<String>,
     /// The last ACP turn state: `running`, `requires_action` or `idle`.
     pub state: Option<String>,
+    /// What the session was created with besides its directory, as in the params of
+    /// `session/new`: `mcpServers`, `additionalDirectories`. Needed to resume it later.
+    /// It can hold secrets (an MCP server's environment), so stores must be private files.
+    pub setup: serde_json::Value,
     /// Sequence number of the newest log entry, or 0 when the log is empty.
     pub head_seq: u64,
     /// Milliseconds since the Unix epoch.
@@ -55,6 +59,12 @@ pub trait Store: Send {
     /// # Errors
     /// When the storage fails.
     fn session(&self, session_id: &str) -> Result<Option<SessionRecord>, StoreError>;
+
+    /// Removes a session and its log. Removing an unknown session is not an error.
+    ///
+    /// # Errors
+    /// When the storage fails.
+    fn delete_session(&mut self, session_id: &str) -> Result<(), StoreError>;
 
     /// Appends to the log of `root` and returns the new entry's sequence number.
     ///
@@ -111,6 +121,11 @@ impl Store for MemoryStore {
 
     fn session(&self, session_id: &str) -> Result<Option<SessionRecord>, StoreError> {
         Ok(self.sessions.get(session_id).map(|(r, _)| r.clone()))
+    }
+
+    fn delete_session(&mut self, session_id: &str) -> Result<(), StoreError> {
+        self.sessions.shift_remove(session_id);
+        Ok(())
     }
 
     fn append(
@@ -182,6 +197,7 @@ mod tests {
             cwd: "/tmp".into(),
             title: None,
             state: None,
+            setup: json!({}),
             head_seq: 0,
             created_at: 1,
             updated_at: 1,
@@ -204,6 +220,9 @@ mod tests {
         assert_eq!(later, vec![2]);
         assert_eq!(store.session("a").unwrap().unwrap().head_seq, 2);
         assert_eq!(store.sessions().unwrap()[0].session_id, "b");
+        store.delete_session("b").unwrap();
+        assert_eq!(store.session("b").unwrap(), None);
+        assert!(store.after("b", 0).unwrap().is_empty());
     }
 
     #[test]

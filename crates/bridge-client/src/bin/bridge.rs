@@ -13,7 +13,9 @@ const USAGE: &str = "\
 bridge: talk to the harness-bridge daemon
 
   bridge agents                          the agents the daemon can start
-  bridge sessions                        all sessions, newest first
+  bridge sessions [--logged]             all sessions, newest first. `+` marks those only the
+                                         harness knows; opening one loads its history.
+                                         --logged leaves those out and starts no agent
   bridge new [--cwd DIR] [--agent ID] [--mode MODE]
                                          create a session and print its id
   bridge prompt SESSION TEXT... [--watch]
@@ -115,7 +117,8 @@ async fn run(mut args: Vec<String>) -> Result<(), Failure> {
             }
         }
         "sessions" => {
-            let listed = daemon.call(ext::METHOD_SESSIONS_LIST, json!({})).await?;
+            let params = json!({"loggedOnly": switch(&mut args, "--logged")});
+            let listed = daemon.call(ext::METHOD_SESSIONS_LIST, params).await?;
             for session in listed["sessions"].as_array().into_iter().flatten() {
                 println!(
                     "{}  {:<8} {:<5} {:>5}  {}  {}",
@@ -123,6 +126,8 @@ async fn run(mut args: Vec<String>) -> Result<(), Failure> {
                     text(session, "agentId"),
                     if session["live"] == json!(true) {
                         "live"
+                    } else if session["logged"] == json!(false) {
+                        "+"
                     } else {
                         "-"
                     },

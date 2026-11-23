@@ -23,12 +23,16 @@ mod wire;
 use bridge_agents::AgentSpec;
 use bridge_core::store::{MemoryStore, Store};
 use bridge_transport::Link;
-use std::sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering},
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
 };
 use tokio::sync::{mpsc, oneshot};
 
+pub use bridge_schema::ext::Scope;
 pub use bridge_store_sqlite::SqliteStore;
 
 /// Entry point: `Server::builder()`.
@@ -40,6 +44,7 @@ impl Server {
         Builder {
             agents: Vec::new(),
             store: Box::new(MemoryStore::default()),
+            retention: None,
         }
     }
 }
@@ -48,6 +53,7 @@ impl Server {
 pub struct Builder {
     agents: Vec<AgentSpec>,
     store: Box<dyn Store>,
+    retention: Option<Duration>,
 }
 
 impl Builder {
@@ -65,11 +71,35 @@ impl Builder {
         self
     }
 
+    /// Removes sessions from the log once nobody has touched them for this long. Without this
+    /// nothing is removed. The harness keeps its own copy, so a removed session stays listed
+    /// and is loaded again when an app opens it.
+    #[must_use]
+    pub fn retention(mut self, unused_for: Duration) -> Self {
+        self.retention = Some(unused_for);
+        self
+    }
+
     /// Starts the daemon on the current tokio runtime.
     #[must_use]
     pub fn start(self) -> Handle {
         let (events, inbox) = mpsc::channel(bridge_transport::QUEUE);
-        tokio::spawn(daemon::Daemon::new(self.agents, self.store, events.clone()).run(inbox));
+        let retention = self.retention.map(|time| time.as_millis() as u64);
+        let daemon = daemon::Daemon::new(self.agents, self.store, events.clone(), retention);
+        tokio::spawn(daemon.run(inbox));
+        if retention.is_some() {
+            // Once at start, then every hour.
+            let ticks = events.clone();
+            tokio::spawn(async move {
+                let mut hourly = tokio::time::interval(Duration::from_secs(3600));
+                loop {
+                    hourly.tick().await;
+                    if ticks.send(daemon::Event::Tick).await.is_err() {
+                        return;
+                    }
+                }
+            });
+        }
         Handle {
             events,
             next_client: Arc::new(AtomicU64::new(1)),
@@ -85,14 +115,20 @@ pub struct Handle {
 }
 
 impl Handle {
-    /// Serves one app connection until it closes.
+    /// Serves one app connection, with every right, until it closes. For connections that
+    /// are the user's own by construction, such as the local socket.
     pub fn connect(&self, link: Link) {
+        self.connect_as(link, Scope::Admin);
+    }
+
+    /// Serves one app connection that may do what `scope` allows.
+    pub fn connect_as(&self, link: Link, scope: Scope) {
         let client = self.next_client.fetch_add(1, Ordering::Relaxed);
         let events = self.events.clone();
         let Link { tx, mut rx } = link;
         tokio::spawn(async move {
             if events
-                .send(daemon::Event::ClientOpened { client, tx })
+                .send(daemon::Event::ClientOpened { client, scope, tx })
                 .await
                 .is_err()
             {

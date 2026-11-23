@@ -5,6 +5,7 @@
 //! renderings in `testdata/vectors`.
 
 use bridge_agents::{AgentSpec, Fake, Launcher, Running};
+use bridge_core::store::{MemoryStore, SessionRecord, Store};
 use bridge_core::{
     mirror::{Mirror, seq_of},
     render,
@@ -12,7 +13,7 @@ use bridge_core::{
     transcript::{Frame, Transcript},
 };
 use bridge_schema::{ext, rules::RuleSet};
-use bridge_server::{Handle, Server, SqliteStore};
+use bridge_server::{Handle, Scope, Server, SqliteStore};
 use bridge_transport::Link;
 use serde_json::{Value, json};
 use std::{
@@ -83,8 +84,10 @@ fn session_of(transcript: &Transcript) -> String {
         .to_owned()
 }
 
+/// The daemon wrote this message itself: an update it adds to the log, or a session summary.
 fn from_daemon(message: &Value) -> bool {
     message.pointer("/params/update/_meta/bridge/origin") == Some(&json!("daemon"))
+        || message["method"] == ext::NOTIFICATION_SESSIONS_UPDATED
 }
 
 fn without_meta(params: &Value) -> Value {
@@ -110,8 +113,16 @@ impl App {
 
     /// Connects an app that already holds part of a session, as after losing its connection.
     async fn connect_with(server: &Handle, mirror: Mirror) -> Self {
+        Self::connect_as(server, mirror, Scope::Admin)
+    }
+
+    fn observer(server: &Handle) -> Self {
+        Self::connect_as(server, Mirror::default(), Scope::Observe)
+    }
+
+    fn connect_as(server: &Handle, mirror: Mirror, scope: Scope) -> Self {
         let (ours, theirs) = Link::pair();
-        server.connect(theirs);
+        server.connect_as(theirs, scope);
         Self {
             link: ours,
             next_id: 100,
@@ -599,8 +610,12 @@ async fn when_the_adapter_dies_its_sessions_are_closed_cleanly_and_the_next_requ
     assert_eq!(ready["result"]["info"]["name"], json!("harness-bridge"));
 
     // A session with a running turn and an open approval.
+    let servers = json!([{"name": "docs", "command": "docs-mcp", "args": [], "env": []}]);
     let new = app
-        .request("session/new", json!({"cwd": "/work", "mcpServers": []}))
+        .request(
+            "session/new",
+            json!({"cwd": "/work", "mcpServers": servers}),
+        )
         .await;
     let asked = adapter.rx.recv().await.unwrap();
     assert_eq!(asked["method"], "session/new");
@@ -608,6 +623,7 @@ async fn when_the_adapter_dies_its_sessions_are_closed_cleanly_and_the_next_requ
     for message in [
         json!({"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": "s1", "update": {"sessionUpdate": "state_update", "state": "running", "background": []}}}),
         json!({"jsonrpc": "2.0", "id": asked["id"], "result": {"sessionId": "s1"}}),
+        json!({"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": "s1", "update": {"sessionUpdate": "tool_call_update", "toolCallId": "t1", "title": "rm -rf", "status": "pending"}}}),
         json!({"jsonrpc": "2.0", "id": 9, "method": "session/request_permission", "params": {"sessionId": "s1", "title": "rm -rf",
             "subject": {"type": "tool_call", "toolCall": {"toolCallId": "t1", "title": "rm -rf"}}, "options": []}}),
     ] {
@@ -632,6 +648,11 @@ async fn when_the_adapter_dies_its_sessions_are_closed_cleanly_and_the_next_requ
         "the approval was cancelled"
     );
     assert_eq!(
+        root.collections["toolCall"]["t1"]["status"],
+        json!("cancelled"),
+        "a tool call that was waiting does not stay pending for ever"
+    );
+    assert_eq!(
         root.events.last().unwrap()["sessionUpdate"],
         json!("notice")
     );
@@ -653,7 +674,8 @@ async fn when_the_adapter_dies_its_sessions_are_closed_cleanly_and_the_next_requ
         if method == "session/resume" {
             assert_eq!(
                 asked["params"],
-                json!({"sessionId": "s1", "cwd": "/work", "mcpServers": []})
+                json!({"sessionId": "s1", "cwd": "/work", "mcpServers": servers}),
+                "the session is resumed with the servers it was created with"
             );
         }
         let answer = json!({"jsonrpc": "2.0", "id": asked["id"], "result": result});
@@ -662,4 +684,211 @@ async fn when_the_adapter_dies_its_sessions_are_closed_cleanly_and_the_next_requ
     let answered = app.until(|message| message["id"] == json!(prompt)).await;
     assert_eq!(answered["result"]["messageId"], json!("m1"));
     server.shutdown().await;
+}
+
+#[tokio::test]
+async fn an_observer_reads_everything_and_changes_nothing() {
+    let transcript = transcript("approval_denied");
+    let session = session_of(&transcript);
+    let asked = transcript
+        .frames
+        .iter()
+        .position(|frame| frame.m["method"] == "session/request_permission")
+        .expect("an approval request");
+    let server = Server::builder().agent(fake(&transcript)).start();
+    let mut owner = App::connect(&server).await;
+    let mut driver = Driver::default();
+    driver.play(&mut owner, &transcript.frames[..=asked]).await;
+
+    let mut observer = App::observer(&server);
+    let welcome = observer
+        .call("initialize", json!({"protocolVersion": 2}))
+        .await;
+    assert_eq!(
+        welcome["result"]["_meta"]["bridge"]["scope"],
+        json!("observe")
+    );
+    observer.attach(&session).await;
+    let (_, root) = observer.mirror.conversation.root().unwrap();
+    let (request_id, _) = root
+        .pending_requests()
+        .next()
+        .expect("it sees the approval");
+    let request_id = json!(request_id);
+
+    // It may not act: prompting, creating and changing settings are refused.
+    for (method, params) in [
+        (
+            "session/prompt",
+            json!({"sessionId": session, "prompt": []}),
+        ),
+        ("session/new", json!({"cwd": "/", "mcpServers": []})),
+        (
+            "session/set_config_option",
+            json!({"sessionId": session, "configId": "mode", "type": "id", "value": "bypassPermissions"}),
+        ),
+    ] {
+        let refused = observer.call(method, params).await;
+        assert_eq!(
+            refused["error"]["code"],
+            json!(-32003),
+            "{method}: {refused}"
+        );
+    }
+    // Its answer to the approval and its cancel are ignored: the owner's answer is the one
+    // that counts, and the session runs to its recorded end.
+    observer
+        .answer(
+            &request_id,
+            json!({"outcome": {"outcome": "selected", "optionId": "allow-once"}}),
+        )
+        .await;
+    observer
+        .notify("session/cancel", json!({"sessionId": session}))
+        .await;
+    observer.call(ext::METHOD_AGENTS_LIST, json!({})).await; // both were read by now
+    driver
+        .play(&mut owner, &transcript.frames[asked + 1..])
+        .await;
+    assert_eq!(owner.rendering(), vector("approval_denied"));
+
+    observer.attach(&session).await;
+    assert_eq!(
+        observer.rendering(),
+        vector("approval_denied"),
+        "and it saw all of it"
+    );
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn sessions_only_the_harness_knows_are_listed_and_adopted_when_opened() {
+    for (name, transcript) in all_transcripts() {
+        // A replay from the harness has the updates but not the approvals and questions, so
+        // only sessions without any can be compared with the stored rendering.
+        let has_requests = transcript.frames.iter().any(|frame| {
+            frame.dir == Direction::In
+                && frame.m.get("method").is_some()
+                && frame.m.get("id").is_some()
+        });
+        let session = session_of(&transcript);
+        // A new daemon with an empty log. The harness has one session from earlier.
+        let server = Server::builder().agent(fake(&transcript)).start();
+        let mut app = App::connect(&server).await;
+
+        let listed = app.call(ext::METHOD_SESSIONS_LIST, json!({})).await;
+        let sessions = listed["result"]["sessions"].as_array().unwrap();
+        assert_eq!(sessions.len(), 1, "{name}");
+        assert_eq!(sessions[0]["sessionId"], json!(session), "{name}");
+        assert_eq!(sessions[0]["logged"], json!(false), "{name}");
+        let logged = app
+            .call(ext::METHOD_SESSIONS_LIST, json!({"loggedOnly": true}))
+            .await;
+        assert_eq!(logged["result"]["sessions"], json!([]), "{name}");
+
+        // An observer cannot make the daemon load it.
+        let mut observer = App::observer(&server);
+        observer.call(ext::METHOD_SESSIONS_LIST, json!({})).await;
+        let params = json!({"sessionId": session});
+        let refused = observer.call(ext::METHOD_SESSION_ATTACH, params).await;
+        assert_eq!(refused["error"]["code"], json!(-32003), "{name}");
+
+        // Opening it loads its history from the harness into the log.
+        app.attach(&session).await;
+        if !has_requests {
+            assert_eq!(app.rendering(), vector(&name), "{name}");
+        }
+        let listed = app.call(ext::METHOD_SESSIONS_LIST, json!({})).await;
+        let sessions = listed["result"]["sessions"].as_array().unwrap();
+        assert_eq!(sessions.len(), 1, "{name}: listed once, not twice");
+        assert_eq!(sessions[0]["logged"], json!(true), "{name}");
+        assert_eq!(sessions[0]["live"], json!(true), "{name}");
+        assert_eq!(sessions[0]["headSeq"], json!(app.mirror.seq), "{name}");
+
+        // From now on it is an ordinary session: the observer can read it too.
+        observer.attach(&session).await;
+        assert_eq!(observer.rendering(), app.rendering(), "{name}");
+        server.shutdown().await;
+    }
+}
+
+#[tokio::test]
+async fn every_app_is_told_when_a_session_appears_or_its_summary_changes() {
+    let transcript = transcript("simple");
+    let session = session_of(&transcript);
+    let server = Server::builder().agent(fake(&transcript)).start();
+    // An app that is connected but attached to nothing, such as one showing a session list.
+    let mut sidebar = App::observer(&server);
+    sidebar
+        .call("initialize", json!({"protocolVersion": 2}))
+        .await;
+
+    let mut live = App::connect(&server).await;
+    Driver::default().play(&mut live, &transcript.frames).await;
+
+    let mut states = Vec::new();
+    loop {
+        let told = sidebar.next().await;
+        assert_eq!(
+            told["method"],
+            ext::NOTIFICATION_SESSIONS_UPDATED,
+            "nothing else: {told}"
+        );
+        let summary = &told["params"]["session"];
+        assert_eq!(summary["sessionId"], json!(session));
+        states.push(summary["state"].clone());
+        if summary["state"] == json!("idle") {
+            assert!(summary["title"].is_string(), "the title arrived on the way");
+            break;
+        }
+    }
+    assert!(states.contains(&json!("running")), "{states:?}");
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn sessions_unused_for_longer_than_the_retention_time_are_removed() {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
+    let record = |id: &str, at: u64| SessionRecord {
+        session_id: id.into(),
+        agent_id: "claude".into(),
+        cwd: "/work".into(),
+        title: None,
+        state: None,
+        setup: json!({}),
+        head_seq: 0,
+        created_at: at,
+        updated_at: at,
+    };
+    let mut store = MemoryStore::default();
+    store
+        .put_session(&record("old", now - 3 * 86_400_000))
+        .unwrap();
+    store
+        .put_session(&record("recent", now - 3_600_000))
+        .unwrap();
+    let server = Server::builder()
+        .store(store)
+        .retention(Duration::from_secs(86_400))
+        .start();
+    let mut app = App::connect(&server).await;
+    // The first clean-up runs at start, on its own task: give it a moment.
+    for _ in 0..50 {
+        let listed = app.call(ext::METHOD_SESSIONS_LIST, json!({})).await;
+        let ids: Vec<&str> = listed["result"]["sessions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|session| session["sessionId"].as_str())
+            .collect();
+        if ids == ["recent"] {
+            server.shutdown().await;
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    panic!("the old session was not removed");
 }

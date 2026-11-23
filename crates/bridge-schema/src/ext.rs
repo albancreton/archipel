@@ -14,6 +14,21 @@ pub const METHOD_SESSIONS_LIST: &str = "_bridge/sessions/list";
 pub const METHOD_SESSION_ATTACH: &str = "_bridge/session/attach";
 pub const METHOD_SESSION_DETACH: &str = "_bridge/session/detach";
 pub const NOTIFICATION_REQUEST_RESOLVED: &str = "_bridge/request/resolved";
+pub const NOTIFICATION_SESSIONS_UPDATED: &str = "_bridge/sessions/updated";
+
+/// What a connected app may do. Each level includes the ones before it.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum Scope {
+    /// List and read sessions.
+    Observe,
+    /// Also create sessions, prompt, cancel, answer, change settings.
+    Interact,
+    /// Also manage the daemon. Nothing needs this yet.
+    Admin,
+}
 
 /// Added by the daemon under `_meta.bridge` on every `session/update` it sends.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -88,9 +103,22 @@ pub struct ListSessionsRequest {
     /// Only sessions of this agent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_id: Option<String>,
+    /// Only sessions in this working directory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    /// Leave out sessions that only the harness knows. This never starts an adapter.
+    #[serde(default)]
+    pub logged_only: bool,
     /// From a previous response, to get the next page.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
+}
+
+/// `_bridge/sessions/updated`: a session appeared or its summary changed. Sent to every app.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsUpdatedNotification {
+    pub session: SessionSummary,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -111,6 +139,10 @@ pub struct SessionSummary {
     pub cwd: String,
     /// True when an adapter process currently holds the session.
     pub live: bool,
+    /// True when the session is in the daemon's log. False for a session only the harness
+    /// knows, for example one started in the harness's own UI: attaching to it, or sending it
+    /// anything, makes the daemon load its history from the harness first.
+    pub logged: bool,
     /// The last ACP `state_update` state, such as `idle` or `running`, when known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state: Option<String>,
@@ -198,4 +230,6 @@ pub struct BridgeExtensions {
     pub detach_session_request: DetachSessionRequest,
     pub detach_session_response: DetachSessionResponse,
     pub request_resolved_notification: RequestResolvedNotification,
+    pub sessions_updated_notification: SessionsUpdatedNotification,
+    pub scope: Scope,
 }

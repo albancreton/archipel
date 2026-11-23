@@ -1,13 +1,14 @@
 //! The WebSocket transport: one JSON message per text frame, opened with a bearer token.
 //!
-//! The daemon can run commands as the user, so a connection is accepted only when it carries the
-//! token in an `Authorization: Bearer` header. Requests with an `Origin` header are refused: they
+//! The daemon can run commands as the user, so a connection is accepted only when it carries a
+//! known token in an `Authorization: Bearer` header. What a token allows is the caller's
+//! business: the server asks a function, and hands its answer over with the link. Requests with an `Origin` header are refused: they
 //! come from web pages, and any page a browser shows may try to connect to a local port.
 
 use crate::{Link, QUEUE};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
-use std::{io, net::SocketAddr};
+use std::{io, net::SocketAddr, sync::Arc};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::{TcpListener, TcpStream},
@@ -45,22 +46,27 @@ pub async fn connect(url: &str, token: &str) -> io::Result<Link> {
     Ok(link(stream))
 }
 
-/// A listening WebSocket server.
-#[derive(Debug)]
-pub struct WsServer {
+/// Decides what a presented token allows. `None` refuses the connection.
+pub type Authorize<T> = Arc<dyn Fn(&str) -> Option<T> + Send + Sync>;
+
+/// A listening WebSocket server. `T` is what a token grants, for example a scope.
+pub struct WsServer<T> {
     listener: TcpListener,
-    token: String,
+    authorize: Authorize<T>,
 }
 
-impl WsServer {
+impl<T: Send + 'static> WsServer<T> {
     /// Starts listening on `addr`. Use a loopback address unless something in front adds TLS.
+    ///
+    /// `authorize` is called for every connection attempt, so tokens can be added and revoked
+    /// while the server runs. Compare tokens with [`same`].
     ///
     /// # Errors
     /// When the address cannot be bound.
-    pub async fn bind(addr: SocketAddr, token: String) -> io::Result<Self> {
+    pub async fn bind(addr: SocketAddr, authorize: Authorize<T>) -> io::Result<Self> {
         Ok(Self {
             listener: TcpListener::bind(addr).await?,
-            token,
+            authorize,
         })
     }
 
@@ -72,22 +78,24 @@ impl WsServer {
         self.listener.local_addr()
     }
 
-    /// Accepts clients for ever, sending each accepted link to `links`.
+    /// Accepts clients for ever, sending each accepted link to `links` with what its token
+    /// grants.
     ///
     /// Handshakes run on their own tasks, so a slow or refused client delays nobody.
-    pub async fn run(self, links: mpsc::Sender<Link>) {
+    pub async fn run(self, links: mpsc::Sender<(Link, T)>) {
         while let Ok((stream, _)) = self.listener.accept().await {
-            let (token, links) = (self.token.clone(), links.clone());
+            let (authorize, links) = (self.authorize.clone(), links.clone());
             tokio::spawn(async move {
-                if let Ok(link) = handshake(stream, &token).await {
-                    let _ = links.send(link).await;
+                if let Ok(accepted) = handshake(stream, &authorize).await {
+                    let _ = links.send(accepted).await;
                 }
             });
         }
     }
 }
 
-async fn handshake(stream: TcpStream, token: &str) -> io::Result<Link> {
+async fn handshake<T>(stream: TcpStream, authorize: &Authorize<T>) -> io::Result<(Link, T)> {
+    let mut granted = None;
     #[expect(
         clippy::result_large_err,
         reason = "the WebSocket library sets this signature"
@@ -107,7 +115,8 @@ async fn handshake(stream: TcpStream, token: &str) -> io::Result<Link> {
             .and_then(|value| value.to_str().ok())
             .and_then(|value| value.strip_prefix("Bearer "))
             .unwrap_or_default();
-        if same(given.as_bytes(), token.as_bytes()) {
+        granted = authorize(given);
+        if granted.is_some() {
             Ok(response)
         } else {
             Err(refuse(StatusCode::UNAUTHORIZED, "missing or wrong token"))
@@ -116,11 +125,15 @@ async fn handshake(stream: TcpStream, token: &str) -> io::Result<Link> {
     let stream = accept_hdr_async(stream, check)
         .await
         .map_err(io::Error::other)?;
-    Ok(link(stream))
+    let granted = granted.ok_or_else(|| io::Error::other("no grant"))?;
+    Ok((link(stream), granted))
 }
 
-/// Compares without stopping at the first difference, so timing does not reveal the token.
-fn same(a: &[u8], b: &[u8]) -> bool {
+/// Compares two tokens without stopping at the first difference, so timing does not reveal
+/// how much of a guess was right.
+#[must_use]
+pub fn same(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
     a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
@@ -162,8 +175,13 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    async fn server() -> (String, mpsc::Receiver<Link>) {
-        let server = WsServer::bind("127.0.0.1:0".parse().unwrap(), "secret".into())
+    async fn server() -> (String, mpsc::Receiver<(Link, &'static str)>) {
+        let authorize: Authorize<&'static str> = Arc::new(|token| {
+            [("secret", "owner"), ("peek", "guest")]
+                .into_iter()
+                .find_map(|(known, grant)| same(token, known).then_some(grant))
+        });
+        let server = WsServer::bind("127.0.0.1:0".parse().unwrap(), authorize)
             .await
             .unwrap();
         let url = format!("ws://{}", server.local_addr().unwrap());
@@ -176,11 +194,19 @@ mod tests {
     async fn the_right_token_gets_a_link() {
         let (url, mut links) = server().await;
         let mut client = connect(&url, "secret").await.unwrap();
-        let mut served = links.recv().await.unwrap();
+        let (mut served, grant) = links.recv().await.unwrap();
+        assert_eq!(grant, "owner");
         client.tx.send(json!({"id": 1})).await.unwrap();
         assert_eq!(served.rx.recv().await, Some(json!({"id": 1})));
         served.tx.send(json!({"id": 2})).await.unwrap();
         assert_eq!(client.rx.recv().await, Some(json!({"id": 2})));
+
+        let _guest = connect(&url, "peek").await.unwrap();
+        assert_eq!(
+            links.recv().await.unwrap().1,
+            "guest",
+            "each token has its grant"
+        );
     }
 
     #[tokio::test]
