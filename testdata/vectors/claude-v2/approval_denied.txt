@@ -1,0 +1,12 @@
+# claude-v2/approval_denied
+# prompt: Run this exact shell command: printf 'denied fixture' > probe-denied.txt  Then reply with exactly one word saying whether it ran: yes or no.
+
+[user] Run this exact shell command: printf 'denied fixture' > probe-denied.txt  Then reply with exactly one word saying whether it ran: yes or no.
+[tool execute failed] printf 'denied fixture' > probe-denied.txt
+    $ printf 'denied fixture' > probe-denied.txt   (ended)
+    | User refused permission to run tool
+[approval] printf 'denied fixture' > probe-denied.txt -> reject_once (No)
+[thought] The permission was refused, so I won't retry the same call. I'm going to answer with a single word, "no," since it did not run.⏎⏎
+[assistant] no
+-- state: idle end_turn background=0
+-- title: Shell probe denied fixture

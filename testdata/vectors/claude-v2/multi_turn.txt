@@ -1,0 +1,10 @@
+# claude-v2/multi_turn
+# prompt: Respond with exactly: first turn complete
+# prompt: Respond with exactly: second turn complete
+
+[user] Respond with exactly: first turn complete
+[assistant] first turn complete
+[user] Respond with exactly: second turn complete
+[assistant] second turn complete
+-- state: idle end_turn background=0
+-- title: First turn complete

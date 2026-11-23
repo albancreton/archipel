@@ -13,6 +13,8 @@ A raw ACP client (newline-delimited JSON-RPC over stdio, no SDK) that drives an 
 
 - `m0.mjs`: the milestone 0 probes (`multi`, `load`, `permwait`, `bg`, `think`, `todo`, `picompact`, `v2`, `v2b`); `m0pi.sh` runs one for Pi. Logs are `logs/m0-*.ndjson`.
 
+- `v2rec.mjs`: records ACP v2 transcripts from the Claude adapter into `testdata/transcripts/claude-v2` (`node v2rec.mjs <scenario|all>`).
+
 Setup: `npm install` here (installs `@agentclientprotocol/claude-agent-acp` and `pi-acp`), create a `work/` directory with a small `package.json` and `tsconfig.json`. Claude runs use `ANTHROPIC_MODEL=haiku` and `CLAUDE_CODE_EXECUTABLE` pointing at the installed `claude`. Live runs cost money or tokens.
 
 Known quirk: without `PROBE_MODEL`, a Pi session uses Pi's default model.

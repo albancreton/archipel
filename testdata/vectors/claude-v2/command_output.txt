@@ -1,0 +1,14 @@
+# claude-v2/command_output
+# prompt: Run this exact shell command in the foreground: for i in 1 2 3 4; do echo stream line $i; sleep 1; done  Then reply with exactly: done.
+
+[user] Run this exact shell command in the foreground: for i in 1 2 3 4; do echo stream line $i; sleep 1; done  Then reply with exactly: done.
+[tool execute completed] for i in 1 2 3 4; do echo stream line $i; sleep 1; done
+    $ for i in 1 2 3 4; do echo stream line $i; sleep 1; done   (exit 0)
+    | stream line 1
+    | stream line 2
+    | stream line 3
+    | stream line 4
+[thought] The command finished, so I'll reply with exactly "done." as the user asked, without adding the output.⏎⏎
+[assistant] done.
+-- state: idle end_turn background=0
+-- title: Foreground shell loop streaming

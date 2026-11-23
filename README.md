@@ -4,7 +4,7 @@ A library for building apps that render the agent loop of terminal coding harnes
 
 Claude Code and Pi are the main targets. Other harnesses are accessory.
 
-Status: research and design. The repository layout is scaffolded; the crates are empty.
+Status: milestone 1 of 7 done. The schema and the core (reducer, session log, condensed replay) exist and are tested against 17 recorded Claude sessions. There is no daemon yet.
 
 ## Decisions so far
 
@@ -29,6 +29,8 @@ Status: research and design. The repository layout is scaffolded; the crates are
 | `docs/research/08` | Raw web research on protocols, prior art, transport (with an unverified list) |
 | `docs/research/09`, `10` | Claude and Pi driven live through their ACP adapters |
 | `docs/research/11` | Milestone 0: the unknowns closed, ACP v2 tried, the Rust crate checked |
+| `docs/research/12` | Milestone 1: schema and core, and how the v2 schema drives the reducer |
+| `testdata/` | Recorded sessions and readable renderings of what the core makes of them |
 | `spikes/` | The scripts and raw logs behind 05, 06, 09, 10. See `spikes/README.md` |
 | `data/t3-claude-commits-30d.txt` | The 230 Claude-related T3 commits analysed in 03 |
 

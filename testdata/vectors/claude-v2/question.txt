@@ -1,0 +1,10 @@
+# claude-v2/question
+# prompt: Use the AskUserQuestion tool to ask me one question: which colour I prefer, with options Red and Blue. Then reply with exactly the option I chose.
+
+[user] Use the AskUserQuestion tool to ask me one question: which colour I prefer, with options Red and Blue. Then reply with exactly the option I chose.
+[tool other completed] Which colour do you prefer?
+    = Your questions have been answered: "Which colour do you prefer?"="Red". You can now continue with these answers in mind.
+[question] Which colour do you prefer? -> accept {"question_0":"Red"}
+[assistant] Red
+-- state: idle end_turn background=0
+-- title: Colour preference question

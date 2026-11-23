@@ -1,0 +1,9 @@
+# claude-v2/interrupt
+# prompt: Run this exact local command and wait for it: node -e "setTimeout(() => console.log('late'), 30000)"  Do not answer until it completes.
+
+[user] Run this exact local command and wait for it: node -e "setTimeout(() => console.log('late'), 30000)"  Do not answer until it completes.
+[tool execute cancelled] node -e "setTimeout(() => console.log('late'), 30000)"
+    $ node -e "setTimeout(() => console.log('late'), 30000)"   (ended)
+    | The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to… (+411 chars)
+-- state: idle cancelled background=0
+-- title: Delayed Node timeout command

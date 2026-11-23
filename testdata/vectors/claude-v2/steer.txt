@@ -1,0 +1,12 @@
+# claude-v2/steer
+# prompt: Run this exact command: node -e "setTimeout(() => console.log('A'), 9000)"  then reply DONE_A.
+
+[user] Run this exact command: node -e "setTimeout(() => console.log('A'), 9000)"  then reply DONE_A.
+[tool execute completed] node -e "setTimeout(() => console.log('A'), 9000)"
+    $ node -e "setTimeout(() => console.log('A'), 9000)"   (exit 0)
+    | A
+[user] Also mention the word STEERED in your final reply.
+[thought] The message I got asked me to include the word STEERED in my final reply, which is simple to do. The command has finished and printed A, so I'll reply with DONE_A and include STEERED. The docs tools a… (+97 chars)
+[assistant] DONE_A⏎⏎The command printed `A` after the 9-second delay. Per your mid-turn message, this reply is STEERED.
+-- state: idle end_turn background=0
+-- title: Delayed node console log

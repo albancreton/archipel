@@ -1,0 +1,11 @@
+# claude-v2/approval_command
+# prompt: Run this exact shell command: printf 'approval fixture' > probe-write.txt  Then reply with exactly: done.
+
+[user] Run this exact shell command: printf 'approval fixture' > probe-write.txt  Then reply with exactly: done.
+[tool execute completed] printf 'approval fixture' > probe-write.txt
+    $ printf 'approval fixture' > probe-write.txt   (exit 0)
+[approval] printf 'approval fixture' > probe-write.txt -> allow_once (Yes)
+[thought] The command finished with no output and the file was written. The reminder about docs tools doesn't apply here, so I'll just reply "done."⏎⏎
+[assistant] done.
+-- state: idle end_turn background=0
+-- title: Probe-write.txt approval fixture

@@ -1,6 +1,6 @@
 # Daemon design
 
-Draft 5, 2026-11-22: based on ACP v2 after milestone 0 (`docs/research/11`). "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
+Draft 6, 2026-11-22: based on ACP v2; milestones 0 and 1 done (`docs/research/11`, `12`). "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
 
 ## 1. What the daemon is for
 
@@ -89,7 +89,7 @@ ACP reserves `_`-prefixed methods and `_meta` for this.
 
 Extensions by other products use their own namespace (section 11).
 
-**To verify:** only three prompts were run on v2. Subagents, questions, plans, compaction and notices need the full scenario set rerun on v2 (milestone 2).
+Tested: 17 scenarios recorded on v2 through the Claude adapter, including subagents, questions, plans, compaction, steering, interrupt and background work (`testdata/transcripts/claude-v2`). Notices have not been seen yet.
 
 ## 4. Session log and replay
 
@@ -106,7 +106,13 @@ SQLite revises the earlier "no database" note. That note was about not owning a 
 
 ## 5. Items: what makes clients thin
 
-A client keeps a list of items and applies each update to it. With v2 ids the rule is: *find the item by id; a chunk appends; anything else merges; an unknown id creates the item.*
+The ACP v2 schema says, for each message, how it changes client state (`x-state` annotations). For example: `agent_message_chunk` appends `content` to the `agentMessage` with id `messageId`; `tool_call_update` upserts the `toolCall` with id `toolCallId`; `state_update` replaces `state`.
+
+`just gen` extracts these into `schema/state-rules.json`, and the reducer in `bridge-core` interprets them. There is no per-message code:
+
+- Four actions: append, upsert, replace, remove.
+- A target is a collection keyed by an id (messages, thoughts, tool calls, terminals, plans, subagents, compactions) or a single value (state, usage, config options, session info).
+- An item is identified by target and id together; a thought and a reply can share a `messageId`.
 
 | Item | v2 updates | Id |
 |---|---|---|
@@ -115,18 +121,18 @@ A client keeps a list of items and applies each update to it. With v2 ids the ru
 | Reasoning | `agent_thought`, `agent_thought_chunk` | `messageId` |
 | Tool call (command, read, edit with diff, search, fetch, other) | `tool_call_update` | `toolCallId` |
 | Command output | `terminal_update`, `terminal_output_chunk` | `terminalId`, linked from the tool call |
-| Approval request | `session/request_permission` | request id; its subject names the tool call |
-| Question | `elicitation/create` | request id |
 | Plan / todo list | `plan_update`, `plan_removed` | plan id |
 | Subagent | `subagent_update`; content is a child session with its own items | child session id |
 | Compaction | `compaction_update`, `compaction_summary_chunk` | `compactionId` |
-| Notice / error | `notice`; adapter failure | **to verify** |
+| Approval request | `session/request_permission` (a request, not an update) | request id; its subject names the tool call |
+| Question | `elicitation/create` (a request) | request id |
+| Notice / error | `notice` carries no state rule; kept as an event | **to verify**, none recorded yet |
 
-Session-level state sits beside the items: `state_update`, config options, usage, available commands, title.
+What the rules leave out and the core adds: the order of items (a timeline of first appearance), requests as pending until answered, one state per session id for subagents, and joining base64 terminal output.
 
-Where an update has no usable id, the daemon adds `_meta.bridge.itemId`. That is expected to be rare on v2.
+A client SDK needs the same small interpreter plus the rules file. A new message kind in a later v2 revision needs a regenerated rules file, not new code. Kinds the rules do not know, including vendor extensions, are kept and passed on.
 
-The rule is small enough to write by hand in Swift or Kotlin, and the same recorded transcripts test every implementation.
+Each recorded transcript has a readable rendering of the resulting items in `testdata/vectors`, which every implementation must reproduce.
 
 ## 6. Adapter profiles
 
@@ -204,12 +210,19 @@ Harness credentials never pass through the daemon's protocol. Each harness keeps
 
 ## 10. Data model as a schema
 
-The contract is a set of schema files, not code:
+The contract lives in `schema/`:
 
-- ACP's published JSON Schema, unmodified.
-- An extension schema for everything in sections 3 to 5: the `_bridge/` methods, the `_meta.bridge` fields, the item kinds and the session state.
+| File | Role |
+|---|---|
+| `acp-v2.schema.json` | The pinned ACP v2 schema, vendored unmodified |
+| `state-rules.json` | How each message changes client state, extracted from the pinned schema |
+| `bridge.schema.json` | The daemon's extensions (section 3) |
 
-Server types, Swift types and TypeScript types are generated from these. A change to the model is a change to the schema first, versioned, with the generated code following. Capability negotiation at `initialize` tells each side what the other supports, as in ACP.
+- **ACP:** the pinned file is the reference. Rust types come from the official `agent-client-protocol-schema` crate, which is the schema's upstream source. A test parses every recorded update with those types, so the file and the crate cannot drift apart unnoticed.
+- **Extensions:** the Rust types in `bridge-schema` are the source, and the schema file is generated from them. This is how ACP itself is produced.
+- **Clients:** TypeScript and Swift types are generated from the three files.
+
+`just gen` regenerates the two derived files, and CI fails if they are stale. Capability negotiation at `initialize` tells each side what the other supports, as in ACP.
 
 ## 11. Extensions
 
@@ -263,7 +276,7 @@ A correction to draft 1: it is not true that every setup already needs Node. Pi 
 
 Adding a harness means: an ACP adapter (any language, its own process) and a profile in `bridge-agents`. A profile is mostly data (how to start the adapter, which capabilities to declare) plus the normalising rules for that adapter.
 
-Likely building blocks, to confirm in milestone 0: the official ACP Rust crate for protocol types and the client role, tokio, serde, rusqlite. Checked: `agent-client-protocol` 5.5.1 has Client, Agent and Proxy roles, the newer update kinds, and v2 behind `unstable_protocol_v2`; a test crate compiled. **To verify:** that update kinds unknown to the crate (such as the AIR `async_task_*` ones) pass through instead of failing to parse.
+In use since milestone 1: `agent-client-protocol-schema` for the ACP types, serde, schemars. Planned: the `agent-client-protocol` crate for connections (it has Client, Agent and Proxy roles, and v2 behind `unstable_protocol_v2`), tokio, rusqlite. The reducer works on JSON, not on the typed structs, so update kinds the crate does not know pass through; the connection layer must preserve that (to verify in milestone 2).
 
 ### Client side
 
@@ -311,12 +324,13 @@ Two rules:
 - **Recorded transcripts:** `spikes/acp-probe/logs` is already the format: timestamped inbound and outbound frames. A fake adapter replays them, as T3 does with its fixtures.
 - **Scenario catalogue:** T3's scenario names and prompts (simple, approval, interrupt mid-tool, subagent, background wake, steering, compaction, resume after restart and so on) are the checklist. T3's fix history for Claude is a backlog of edge cases.
 - **Conformance matrix:** scenario by agent, generated from the runs, so a new adapter version shows what changed.
-- **Reducer vectors:** transcript in, item list out, shared by the Rust core and every client SDK.
+- **Reducer vectors:** `testdata/vectors` holds a readable rendering of the state each transcript ends in; the Rust core reproduces them, and every client SDK must.
+- **Invariants on every transcript:** a condensed replay gives the same state as the full log; a client that catches up from the middle reaches the same state; every update parses with the official ACP types.
 
 ## 15. Milestones
 
 0. **Close the unknowns.** Done; see `docs/research/11`.
-1. **Schema and core.** The extension schema, generated types, the reducer, and reducer vectors from the recorded logs. No network yet.
+1. **Schema and core.** Done; see `docs/research/12`.
 2. **Single-session daemon.** Local socket and WebSocket, one adapter, log, attach with replay. A command-line client prints a live session and survives a reconnect.
 3. **Several apps.** Fan-out, request broker, scopes, session state.
 4. **Adapter profiles for Claude and Pi.** Section 6, with a recorded transcript for each rule, and the full scenario set rerun on v2.

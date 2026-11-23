@@ -1,0 +1,14 @@
+# claude-v2/web_search
+# prompt: Search the web for the current stable Node.js LTS version, then answer in one short sentence.
+
+[user] Search the web for the current stable Node.js LTS version, then answer in one short sentence.
+[tool fetch completed] Search "current stable Node.js LTS version"
+    = Node.js Releases (https://nodejs.org/de/about/releases/)⏎Node.js Releases (https://nodejs.org/de/about/previous-releases)⏎github.com (https://github.com/haines/Release)⏎Node.js Releases (https://nodej… (+1758 chars)
+[thought] The standard search came back thin and possibly outdated, so I'll run the extended search next, keeping it efficient.⏎⏎
+[assistant] The standard search was inconclusive and its snapshots may be outdated, so I'll run an extended search.
+[tool fetch completed] Search "Node.js current LTS release line 2026 Active LTS"
+    = Node.js Versions: Latest Releases & EOL Dates (Nov 2026) (https://www.herodevs.com/blog-posts/node-js-end-of-life-dates-you-should-be-aware-of)⏎Node.js 26 Is Now LTS: A SaaS Production Upgrade Plan - … (+2250 chars)
+[thought] I need to keep the answer to one short sentence, with a couple of sources linked as markdown hyperlinks.⏎⏎
+[assistant] The current stable Node.js LTS line is Node.js 26 ("Lithium"), which became LTS on October 28, 2026, with 26.13.1 as the latest patch ([herodevs](https://www.herodevs.com/blog-posts/node-js-end-of-lif… (+74 chars)
+-- state: idle end_turn background=0
+-- title: Current stable Node.js LTS version

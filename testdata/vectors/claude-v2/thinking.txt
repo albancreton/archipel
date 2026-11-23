@@ -1,0 +1,8 @@
+# claude-v2/thinking
+# prompt: Think carefully step by step about whether 391 is prime, then answer in one short sentence.
+
+[user] Think carefully step by step about whether 391 is prime, then answer in one short sentence.
+[thought] I'm checking whether 391 is prime by testing divisibility up to about 19.8, and 17 divides it evenly since 17 × 23 = 391, so it isn't prime. The user wants me to think step by step, so I'll keep the f… (+134 chars)
+[assistant] No, 391 is not prime because it equals 17 × 23.
+-- state: idle end_turn background=0
+-- title: Primality of 391

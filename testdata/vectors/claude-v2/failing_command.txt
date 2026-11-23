@@ -1,0 +1,12 @@
+# claude-v2/failing_command
+# prompt: Run this exact shell command: ls /definitely-not-a-real-path-xyz  Then reply with one short sentence saying what happened.
+
+[user] Run this exact shell command: ls /definitely-not-a-real-path-xyz  Then reply with one short sentence saying what happened.
+[tool execute failed] ls /definitely-not-a-real-path-xyz
+    $ ls /definitely-not-a-real-path-xyz   (exit 1)
+    | Exit code 1
+    | ls: /definitely-not-a-real-path-xyz: No such file or directory
+[thought] The command has failed with exit code 1, which I expected, since `ls` reported that the file doesn't exist. The user wanted a single short sentence, so I'll just answer with that.⏎⏎
+[assistant] The command failed as expected: `ls` reported "No such file or directory" for `/definitely-not-a-real-path-xyz` and exited with code 1.
+-- state: idle end_turn background=0
+-- title: Listing nonexistent path
