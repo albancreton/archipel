@@ -113,17 +113,25 @@ fn rendering_matches_the_vectors() {
         rendered.push('\n');
         rendered.push_str(&render::conversation(&conversation));
 
+        // The same state as JSON, which is what the client SDKs in other languages must
+        // reproduce exactly.
+        let state = serde_json::to_string_pretty(&conversation).unwrap() + "\n";
+        let state_path = testdata().join("states").join(format!("{name}.json"));
         let path = testdata().join("vectors").join(format!("{name}.txt"));
         if update {
-            fs::create_dir_all(path.parent().unwrap()).unwrap();
-            fs::write(&path, &rendered).unwrap();
-        } else if fs::read_to_string(&path).ok().as_deref() != Some(rendered.as_str()) {
+            for (path, text) in [(&path, &rendered), (&state_path, &state)] {
+                fs::create_dir_all(path.parent().unwrap()).unwrap();
+                fs::write(path, text).unwrap();
+            }
+        } else if fs::read_to_string(&path).ok().as_deref() != Some(rendered.as_str())
+            || fs::read_to_string(&state_path).ok().as_deref() != Some(state.as_str())
+        {
             stale.push(name);
         }
     }
     assert!(
         stale.is_empty(),
-        "renderings differ from testdata/vectors for {stale:?}; run with UPDATE_VECTORS=1 and review the diff"
+        "renderings or states differ from testdata/vectors and testdata/states for {stale:?}; run with UPDATE_VECTORS=1 and review the diff"
     );
 }
 

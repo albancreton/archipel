@@ -11,6 +11,7 @@ gen:
 vectors:
     UPDATE_VECTORS=1 cargo test -q -p bridge-agents --test pi
     UPDATE_VECTORS=1 cargo test -q -p bridge-core --test transcripts
+    UPDATE_VECTORS=1 cargo test -q -p bridge-server --test daemon every_recorded
 
 # Start a daemon with a fake agent that replays a recorded session. Then use `target/debug/bridge --home target/demo-home …`.
 demo scenario="approval_command":

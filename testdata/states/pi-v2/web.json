@@ -1,0 +1,1016 @@
+{
+  "sessions": {
+    "01a205ce-4ccb-70aa-b0c6-721b390cbf42": {
+      "collections": {
+        "userMessage": {
+          "m1": {
+            "messageId": "m1",
+            "content": [
+              {
+                "type": "text",
+                "text": "Search the web for the current stable Node.js LTS version, then answer in one short sentence."
+              }
+            ]
+          }
+        },
+        "agentThought": {
+          "m2": {
+            "messageId": "m2",
+            "content": [
+              {
+                "type": "text",
+                "text": "The user is asking for the latest stable Node.js LTS version. I should use the web_search tool, but according to the system prompt, it's not included in the pre-loaded tools. It says to use tool_search to load it. First, let me try tool_search for web_search.\n"
+              }
+            ]
+          },
+          "m3": {
+            "messageId": "m3",
+            "content": [
+              {
+                "type": "text",
+                "text": "It was the wrong tool. I'll search again specifically for web_search.\n"
+              }
+            ]
+          },
+          "m4": {
+            "messageId": "m4",
+            "content": [
+              {
+                "type": "text",
+                "text": "Can't find the web_search tool. The chrome-devtools skill is available, and the chrome devtools MCP server can be used for browsing. However, it's not necessarily the case that the network is blocked... Actually, this environment may be blocking direct access to the internet. The skill instructs to use the chrome devtools tools for browsing. Let me read the skill first, then open a page like nodejs.org via the browser.\n\nFirst, let me try reading the skill file.\n"
+              }
+            ]
+          },
+          "m5": {
+            "messageId": "m5",
+            "content": [
+              {
+                "type": "text",
+                "text": "The Web_search tool is not available via tool_search. So, I'll open https://nodejs.org/en/download (or https://nodejs.org/api/releases... actually, the easiest is: fetch the page with new_page and take a snapshot). Node.js's main page displays the current LTS version. Alright, let's open https://nodejs.org/en/download.\n"
+              }
+            ]
+          },
+          "m7": {
+            "messageId": "m7",
+            "content": [
+              {
+                "type": "text",
+                "text": "Let's take a snapshot to find the LTS version number.\n"
+              }
+            ]
+          },
+          "m8": {
+            "messageId": "m8",
+            "content": [
+              {
+                "type": "text",
+                "text": "Answer: Node.js v26.13.1 is the latest LTS (from nodejs.org). In one short sentence.\n"
+              }
+            ]
+          }
+        },
+        "toolCall": {
+          "call_45941b49c9affe3561130aae": {
+            "toolCallId": "call_45941b49c9affe3561130aae",
+            "title": "tool_search",
+            "kind": "other",
+            "status": "completed",
+            "rawInput": {
+              "query": "web search"
+            },
+            "name": "tool_search",
+            "content": [
+              {
+                "type": "content",
+                "content": {
+                  "type": "text",
+                  "text": "Loaded 1 tool. They are available from your next call:\n- mcp__chrome_devtools__performance_start_trace: Start a performance trace on the selected webpage. Use to find frontend performance issues, Core Web Vitals (LCP, INP, CLS), and improve page load speed."
+                }
+              }
+            ],
+            "rawOutput": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Loaded 1 tool. They are available from your next call:\n- mcp__chrome_devtools__performance_start_trace: Start a performance trace on the selected webpage. Use to find frontend performance issues, Core Web Vitals (LCP, INP, CLS), and improve page load speed."
+                }
+              ],
+              "details": {
+                "loaded": [
+                  "mcp__chrome_devtools__performance_start_trace"
+                ]
+              }
+            }
+          },
+          "call_651a462ba289de3953f6db27": {
+            "toolCallId": "call_651a462ba289de3953f6db27",
+            "title": "tool_search",
+            "kind": "other",
+            "status": "completed",
+            "rawInput": {
+              "query": "search the web for news and facts web_search",
+              "limit": 16
+            },
+            "name": "tool_search",
+            "content": [
+              {
+                "type": "content",
+                "content": {
+                  "type": "text",
+                  "text": "No matching tools found."
+                }
+              }
+            ],
+            "rawOutput": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "No matching tools found."
+                }
+              ],
+              "details": {
+                "loaded": []
+              }
+            }
+          },
+          "call_07a69e8a75654d8a0d9ee1f3": {
+            "toolCallId": "call_07a69e8a75654d8a0d9ee1f3",
+            "title": "read",
+            "kind": "read",
+            "status": "completed",
+            "locations": [
+              {
+                "path": "/Users/dev/.pi/agent/skills/chrome-devtools/SKILL.md"
+              }
+            ],
+            "rawInput": {
+              "path": "/Users/dev/.pi/agent/skills/chrome-devtools/SKILL.md"
+            },
+            "name": "read",
+            "content": [
+              {
+                "type": "content",
+                "content": {
+                  "type": "text",
+                  "text": "---\nname: chrome-devtools\ndescription: >\n  Drive a real Chromium browser through the mcp__chrome_devtools__* tools: open\n  pages, read and interact with them via uid snapshots, take screenshots, check\n  console errors and network requests. Use whenever a task involves viewing,\n  testing, debugging, or interacting with a web page or web app — verifying\n  frontend changes, reproducing UI bugs, checking rendered output, or reading a\n  page that needs JavaScript. NEVER install or use puppeteer, playwright, or\n  selenium; a browser is already available through these tools.\n---\n\n# Chrome DevTools browser\n\nA Chromium instance (isolated profile) is available through the\n`mcp__chrome_devtools__*` tools, backed by the chrome-devtools-mcp server via\npi's built-in MCP support. The first call launches the browser — expect a few\nseconds of cold start.\n\n## Direct tools\n\n| Tool | Use for |\n|---|---|\n| `mcp__chrome_devtools__new_page` | Open a URL in a new tab (also starts the browser) |\n| `mcp__chrome_devtools__navigate_page` | Navigate the selected page, go back/forward |\n| `mcp__chrome_devtools__wait_for` | Wait for text to appear — use instead of sleeping |\n| `mcp__chrome_devtools__take_snapshot` | Accessibility-tree text snapshot; every element gets a `uid` |\n| `mcp__chrome_devtools__take_screenshot` | PNG/JPEG of viewport, full page, or one element |\n| `mcp__chrome_devtools__click` | Click an element by `uid` |\n| `mcp__chrome_devtools__fill` | Type into an input or select by `uid` |\n| `mcp__chrome_devtools__evaluate_script` | Run a JS function in the page, get JSON back |\n| `mcp__chrome_devtools__list_console_messages` | Console output since load |\n| `mcp__chrome_devtools__list_network_requests` | Requests with status, type, size |\n\n## Core workflow\n\n1. `mcp__chrome_devtools__new_page` with the URL.\n2. `mcp__chrome_devtools__take_snapshot` → read the uid-labeled tree.\n3. Interact by uid: `mcp__chrome_devtools__click`, `mcp__chrome_devtools__fill`.\n4. Re-snapshot after anything that changes the DOM — uids go stale.\n\nSnapshot vs screenshot: snapshots are cheap, text-based, and enough for\n\"what's on the page / click X / is Y shown\". Screenshot only for genuinely\nvisual questions (layout, styling, images, canvas).\n\n`mcp__chrome_devtools__evaluate_script` covers state neither shows — computed\nstyles, localStorage, app state. Pass a function: `() => document.title`,\nor with an element: `(el) => el.value` plus the uid argument.\n\n## Debugging recipes\n\n- Page misbehaving? Reproduce it first, then\n  `mcp__chrome_devtools__list_console_messages` for errors and\n  `mcp__chrome_devtools__list_network_requests` for failed or slow requests.\n- More tools are deferred (not declared until loaded): `hover`, `drag`,\n  `fill_form`, `press_key`, `handle_dialog`, `resize_page`, `emulate`,\n  performance tracing, `lighthouse_audit`, memory snapshots, and\n  `get_network_request` / `get_console_message` for single-item detail.\n  Load them with `tool_search` (e.g. query \"chrome performance trace\"), then\n  call them directly, e.g. `mcp__chrome_devtools__performance_start_trace`.\n\n## Rules\n\n- Never install puppeteer, playwright, selenium, or chromedriver — this\n  browser is already here.\n- Never sleep or poll to wait for a page; use `mcp__chrome_devtools__wait_for`.\n- If `mcp__chrome_devtools__*` tools are missing from your tool list, the\n  server is not connected: ask the user to check `/mcp` (or run\n  `/mcp reconnect chrome-devtools`).\n- Configuration (Chromium path, which tools are direct) lives in\n  `~/.pi/agent/mcp.json`.\n"
+                }
+              }
+            ],
+            "rawOutput": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "---\nname: chrome-devtools\ndescription: >\n  Drive a real Chromium browser through the mcp__chrome_devtools__* tools: open\n  pages, read and interact with them via uid snapshots, take screenshots, check\n  console errors and network requests. Use whenever a task involves viewing,\n  testing, debugging, or interacting with a web page or web app — verifying\n  frontend changes, reproducing UI bugs, checking rendered output, or reading a\n  page that needs JavaScript. NEVER install or use puppeteer, playwright, or\n  selenium; a browser is already available through these tools.\n---\n\n# Chrome DevTools browser\n\nA Chromium instance (isolated profile) is available through the\n`mcp__chrome_devtools__*` tools, backed by the chrome-devtools-mcp server via\npi's built-in MCP support. The first call launches the browser — expect a few\nseconds of cold start.\n\n## Direct tools\n\n| Tool | Use for |\n|---|---|\n| `mcp__chrome_devtools__new_page` | Open a URL in a new tab (also starts the browser) |\n| `mcp__chrome_devtools__navigate_page` | Navigate the selected page, go back/forward |\n| `mcp__chrome_devtools__wait_for` | Wait for text to appear — use instead of sleeping |\n| `mcp__chrome_devtools__take_snapshot` | Accessibility-tree text snapshot; every element gets a `uid` |\n| `mcp__chrome_devtools__take_screenshot` | PNG/JPEG of viewport, full page, or one element |\n| `mcp__chrome_devtools__click` | Click an element by `uid` |\n| `mcp__chrome_devtools__fill` | Type into an input or select by `uid` |\n| `mcp__chrome_devtools__evaluate_script` | Run a JS function in the page, get JSON back |\n| `mcp__chrome_devtools__list_console_messages` | Console output since load |\n| `mcp__chrome_devtools__list_network_requests` | Requests with status, type, size |\n\n## Core workflow\n\n1. `mcp__chrome_devtools__new_page` with the URL.\n2. `mcp__chrome_devtools__take_snapshot` → read the uid-labeled tree.\n3. Interact by uid: `mcp__chrome_devtools__click`, `mcp__chrome_devtools__fill`.\n4. Re-snapshot after anything that changes the DOM — uids go stale.\n\nSnapshot vs screenshot: snapshots are cheap, text-based, and enough for\n\"what's on the page / click X / is Y shown\". Screenshot only for genuinely\nvisual questions (layout, styling, images, canvas).\n\n`mcp__chrome_devtools__evaluate_script` covers state neither shows — computed\nstyles, localStorage, app state. Pass a function: `() => document.title`,\nor with an element: `(el) => el.value` plus the uid argument.\n\n## Debugging recipes\n\n- Page misbehaving? Reproduce it first, then\n  `mcp__chrome_devtools__list_console_messages` for errors and\n  `mcp__chrome_devtools__list_network_requests` for failed or slow requests.\n- More tools are deferred (not declared until loaded): `hover`, `drag`,\n  `fill_form`, `press_key`, `handle_dialog`, `resize_page`, `emulate`,\n  performance tracing, `lighthouse_audit`, memory snapshots, and\n  `get_network_request` / `get_console_message` for single-item detail.\n  Load them with `tool_search` (e.g. query \"chrome performance trace\"), then\n  call them directly, e.g. `mcp__chrome_devtools__performance_start_trace`.\n\n## Rules\n\n- Never install puppeteer, playwright, selenium, or chromedriver — this\n  browser is already here.\n- Never sleep or poll to wait for a page; use `mcp__chrome_devtools__wait_for`.\n- If `mcp__chrome_devtools__*` tools are missing from your tool list, the\n  server is not connected: ask the user to check `/mcp` (or run\n  `/mcp reconnect chrome-devtools`).\n- Configuration (Chromium path, which tools are direct) lives in\n  `~/.pi/agent/mcp.json`.\n"
+                }
+              ],
+              "structuredContent": "---\nname: chrome-devtools\ndescription: >\n  Drive a real Chromium browser through the mcp__chrome_devtools__* tools: open\n  pages, read and interact with them via uid snapshots, take screenshots, check\n  console errors and network requests. Use whenever a task involves viewing,\n  testing, debugging, or interacting with a web page or web app — verifying\n  frontend changes, reproducing UI bugs, checking rendered output, or reading a\n  page that needs JavaScript. NEVER install or use puppeteer, playwright, or\n  selenium; a browser is already available through these tools.\n---\n\n# Chrome DevTools browser\n\nA Chromium instance (isolated profile) is available through the\n`mcp__chrome_devtools__*` tools, backed by the chrome-devtools-mcp server via\npi's built-in MCP support. The first call launches the browser — expect a few\nseconds of cold start.\n\n## Direct tools\n\n| Tool | Use for |\n|---|---|\n| `mcp__chrome_devtools__new_page` | Open a URL in a new tab (also starts the browser) |\n| `mcp__chrome_devtools__navigate_page` | Navigate the selected page, go back/forward |\n| `mcp__chrome_devtools__wait_for` | Wait for text to appear — use instead of sleeping |\n| `mcp__chrome_devtools__take_snapshot` | Accessibility-tree text snapshot; every element gets a `uid` |\n| `mcp__chrome_devtools__take_screenshot` | PNG/JPEG of viewport, full page, or one element |\n| `mcp__chrome_devtools__click` | Click an element by `uid` |\n| `mcp__chrome_devtools__fill` | Type into an input or select by `uid` |\n| `mcp__chrome_devtools__evaluate_script` | Run a JS function in the page, get JSON back |\n| `mcp__chrome_devtools__list_console_messages` | Console output since load |\n| `mcp__chrome_devtools__list_network_requests` | Requests with status, type, size |\n\n## Core workflow\n\n1. `mcp__chrome_devtools__new_page` with the URL.\n2. `mcp__chrome_devtools__take_snapshot` → read the uid-labeled tree.\n3. Interact by uid: `mcp__chrome_devtools__click`, `mcp__chrome_devtools__fill`.\n4. Re-snapshot after anything that changes the DOM — uids go stale.\n\nSnapshot vs screenshot: snapshots are cheap, text-based, and enough for\n\"what's on the page / click X / is Y shown\". Screenshot only for genuinely\nvisual questions (layout, styling, images, canvas).\n\n`mcp__chrome_devtools__evaluate_script` covers state neither shows — computed\nstyles, localStorage, app state. Pass a function: `() => document.title`,\nor with an element: `(el) => el.value` plus the uid argument.\n\n## Debugging recipes\n\n- Page misbehaving? Reproduce it first, then\n  `mcp__chrome_devtools__list_console_messages` for errors and\n  `mcp__chrome_devtools__list_network_requests` for failed or slow requests.\n- More tools are deferred (not declared until loaded): `hover`, `drag`,\n  `fill_form`, `press_key`, `handle_dialog`, `resize_page`, `emulate`,\n  performance tracing, `lighthouse_audit`, memory snapshots, and\n  `get_network_request` / `get_console_message` for single-item detail.\n  Load them with `tool_search` (e.g. query \"chrome performance trace\"), then\n  call them directly, e.g. `mcp__chrome_devtools__performance_start_trace`.\n\n## Rules\n\n- Never install puppeteer, playwright, selenium, or chromedriver — this\n  browser is already here.\n- Never sleep or poll to wait for a page; use `mcp__chrome_devtools__wait_for`.\n- If `mcp__chrome_devtools__*` tools are missing from your tool list, the\n  server is not connected: ask the user to check `/mcp` (or run\n  `/mcp reconnect chrome-devtools`).\n- Configuration (Chromium path, which tools are direct) lives in\n  `~/.pi/agent/mcp.json`.\n"
+            }
+          },
+          "call_89d5d82f4edf6d04ebe2a0d4": {
+            "toolCallId": "call_89d5d82f4edf6d04ebe2a0d4",
+            "title": "mcp__chrome_devtools__new_page",
+            "kind": "other",
+            "status": "completed",
+            "rawInput": {
+              "url": "https://nodejs.org/en/download"
+            },
+            "name": "mcp__chrome_devtools__new_page",
+            "content": [
+              {
+                "type": "content",
+                "content": {
+                  "type": "text",
+                  "text": "## Pages\n1: about:blank\n2: https://nodejs.org/en/download [selected]"
+                }
+              }
+            ],
+            "rawOutput": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "## Pages\n1: about:blank\n2: https://nodejs.org/en/download [selected]"
+                }
+              ],
+              "details": {
+                "server": "chrome-devtools",
+                "tool": "new_page"
+              },
+              "structuredContent": {
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "## Pages\n1: about:blank\n2: https://nodejs.org/en/download [selected]"
+                  }
+                ]
+              }
+            }
+          },
+          "call_82716f02a7ccb445ff4d3786": {
+            "toolCallId": "call_82716f02a7ccb445ff4d3786",
+            "title": "mcp__chrome_devtools__take_snapshot",
+            "kind": "other",
+            "status": "completed",
+            "rawInput": {},
+            "name": "mcp__chrome_devtools__take_snapshot",
+            "content": [
+              {
+                "type": "content",
+                "content": {
+                  "type": "text",
+                  "text": "## Latest page snapshot\nuid=1_0 RootWebArea \"Node.js — Download Node.js®\" url=\"https://nodejs.org/en/download\"\n  uid=1_1 link \"Skip to content\" url=\"https://nodejs.org/en/download#main\"\n    uid=1_2 StaticText \"Skip to content\"\n  uid=1_3 navigation\n    uid=1_4 link \"Home\" url=\"https://nodejs.org/en\"\n      uid=1_5 image \"Node.js logo\"\n    uid=1_6 button \"Toggle navigation menu\"\n    uid=1_7 checkbox \"Toggle navigation menu\"\n  uid=1_8 main\n    uid=1_9 heading \"Download Node.js®\" level=\"1\"\n    uid=1_10 StaticText \"Get Node.js®\"\n    uid=1_11 combobox \"Version\" expandable haspopup=\"listbox\" value=\"v26.13.1 LTS\"\n    uid=1_12 StaticText \"for\"\n    uid=1_13 combobox \"Operating System\" expandable haspopup=\"listbox\" value=\"macOS\"\n    uid=1_14 StaticText \"using\"\n    uid=1_15 combobox \"Platform\" expandable haspopup=\"listbox\" value=\"nvm\"\n    uid=1_16 StaticText \"with\"\n    uid=1_17 combobox \"Package Manager\" expandable haspopup=\"listbox\" value=\"npm\"\n    uid=1_18 StaticText \"Info\"\n    uid=1_19 StaticText \"Want new features sooner? Get the \"\n    uid=1_20 link \"latest Node.js version\" url=\"https://nodejs.org/en/download/alpha\"\n      uid=1_21 StaticText \"latest Node.js version\"\n    uid=1_22 StaticText \" instead and try the latest improvements!\"\n    uid=1_23 generic\n      uid=1_24 StaticText \"# Download and install nvm:\"\n      uid=1_25 StaticText \"1\"\n      uid=1_26 StaticText \"curl\"\n      uid=1_27 StaticText \" -o-\"\n      uid=1_28 StaticText \" https://raw.githubusercontent.com/nvm-sh/nvm/v0.41.0/install.sh\"\n      uid=1_29 StaticText \" |\"\n      uid=1_30 StaticText \" bash\"\n      uid=1_25 StaticText \"2\"\n      uid=1_25 StaticText \"3\"\n      uid=1_31 StaticText \"# in lieu of restarting the shell\"\n      uid=1_25 StaticText \"4\"\n      uid=1_32 StaticText \"\\.\"\n      uid=1_33 StaticText \" \"\"\n      uid=1_34 StaticText \"$HOME\"\n      uid=1_35 StaticText \"/.nvm/nvm.sh\"\n      uid=1_36 StaticText \"\"\"\n      uid=1_25 StaticText \"5\"\n      uid=1_25 StaticText \"6\"\n      uid=1_37 StaticText \"# Download and install Node.js:\"\n      uid=1_25 StaticText \"7\"\n      uid=1_38 StaticText \"nvm\"\n      uid=1_39 StaticText \" install\"\n      uid=1_40 StaticText \" 26\"\n      uid=1_25 StaticText \"8\"\n      uid=1_25 StaticText \"9\"\n      uid=1_41 StaticText \"# Verify the Node.js version:\"\n      uid=1_25 StaticText \"10\"\n      uid=1_42 StaticText \"node\"\n      uid=1_43 StaticText \" -v\"\n      uid=1_44 StaticText \" # Should print \"v26.13.1\".\"\n      uid=1_25 StaticText \"11\"\n      uid=1_25 StaticText \"12\"\n      uid=1_45 StaticText \"# Verify npm version:\"\n      uid=1_25 StaticText \"13\"\n      uid=1_46 StaticText \"npm\"\n      uid=1_47 StaticText \" -v\"\n      uid=1_48 StaticText \" # Should print \"11.20.0\".\"\n      uid=1_25 StaticText \"14\"\n    uid=1_49 StaticText \"Bash\"\n    uid=1_50 button \"Copy to clipboard\"\n    uid=1_51 StaticText \"\"nvm\" is a cross-platform Node.js version manager.\"\n    uid=1_52 StaticText \" \"\n    uid=1_53 StaticText \"If you encounter any issues please visit \"\n    uid=1_54 link \"nvm's website\" url=\"https://github.com/nvm-sh/nvm\"\n      uid=1_55 StaticText \"nvm's website\"\n    uid=1_56 StaticText \"Or get a prebuilt Node.js® for\"\n    uid=1_57 combobox \"Operating System\" expandable haspopup=\"listbox\" value=\"macOS\"\n    uid=1_58 StaticText \"running a\"\n    uid=1_59 combobox \"Platform\" expandable haspopup=\"listbox\" value=\"ARM64\"\n    uid=1_60 StaticText \"architecture.\"\n    uid=1_61 button \"macOS Installer (.pkg)\"\n    uid=1_62 button \"Standalone Binary (.gz)\"\n    uid=1_63 StaticText \"Read the \"\n    uid=1_64 link \"changelog\" url=\"https://github.com/nodejs/node/releases/tag/v26.13.1\"\n      uid=1_65 StaticText \"changelog\"\n    uid=1_66 StaticText \" or \"\n    uid=1_67 link \"blog post\" url=\"https://nodejs.org/en/blog/release/v26.13.1\"\n      uid=1_68 StaticText \"blog post\"\n    uid=1_69 StaticText \" for this version.\"\n    uid=1_70 StaticText \"Learn more about \"\n    uid=1_71 link \"Node.js releases\" url=\"https://nodejs.org/en/about/previous-releases\"\n      uid=1_72 StaticText \"Node.js releases\"\n    uid=1_73 StaticText \", including the release schedule and LTS status.\"\n    uid=1_74 StaticText \"Learn how to \"\n    uid=1_75 link \"verify\" url=\"https://github.com/nodejs/node#verifying-binaries\"\n      uid=1_76 StaticText \"verify\"\n    uid=1_77 StaticText \" signed SHASUMS.\"\n    uid=1_78 StaticText \"On Windows, use the Windows Installer (\"\n    uid=1_79 StaticText \".msi\"\n    uid=1_80 StaticText \") for system-wide installations when possible. If you use a \"\n    uid=1_81 StaticText \".zip\"\n    uid=1_82 StaticText \" or \"\n    uid=1_83 StaticText \".7z\"\n    uid=1_84 StaticText \" archive for a system-wide installation, extract Node.js to a directory that is not writable by untrusted users. Avoid leaving the installation directory with permissions that allow other authenticated users to create or modify files in that directory.\"\n    uid=1_85 StaticText \"Looking for Node.js source? Download a signed \"\n    uid=1_86 link \"Node.js source\" url=\"https://nodejs.org/dist/v26.13.1/node-v26.13.1.tar.gz\"\n      uid=1_87 StaticText \"Node.js source\"\n    uid=1_88 StaticText \" tarball.\"\n    uid=1_89 StaticText \"Check out our \"\n    uid=1_90 link \"nightly\" url=\"https://nodejs.org/download/nightly/\"\n      uid=1_91 StaticText \"nightly\"\n    uid=1_92 StaticText \" binaries or all \"\n    uid=1_93 link \"previous releases\" url=\"https://nodejs.org/en/download/archive/current\"\n      uid=1_94 StaticText \"previous releases\"\n    uid=1_95 StaticText \" or the \"\n    uid=1_96 link \"unofficial\" url=\"https://unofficial-builds.nodejs.org/download/\"\n      uid=1_97 StaticText \"unofficial\"\n    uid=1_98 StaticText \" binaries for other platforms.\"\n    uid=1_99 heading \"Proudly supported by the partners below:\" level=\"2\"\n    uid=1_100 StaticText \"We are able to serve Node.js's downloads and maintain our infrastructure proudly due to the support of these partners, \"\n    uid=1_101 link \"and more\" url=\"https://nodejs.org/en/about/partners\"\n      uid=1_102 StaticText \"and more\"\n    uid=1_103 StaticText \".\"\n    uid=1_104 button \"DigitalOcean\"\n    uid=1_105 button \"Microsoft Azure\"\n    uid=1_106 button \"Cloudflare\"\n  uid=1_107 contentinfo\n    uid=1_108 link \"v26.13.1 Latest LTS\" url=\"https://nodejs.org/blog/release/v26.13.1\"\n      uid=1_109 StaticText \"v26.13.1\"\n      uid=1_110 StaticText \"Latest LTS\"\n    uid=1_111 link \"v27.0.0-alpha.0.1.1 Latest Alpha\" url=\"https://nodejs.org/blog/release/v27.0.0-alpha.0.1.1\"\n      uid=1_112 StaticText \"v27.0.0-alpha.0.1.1\"\n      uid=1_113 StaticText \"Latest Alpha\"\n    uid=1_114 link \"https://github.com/nodejs/node\" url=\"https://github.com/nodejs/node\"\n      uid=1_115 image \"https://github.com/nodejs/node\"\n    uid=1_116 link \"https://discord.gg/nodejs\" url=\"https://discord.gg/nodejs\"\n      uid=1_117 image \"https://discord.gg/nodejs\"\n    uid=1_118 link \"https://bsky.app/profile/nodejs.org\" url=\"https://bsky.app/profile/nodejs.org\"\n      uid=1_119 image \"https://bsky.app/profile/nodejs.org\"\n    uid=1_120 link \"https://twitter.com/nodejs\" url=\"https://twitter.com/nodejs\"\n      uid=1_121 image \"https://twitter.com/nodejs\"\n    uid=1_122 link \"https://slack-invite.openjsf.org/\" url=\"https://slack-invite.openjsf.org/\"\n      uid=1_123 image \"https://slack-invite.openjsf.org/\"\n    uid=1_124 link \"https://www.linkedin.com/company/node-js\" url=\"https://www.linkedin.com/company/node-js\"\n      uid=1_125 image \"https://www.linkedin.com/company/node-js\"\n    uid=1_126 StaticText \"Copyright \"\n    uid=1_127 link \"OpenJS Foundation\" url=\"https://openjsf.org/\"\n      uid=1_128 StaticText \"OpenJS Foundation\"\n    uid=1_129 StaticText \" and Node.js contributors. All rights reserved. The \"\n    uid=1_130 link \"OpenJS Foundation\" url=\"https://openjsf.org/\"\n      uid=1_131 StaticText \"OpenJS Foundation\"\n    uid=1_132 StaticText \" has registered trademarks and uses trademarks. For a list of trademarks of the \"\n    uid=1_133 link \"OpenJS Foundation\" url=\"https://openjsf.org/\"\n      uid=1_134 StaticText \"OpenJS Foundation\"\n    uid=1_135 StaticText \", please see our \"\n    uid=1_136 link \"Trademark Policy\" url=\"https://trademark-policy.openjsf.org/\"\n      uid=1_137 StaticText \"Trademark Policy\"\n    uid=1_138 StaticText \" and \"\n    uid=1_139 link \"Trademark List\" url=\"https://trademark-list.openjsf.org/\"\n      uid=1_140 StaticText \"Trademark List\"\n    uid=1_141 StaticText \". Trademarks and logos not indicated on the \"\n    uid=1_142 link \"list of OpenJS Foundation trademarks\" url=\"https://trademark-list.openjsf.org/\"\n      uid=1_143 StaticText \"list of OpenJS Foundation trademarks\"\n    uid=1_144 StaticText \" are trademarks™ or registered® trademarks of their respective holders. Use of them does not imply any affiliation with or endorsement by them.\"\n    uid=1_145 link \"OpenJS Foundation\" url=\"https://openjsf.org/\"\n      uid=1_146 StaticText \"OpenJS Foundation\"\n    uid=1_147 link \"AI Coding Assistants Policy\" url=\"https://ai-coding-assistants-policy.openjsf.org/\"\n      uid=1_148 StaticText \"AI Coding Assistants Policy\"\n    uid=1_149 link \"Bylaws\" url=\"https://bylaws.openjsf.org/\"\n      uid=1_150 StaticText \"Bylaws\"\n    uid=1_151 link \"Code of Conduct\" url=\"https://code-of-conduct.openjsf.org/\"\n      uid=1_152 StaticText \"Code of Conduct\"\n    uid=1_153 link \"Cookie Policy\" url=\"https://www.linuxfoundation.org/cookies/\"\n      uid=1_154 StaticText \"Cookie Policy\"\n    uid=1_155 link \"Privacy Policy\" url=\"https://privacy-policy.openjsf.org/\"\n      uid=1_156 StaticText \"Privacy Policy\"\n    uid=1_157 link \"Security Policy\" url=\"https://github.com/nodejs/node/security/policy\"\n      uid=1_158 StaticText \"Security Policy\"\n    uid=1_159 link \"Terms of Use\" url=\"https://terms-of-use.openjsf.org/\"\n      uid=1_160 StaticText \"Terms of Use\"\n    uid=1_161 link \"Trademark List\" url=\"https://trademark-list.openjsf.org/\"\n      uid=1_162 StaticText \"Trademark List\"\n    uid=1_163 link \"Trademark Policy\" url=\"https://trademark-policy.openjsf.org/\"\n      uid=1_164 StaticText \"Trademark Policy\"\n  uid=1_165 alert atomic live=\"assertive\" relevant=\"additions text\"\n"
+                }
+              }
+            ],
+            "rawOutput": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "## Latest page snapshot\nuid=1_0 RootWebArea \"Node.js — Download Node.js®\" url=\"https://nodejs.org/en/download\"\n  uid=1_1 link \"Skip to content\" url=\"https://nodejs.org/en/download#main\"\n    uid=1_2 StaticText \"Skip to content\"\n  uid=1_3 navigation\n    uid=1_4 link \"Home\" url=\"https://nodejs.org/en\"\n      uid=1_5 image \"Node.js logo\"\n    uid=1_6 button \"Toggle navigation menu\"\n    uid=1_7 checkbox \"Toggle navigation menu\"\n  uid=1_8 main\n    uid=1_9 heading \"Download Node.js®\" level=\"1\"\n    uid=1_10 StaticText \"Get Node.js®\"\n    uid=1_11 combobox \"Version\" expandable haspopup=\"listbox\" value=\"v26.13.1 LTS\"\n    uid=1_12 StaticText \"for\"\n    uid=1_13 combobox \"Operating System\" expandable haspopup=\"listbox\" value=\"macOS\"\n    uid=1_14 StaticText \"using\"\n    uid=1_15 combobox \"Platform\" expandable haspopup=\"listbox\" value=\"nvm\"\n    uid=1_16 StaticText \"with\"\n    uid=1_17 combobox \"Package Manager\" expandable haspopup=\"listbox\" value=\"npm\"\n    uid=1_18 StaticText \"Info\"\n    uid=1_19 StaticText \"Want new features sooner? Get the \"\n    uid=1_20 link \"latest Node.js version\" url=\"https://nodejs.org/en/download/alpha\"\n      uid=1_21 StaticText \"latest Node.js version\"\n    uid=1_22 StaticText \" instead and try the latest improvements!\"\n    uid=1_23 generic\n      uid=1_24 StaticText \"# Download and install nvm:\"\n      uid=1_25 StaticText \"1\"\n      uid=1_26 StaticText \"curl\"\n      uid=1_27 StaticText \" -o-\"\n      uid=1_28 StaticText \" https://raw.githubusercontent.com/nvm-sh/nvm/v0.41.0/install.sh\"\n      uid=1_29 StaticText \" |\"\n      uid=1_30 StaticText \" bash\"\n      uid=1_25 StaticText \"2\"\n      uid=1_25 StaticText \"3\"\n      uid=1_31 StaticText \"# in lieu of restarting the shell\"\n      uid=1_25 StaticText \"4\"\n      uid=1_32 StaticText \"\\.\"\n      uid=1_33 StaticText \" \"\"\n      uid=1_34 StaticText \"$HOME\"\n      uid=1_35 StaticText \"/.nvm/nvm.sh\"\n      uid=1_36 StaticText \"\"\"\n      uid=1_25 StaticText \"5\"\n      uid=1_25 StaticText \"6\"\n      uid=1_37 StaticText \"# Download and install Node.js:\"\n      uid=1_25 StaticText \"7\"\n      uid=1_38 StaticText \"nvm\"\n      uid=1_39 StaticText \" install\"\n      uid=1_40 StaticText \" 26\"\n      uid=1_25 StaticText \"8\"\n      uid=1_25 StaticText \"9\"\n      uid=1_41 StaticText \"# Verify the Node.js version:\"\n      uid=1_25 StaticText \"10\"\n      uid=1_42 StaticText \"node\"\n      uid=1_43 StaticText \" -v\"\n      uid=1_44 StaticText \" # Should print \"v26.13.1\".\"\n      uid=1_25 StaticText \"11\"\n      uid=1_25 StaticText \"12\"\n      uid=1_45 StaticText \"# Verify npm version:\"\n      uid=1_25 StaticText \"13\"\n      uid=1_46 StaticText \"npm\"\n      uid=1_47 StaticText \" -v\"\n      uid=1_48 StaticText \" # Should print \"11.20.0\".\"\n      uid=1_25 StaticText \"14\"\n    uid=1_49 StaticText \"Bash\"\n    uid=1_50 button \"Copy to clipboard\"\n    uid=1_51 StaticText \"\"nvm\" is a cross-platform Node.js version manager.\"\n    uid=1_52 StaticText \" \"\n    uid=1_53 StaticText \"If you encounter any issues please visit \"\n    uid=1_54 link \"nvm's website\" url=\"https://github.com/nvm-sh/nvm\"\n      uid=1_55 StaticText \"nvm's website\"\n    uid=1_56 StaticText \"Or get a prebuilt Node.js® for\"\n    uid=1_57 combobox \"Operating System\" expandable haspopup=\"listbox\" value=\"macOS\"\n    uid=1_58 StaticText \"running a\"\n    uid=1_59 combobox \"Platform\" expandable haspopup=\"listbox\" value=\"ARM64\"\n    uid=1_60 StaticText \"architecture.\"\n    uid=1_61 button \"macOS Installer (.pkg)\"\n    uid=1_62 button \"Standalone Binary (.gz)\"\n    uid=1_63 StaticText \"Read the \"\n    uid=1_64 link \"changelog\" url=\"https://github.com/nodejs/node/releases/tag/v26.13.1\"\n      uid=1_65 StaticText \"changelog\"\n    uid=1_66 StaticText \" or \"\n    uid=1_67 link \"blog post\" url=\"https://nodejs.org/en/blog/release/v26.13.1\"\n      uid=1_68 StaticText \"blog post\"\n    uid=1_69 StaticText \" for this version.\"\n    uid=1_70 StaticText \"Learn more about \"\n    uid=1_71 link \"Node.js releases\" url=\"https://nodejs.org/en/about/previous-releases\"\n      uid=1_72 StaticText \"Node.js releases\"\n    uid=1_73 StaticText \", including the release schedule and LTS status.\"\n    uid=1_74 StaticText \"Learn how to \"\n    uid=1_75 link \"verify\" url=\"https://github.com/nodejs/node#verifying-binaries\"\n      uid=1_76 StaticText \"verify\"\n    uid=1_77 StaticText \" signed SHASUMS.\"\n    uid=1_78 StaticText \"On Windows, use the Windows Installer (\"\n    uid=1_79 StaticText \".msi\"\n    uid=1_80 StaticText \") for system-wide installations when possible. If you use a \"\n    uid=1_81 StaticText \".zip\"\n    uid=1_82 StaticText \" or \"\n    uid=1_83 StaticText \".7z\"\n    uid=1_84 StaticText \" archive for a system-wide installation, extract Node.js to a directory that is not writable by untrusted users. Avoid leaving the installation directory with permissions that allow other authenticated users to create or modify files in that directory.\"\n    uid=1_85 StaticText \"Looking for Node.js source? Download a signed \"\n    uid=1_86 link \"Node.js source\" url=\"https://nodejs.org/dist/v26.13.1/node-v26.13.1.tar.gz\"\n      uid=1_87 StaticText \"Node.js source\"\n    uid=1_88 StaticText \" tarball.\"\n    uid=1_89 StaticText \"Check out our \"\n    uid=1_90 link \"nightly\" url=\"https://nodejs.org/download/nightly/\"\n      uid=1_91 StaticText \"nightly\"\n    uid=1_92 StaticText \" binaries or all \"\n    uid=1_93 link \"previous releases\" url=\"https://nodejs.org/en/download/archive/current\"\n      uid=1_94 StaticText \"previous releases\"\n    uid=1_95 StaticText \" or the \"\n    uid=1_96 link \"unofficial\" url=\"https://unofficial-builds.nodejs.org/download/\"\n      uid=1_97 StaticText \"unofficial\"\n    uid=1_98 StaticText \" binaries for other platforms.\"\n    uid=1_99 heading \"Proudly supported by the partners below:\" level=\"2\"\n    uid=1_100 StaticText \"We are able to serve Node.js's downloads and maintain our infrastructure proudly due to the support of these partners, \"\n    uid=1_101 link \"and more\" url=\"https://nodejs.org/en/about/partners\"\n      uid=1_102 StaticText \"and more\"\n    uid=1_103 StaticText \".\"\n    uid=1_104 button \"DigitalOcean\"\n    uid=1_105 button \"Microsoft Azure\"\n    uid=1_106 button \"Cloudflare\"\n  uid=1_107 contentinfo\n    uid=1_108 link \"v26.13.1 Latest LTS\" url=\"https://nodejs.org/blog/release/v26.13.1\"\n      uid=1_109 StaticText \"v26.13.1\"\n      uid=1_110 StaticText \"Latest LTS\"\n    uid=1_111 link \"v27.0.0-alpha.0.1.1 Latest Alpha\" url=\"https://nodejs.org/blog/release/v27.0.0-alpha.0.1.1\"\n      uid=1_112 StaticText \"v27.0.0-alpha.0.1.1\"\n      uid=1_113 StaticText \"Latest Alpha\"\n    uid=1_114 link \"https://github.com/nodejs/node\" url=\"https://github.com/nodejs/node\"\n      uid=1_115 image \"https://github.com/nodejs/node\"\n    uid=1_116 link \"https://discord.gg/nodejs\" url=\"https://discord.gg/nodejs\"\n      uid=1_117 image \"https://discord.gg/nodejs\"\n    uid=1_118 link \"https://bsky.app/profile/nodejs.org\" url=\"https://bsky.app/profile/nodejs.org\"\n      uid=1_119 image \"https://bsky.app/profile/nodejs.org\"\n    uid=1_120 link \"https://twitter.com/nodejs\" url=\"https://twitter.com/nodejs\"\n      uid=1_121 image \"https://twitter.com/nodejs\"\n    uid=1_122 link \"https://slack-invite.openjsf.org/\" url=\"https://slack-invite.openjsf.org/\"\n      uid=1_123 image \"https://slack-invite.openjsf.org/\"\n    uid=1_124 link \"https://www.linkedin.com/company/node-js\" url=\"https://www.linkedin.com/company/node-js\"\n      uid=1_125 image \"https://www.linkedin.com/company/node-js\"\n    uid=1_126 StaticText \"Copyright \"\n    uid=1_127 link \"OpenJS Foundation\" url=\"https://openjsf.org/\"\n      uid=1_128 StaticText \"OpenJS Foundation\"\n    uid=1_129 StaticText \" and Node.js contributors. All rights reserved. The \"\n    uid=1_130 link \"OpenJS Foundation\" url=\"https://openjsf.org/\"\n      uid=1_131 StaticText \"OpenJS Foundation\"\n    uid=1_132 StaticText \" has registered trademarks and uses trademarks. For a list of trademarks of the \"\n    uid=1_133 link \"OpenJS Foundation\" url=\"https://openjsf.org/\"\n      uid=1_134 StaticText \"OpenJS Foundation\"\n    uid=1_135 StaticText \", please see our \"\n    uid=1_136 link \"Trademark Policy\" url=\"https://trademark-policy.openjsf.org/\"\n      uid=1_137 StaticText \"Trademark Policy\"\n    uid=1_138 StaticText \" and \"\n    uid=1_139 link \"Trademark List\" url=\"https://trademark-list.openjsf.org/\"\n      uid=1_140 StaticText \"Trademark List\"\n    uid=1_141 StaticText \". Trademarks and logos not indicated on the \"\n    uid=1_142 link \"list of OpenJS Foundation trademarks\" url=\"https://trademark-list.openjsf.org/\"\n      uid=1_143 StaticText \"list of OpenJS Foundation trademarks\"\n    uid=1_144 StaticText \" are trademarks™ or registered® trademarks of their respective holders. Use of them does not imply any affiliation with or endorsement by them.\"\n    uid=1_145 link \"OpenJS Foundation\" url=\"https://openjsf.org/\"\n      uid=1_146 StaticText \"OpenJS Foundation\"\n    uid=1_147 link \"AI Coding Assistants Policy\" url=\"https://ai-coding-assistants-policy.openjsf.org/\"\n      uid=1_148 StaticText \"AI Coding Assistants Policy\"\n    uid=1_149 link \"Bylaws\" url=\"https://bylaws.openjsf.org/\"\n      uid=1_150 StaticText \"Bylaws\"\n    uid=1_151 link \"Code of Conduct\" url=\"https://code-of-conduct.openjsf.org/\"\n      uid=1_152 StaticText \"Code of Conduct\"\n    uid=1_153 link \"Cookie Policy\" url=\"https://www.linuxfoundation.org/cookies/\"\n      uid=1_154 StaticText \"Cookie Policy\"\n    uid=1_155 link \"Privacy Policy\" url=\"https://privacy-policy.openjsf.org/\"\n      uid=1_156 StaticText \"Privacy Policy\"\n    uid=1_157 link \"Security Policy\" url=\"https://github.com/nodejs/node/security/policy\"\n      uid=1_158 StaticText \"Security Policy\"\n    uid=1_159 link \"Terms of Use\" url=\"https://terms-of-use.openjsf.org/\"\n      uid=1_160 StaticText \"Terms of Use\"\n    uid=1_161 link \"Trademark List\" url=\"https://trademark-list.openjsf.org/\"\n      uid=1_162 StaticText \"Trademark List\"\n    uid=1_163 link \"Trademark Policy\" url=\"https://trademark-policy.openjsf.org/\"\n      uid=1_164 StaticText \"Trademark Policy\"\n  uid=1_165 alert atomic live=\"assertive\" relevant=\"additions text\"\n"
+                }
+              ],
+              "details": {
+                "server": "chrome-devtools",
+                "tool": "take_snapshot"
+              },
+              "structuredContent": {
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "## Latest page snapshot\nuid=1_0 RootWebArea \"Node.js — Download Node.js®\" url=\"https://nodejs.org/en/download\"\n  uid=1_1 link \"Skip to content\" url=\"https://nodejs.org/en/download#main\"\n    uid=1_2 StaticText \"Skip to content\"\n  uid=1_3 navigation\n    uid=1_4 link \"Home\" url=\"https://nodejs.org/en\"\n      uid=1_5 image \"Node.js logo\"\n    uid=1_6 button \"Toggle navigation menu\"\n    uid=1_7 checkbox \"Toggle navigation menu\"\n  uid=1_8 main\n    uid=1_9 heading \"Download Node.js®\" level=\"1\"\n    uid=1_10 StaticText \"Get Node.js®\"\n    uid=1_11 combobox \"Version\" expandable haspopup=\"listbox\" value=\"v26.13.1 LTS\"\n    uid=1_12 StaticText \"for\"\n    uid=1_13 combobox \"Operating System\" expandable haspopup=\"listbox\" value=\"macOS\"\n    uid=1_14 StaticText \"using\"\n    uid=1_15 combobox \"Platform\" expandable haspopup=\"listbox\" value=\"nvm\"\n    uid=1_16 StaticText \"with\"\n    uid=1_17 combobox \"Package Manager\" expandable haspopup=\"listbox\" value=\"npm\"\n    uid=1_18 StaticText \"Info\"\n    uid=1_19 StaticText \"Want new features sooner? Get the \"\n    uid=1_20 link \"latest Node.js version\" url=\"https://nodejs.org/en/download/alpha\"\n      uid=1_21 StaticText \"latest Node.js version\"\n    uid=1_22 StaticText \" instead and try the latest improvements!\"\n    uid=1_23 generic\n      uid=1_24 StaticText \"# Download and install nvm:\"\n      uid=1_25 StaticText \"1\"\n      uid=1_26 StaticText \"curl\"\n      uid=1_27 StaticText \" -o-\"\n      uid=1_28 StaticText \" https://raw.githubusercontent.com/nvm-sh/nvm/v0.41.0/install.sh\"\n      uid=1_29 StaticText \" |\"\n      uid=1_30 StaticText \" bash\"\n      uid=1_25 StaticText \"2\"\n      uid=1_25 StaticText \"3\"\n      uid=1_31 StaticText \"# in lieu of restarting the shell\"\n      uid=1_25 StaticText \"4\"\n      uid=1_32 StaticText \"\\.\"\n      uid=1_33 StaticText \" \"\"\n      uid=1_34 StaticText \"$HOME\"\n      uid=1_35 StaticText \"/.nvm/nvm.sh\"\n      uid=1_36 StaticText \"\"\"\n      uid=1_25 StaticText \"5\"\n      uid=1_25 StaticText \"6\"\n      uid=1_37 StaticText \"# Download and install Node.js:\"\n      uid=1_25 StaticText \"7\"\n      uid=1_38 StaticText \"nvm\"\n      uid=1_39 StaticText \" install\"\n      uid=1_40 StaticText \" 26\"\n      uid=1_25 StaticText \"8\"\n      uid=1_25 StaticText \"9\"\n      uid=1_41 StaticText \"# Verify the Node.js version:\"\n      uid=1_25 StaticText \"10\"\n      uid=1_42 StaticText \"node\"\n      uid=1_43 StaticText \" -v\"\n      uid=1_44 StaticText \" # Should print \"v26.13.1\".\"\n      uid=1_25 StaticText \"11\"\n      uid=1_25 StaticText \"12\"\n      uid=1_45 StaticText \"# Verify npm version:\"\n      uid=1_25 StaticText \"13\"\n      uid=1_46 StaticText \"npm\"\n      uid=1_47 StaticText \" -v\"\n      uid=1_48 StaticText \" # Should print \"11.20.0\".\"\n      uid=1_25 StaticText \"14\"\n    uid=1_49 StaticText \"Bash\"\n    uid=1_50 button \"Copy to clipboard\"\n    uid=1_51 StaticText \"\"nvm\" is a cross-platform Node.js version manager.\"\n    uid=1_52 StaticText \" \"\n    uid=1_53 StaticText \"If you encounter any issues please visit \"\n    uid=1_54 link \"nvm's website\" url=\"https://github.com/nvm-sh/nvm\"\n      uid=1_55 StaticText \"nvm's website\"\n    uid=1_56 StaticText \"Or get a prebuilt Node.js® for\"\n    uid=1_57 combobox \"Operating System\" expandable haspopup=\"listbox\" value=\"macOS\"\n    uid=1_58 StaticText \"running a\"\n    uid=1_59 combobox \"Platform\" expandable haspopup=\"listbox\" value=\"ARM64\"\n    uid=1_60 StaticText \"architecture.\"\n    uid=1_61 button \"macOS Installer (.pkg)\"\n    uid=1_62 button \"Standalone Binary (.gz)\"\n    uid=1_63 StaticText \"Read the \"\n    uid=1_64 link \"changelog\" url=\"https://github.com/nodejs/node/releases/tag/v26.13.1\"\n      uid=1_65 StaticText \"changelog\"\n    uid=1_66 StaticText \" or \"\n    uid=1_67 link \"blog post\" url=\"https://nodejs.org/en/blog/release/v26.13.1\"\n      uid=1_68 StaticText \"blog post\"\n    uid=1_69 StaticText \" for this version.\"\n    uid=1_70 StaticText \"Learn more about \"\n    uid=1_71 link \"Node.js releases\" url=\"https://nodejs.org/en/about/previous-releases\"\n      uid=1_72 StaticText \"Node.js releases\"\n    uid=1_73 StaticText \", including the release schedule and LTS status.\"\n    uid=1_74 StaticText \"Learn how to \"\n    uid=1_75 link \"verify\" url=\"https://github.com/nodejs/node#verifying-binaries\"\n      uid=1_76 StaticText \"verify\"\n    uid=1_77 StaticText \" signed SHASUMS.\"\n    uid=1_78 StaticText \"On Windows, use the Windows Installer (\"\n    uid=1_79 StaticText \".msi\"\n    uid=1_80 StaticText \") for system-wide installations when possible. If you use a \"\n    uid=1_81 StaticText \".zip\"\n    uid=1_82 StaticText \" or \"\n    uid=1_83 StaticText \".7z\"\n    uid=1_84 StaticText \" archive for a system-wide installation, extract Node.js to a directory that is not writable by untrusted users. Avoid leaving the installation directory with permissions that allow other authenticated users to create or modify files in that directory.\"\n    uid=1_85 StaticText \"Looking for Node.js source? Download a signed \"\n    uid=1_86 link \"Node.js source\" url=\"https://nodejs.org/dist/v26.13.1/node-v26.13.1.tar.gz\"\n      uid=1_87 StaticText \"Node.js source\"\n    uid=1_88 StaticText \" tarball.\"\n    uid=1_89 StaticText \"Check out our \"\n    uid=1_90 link \"nightly\" url=\"https://nodejs.org/download/nightly/\"\n      uid=1_91 StaticText \"nightly\"\n    uid=1_92 StaticText \" binaries or all \"\n    uid=1_93 link \"previous releases\" url=\"https://nodejs.org/en/download/archive/current\"\n      uid=1_94 StaticText \"previous releases\"\n    uid=1_95 StaticText \" or the \"\n    uid=1_96 link \"unofficial\" url=\"https://unofficial-builds.nodejs.org/download/\"\n      uid=1_97 StaticText \"unofficial\"\n    uid=1_98 StaticText \" binaries for other platforms.\"\n    uid=1_99 heading \"Proudly supported by the partners below:\" level=\"2\"\n    uid=1_100 StaticText \"We are able to serve Node.js's downloads and maintain our infrastructure proudly due to the support of these partners, \"\n    uid=1_101 link \"and more\" url=\"https://nodejs.org/en/about/partners\"\n      uid=1_102 StaticText \"and more\"\n    uid=1_103 StaticText \".\"\n    uid=1_104 button \"DigitalOcean\"\n    uid=1_105 button \"Microsoft Azure\"\n    uid=1_106 button \"Cloudflare\"\n  uid=1_107 contentinfo\n    uid=1_108 link \"v26.13.1 Latest LTS\" url=\"https://nodejs.org/blog/release/v26.13.1\"\n      uid=1_109 StaticText \"v26.13.1\"\n      uid=1_110 StaticText \"Latest LTS\"\n    uid=1_111 link \"v27.0.0-alpha.0.1.1 Latest Alpha\" url=\"https://nodejs.org/blog/release/v27.0.0-alpha.0.1.1\"\n      uid=1_112 StaticText \"v27.0.0-alpha.0.1.1\"\n      uid=1_113 StaticText \"Latest Alpha\"\n    uid=1_114 link \"https://github.com/nodejs/node\" url=\"https://github.com/nodejs/node\"\n      uid=1_115 image \"https://github.com/nodejs/node\"\n    uid=1_116 link \"https://discord.gg/nodejs\" url=\"https://discord.gg/nodejs\"\n      uid=1_117 image \"https://discord.gg/nodejs\"\n    uid=1_118 link \"https://bsky.app/profile/nodejs.org\" url=\"https://bsky.app/profile/nodejs.org\"\n      uid=1_119 image \"https://bsky.app/profile/nodejs.org\"\n    uid=1_120 link \"https://twitter.com/nodejs\" url=\"https://twitter.com/nodejs\"\n      uid=1_121 image \"https://twitter.com/nodejs\"\n    uid=1_122 link \"https://slack-invite.openjsf.org/\" url=\"https://slack-invite.openjsf.org/\"\n      uid=1_123 image \"https://slack-invite.openjsf.org/\"\n    uid=1_124 link \"https://www.linkedin.com/company/node-js\" url=\"https://www.linkedin.com/company/node-js\"\n      uid=1_125 image \"https://www.linkedin.com/company/node-js\"\n    uid=1_126 StaticText \"Copyright \"\n    uid=1_127 link \"OpenJS Foundation\" url=\"https://openjsf.org/\"\n      uid=1_128 StaticText \"OpenJS Foundation\"\n    uid=1_129 StaticText \" and Node.js contributors. All rights reserved. The \"\n    uid=1_130 link \"OpenJS Foundation\" url=\"https://openjsf.org/\"\n      uid=1_131 StaticText \"OpenJS Foundation\"\n    uid=1_132 StaticText \" has registered trademarks and uses trademarks. For a list of trademarks of the \"\n    uid=1_133 link \"OpenJS Foundation\" url=\"https://openjsf.org/\"\n      uid=1_134 StaticText \"OpenJS Foundation\"\n    uid=1_135 StaticText \", please see our \"\n    uid=1_136 link \"Trademark Policy\" url=\"https://trademark-policy.openjsf.org/\"\n      uid=1_137 StaticText \"Trademark Policy\"\n    uid=1_138 StaticText \" and \"\n    uid=1_139 link \"Trademark List\" url=\"https://trademark-list.openjsf.org/\"\n      uid=1_140 StaticText \"Trademark List\"\n    uid=1_141 StaticText \". Trademarks and logos not indicated on the \"\n    uid=1_142 link \"list of OpenJS Foundation trademarks\" url=\"https://trademark-list.openjsf.org/\"\n      uid=1_143 StaticText \"list of OpenJS Foundation trademarks\"\n    uid=1_144 StaticText \" are trademarks™ or registered® trademarks of their respective holders. Use of them does not imply any affiliation with or endorsement by them.\"\n    uid=1_145 link \"OpenJS Foundation\" url=\"https://openjsf.org/\"\n      uid=1_146 StaticText \"OpenJS Foundation\"\n    uid=1_147 link \"AI Coding Assistants Policy\" url=\"https://ai-coding-assistants-policy.openjsf.org/\"\n      uid=1_148 StaticText \"AI Coding Assistants Policy\"\n    uid=1_149 link \"Bylaws\" url=\"https://bylaws.openjsf.org/\"\n      uid=1_150 StaticText \"Bylaws\"\n    uid=1_151 link \"Code of Conduct\" url=\"https://code-of-conduct.openjsf.org/\"\n      uid=1_152 StaticText \"Code of Conduct\"\n    uid=1_153 link \"Cookie Policy\" url=\"https://www.linuxfoundation.org/cookies/\"\n      uid=1_154 StaticText \"Cookie Policy\"\n    uid=1_155 link \"Privacy Policy\" url=\"https://privacy-policy.openjsf.org/\"\n      uid=1_156 StaticText \"Privacy Policy\"\n    uid=1_157 link \"Security Policy\" url=\"https://github.com/nodejs/node/security/policy\"\n      uid=1_158 StaticText \"Security Policy\"\n    uid=1_159 link \"Terms of Use\" url=\"https://terms-of-use.openjsf.org/\"\n      uid=1_160 StaticText \"Terms of Use\"\n    uid=1_161 link \"Trademark List\" url=\"https://trademark-list.openjsf.org/\"\n      uid=1_162 StaticText \"Trademark List\"\n    uid=1_163 link \"Trademark Policy\" url=\"https://trademark-policy.openjsf.org/\"\n      uid=1_164 StaticText \"Trademark Policy\"\n  uid=1_165 alert atomic live=\"assertive\" relevant=\"additions text\"\n"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "agentMessage": {
+          "m6": {
+            "messageId": "m6",
+            "content": [
+              {
+                "type": "text",
+                "text": "The dedicated web-search tool isn't available in this session, so I'll check nodejs.org directly via the browser."
+              }
+            ]
+          },
+          "m9": {
+            "messageId": "m9",
+            "content": [
+              {
+                "type": "text",
+                "text": "The current stable Node.js LTS version is **v26.13.1** (per the nodejs.org download page)."
+              }
+            ]
+          }
+        }
+      },
+      "values": {
+        "usage": {
+          "used": 10681,
+          "size": 262144
+        },
+        "availableCommands": [
+          {
+            "name": "compact",
+            "description": "Manually compact the session context",
+            "input": {
+              "hint": "optional custom instructions"
+            }
+          },
+          {
+            "name": "autocompact",
+            "description": "Toggle automatic context compaction",
+            "input": {
+              "hint": "on|off|toggle"
+            }
+          },
+          {
+            "name": "export",
+            "description": "Export session to an HTML file in the session cwd"
+          },
+          {
+            "name": "session",
+            "description": "Show session stats (messages, tokens, cost, session file)"
+          },
+          {
+            "name": "name",
+            "description": "Set session display name",
+            "input": {
+              "hint": "<name>"
+            }
+          },
+          {
+            "name": "steering",
+            "description": "Get/set pi steering message delivery mode (how queued steering messages are delivered)",
+            "input": {
+              "hint": "(no args to show) all | one-at-a-time"
+            }
+          },
+          {
+            "name": "follow-up",
+            "description": "Get/set pi follow-up message delivery mode (how queued follow-up messages are delivered)",
+            "input": {
+              "hint": "(no args to show) all | one-at-a-time"
+            }
+          },
+          {
+            "name": "changelog",
+            "description": "Show pi changelog"
+          }
+        ],
+        "configOptions": [
+          {
+            "type": "select",
+            "options": [
+              {
+                "value": "huggingface/deepseek-ai/DeepSeek-R1",
+                "name": "huggingface/DeepSeek-R1",
+                "description": null
+              },
+              {
+                "value": "huggingface/deepseek-ai/DeepSeek-R1-0528",
+                "name": "huggingface/DeepSeek-R1-0528",
+                "description": null
+              },
+              {
+                "value": "huggingface/deepseek-ai/DeepSeek-V3",
+                "name": "huggingface/DeepSeek-V3",
+                "description": null
+              },
+              {
+                "value": "huggingface/deepseek-ai/DeepSeek-V3-0324",
+                "name": "huggingface/DeepSeek V3 0324",
+                "description": null
+              },
+              {
+                "value": "huggingface/deepseek-ai/DeepSeek-V3.1",
+                "name": "huggingface/DeepSeek-V3.1",
+                "description": null
+              },
+              {
+                "value": "huggingface/deepseek-ai/DeepSeek-V3.2",
+                "name": "huggingface/DeepSeek-V3.2",
+                "description": null
+              },
+              {
+                "value": "huggingface/deepseek-ai/DeepSeek-V4-Flash",
+                "name": "huggingface/DeepSeek V4 Flash",
+                "description": null
+              },
+              {
+                "value": "huggingface/deepseek-ai/DeepSeek-V4-Flash-0731",
+                "name": "huggingface/DeepSeek V4 Flash 0731",
+                "description": null
+              },
+              {
+                "value": "huggingface/deepseek-ai/DeepSeek-V4-Flash-Vision-Exp",
+                "name": "huggingface/DeepSeek V4 Flash Vision Exp",
+                "description": null
+              },
+              {
+                "value": "huggingface/deepseek-ai/DeepSeek-V4-Pro",
+                "name": "huggingface/DeepSeek V4 Pro",
+                "description": null
+              },
+              {
+                "value": "huggingface/deepseek-ai/DeepSeek-V4-Pro-0813",
+                "name": "huggingface/DeepSeek V4 Pro 0813",
+                "description": null
+              },
+              {
+                "value": "huggingface/deepseek-ai/DeepSeek-V4.1-Flash",
+                "name": "huggingface/DeepSeek V4.1 Flash",
+                "description": null
+              },
+              {
+                "value": "huggingface/deepseek-ai/DeepSeek-V4.1-Flash-1017",
+                "name": "huggingface/DeepSeek V4.1 Flash 1017",
+                "description": null
+              },
+              {
+                "value": "huggingface/google/gemma-3-12b-it",
+                "name": "huggingface/Gemma 3 12B IT",
+                "description": null
+              },
+              {
+                "value": "huggingface/google/gemma-3-27b-it",
+                "name": "huggingface/Gemma 3 27B IT",
+                "description": null
+              },
+              {
+                "value": "huggingface/google/gemma-3-4b-it",
+                "name": "huggingface/Gemma 3 4B IT",
+                "description": null
+              },
+              {
+                "value": "huggingface/google/gemma-4-26B-A4B-it",
+                "name": "huggingface/Gemma 4 26B A4B IT",
+                "description": null
+              },
+              {
+                "value": "huggingface/google/gemma-4-31B-it",
+                "name": "huggingface/Gemma 4 31B IT",
+                "description": null
+              },
+              {
+                "value": "huggingface/meta-llama/Llama-3.1-70B-Instruct",
+                "name": "huggingface/Llama-3.1-70B-Instruct",
+                "description": null
+              },
+              {
+                "value": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
+                "name": "huggingface/Llama-3.1-8B-Instruct",
+                "description": null
+              },
+              {
+                "value": "huggingface/meta-llama/Llama-3.2-1B-Instruct",
+                "name": "huggingface/Llama 3.2 1B Instruct",
+                "description": null
+              },
+              {
+                "value": "huggingface/meta-llama/Llama-3.2-3B-Instruct",
+                "name": "huggingface/Llama 3.2 3B Instruct",
+                "description": null
+              },
+              {
+                "value": "huggingface/meta-llama/Llama-3.3-70B-Instruct",
+                "name": "huggingface/Llama-3.3-70B-Instruct",
+                "description": null
+              },
+              {
+                "value": "huggingface/MiniMaxAI/MiniMax-M1-80k",
+                "name": "huggingface/MiniMax M1 80K",
+                "description": null
+              },
+              {
+                "value": "huggingface/MiniMaxAI/MiniMax-M2",
+                "name": "huggingface/MiniMax-M2",
+                "description": null
+              },
+              {
+                "value": "huggingface/MiniMaxAI/MiniMax-M2.1",
+                "name": "huggingface/MiniMax-M2.1",
+                "description": null
+              },
+              {
+                "value": "huggingface/MiniMaxAI/MiniMax-M2.5",
+                "name": "huggingface/MiniMax-M2.5",
+                "description": null
+              },
+              {
+                "value": "huggingface/MiniMaxAI/MiniMax-M2.7",
+                "name": "huggingface/MiniMax-M2.7",
+                "description": null
+              },
+              {
+                "value": "huggingface/MiniMaxAI/MiniMax-M3",
+                "name": "huggingface/MiniMax-M3",
+                "description": null
+              },
+              {
+                "value": "huggingface/MiniMaxAI/MiniMax-M3.1-Flash",
+                "name": "huggingface/MiniMax-M3.1-Flash",
+                "description": null
+              },
+              {
+                "value": "huggingface/moonshotai/Kimi-K2-Instruct",
+                "name": "huggingface/Kimi-K2-Instruct",
+                "description": null
+              },
+              {
+                "value": "huggingface/moonshotai/Kimi-K2-Instruct-0905",
+                "name": "huggingface/Kimi-K2-Instruct-0905",
+                "description": null
+              },
+              {
+                "value": "huggingface/moonshotai/Kimi-K2-Thinking",
+                "name": "huggingface/Kimi-K2-Thinking",
+                "description": null
+              },
+              {
+                "value": "huggingface/moonshotai/Kimi-K2.5",
+                "name": "huggingface/Kimi-K2.5",
+                "description": null
+              },
+              {
+                "value": "huggingface/moonshotai/Kimi-K2.6",
+                "name": "huggingface/Kimi-K2.6",
+                "description": null
+              },
+              {
+                "value": "huggingface/moonshotai/Kimi-K2.7-Code",
+                "name": "huggingface/Kimi K2.7 Code",
+                "description": null
+              },
+              {
+                "value": "huggingface/moonshotai/Kimi-K3",
+                "name": "huggingface/Kimi K3",
+                "description": null
+              },
+              {
+                "value": "huggingface/moonshotai/Kimi-K3.1-Pro",
+                "name": "huggingface/Kimi K3.1 Pro",
+                "description": null
+              },
+              {
+                "value": "huggingface/openai/gpt-oss-120b",
+                "name": "huggingface/GPT OSS 120B",
+                "description": null
+              },
+              {
+                "value": "huggingface/openai/gpt-oss-20b",
+                "name": "huggingface/GPT OSS 20B",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen2.5-Coder-32B-Instruct",
+                "name": "huggingface/Qwen2.5-Coder-32B-Instruct",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3-235B-A22B",
+                "name": "huggingface/Qwen3 235B-A22B",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3-235B-A22B-Instruct-2507",
+                "name": "huggingface/Qwen3 235B-A22B Instruct 2507",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3-235B-A22B-Thinking-2507",
+                "name": "huggingface/Qwen3-235B-A22B-Thinking-2507",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3-30B-A3B",
+                "name": "huggingface/Qwen3 30B A3B",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3-30B-A3B-Instruct-2507",
+                "name": "huggingface/Qwen3 30B-A3B Instruct 2507",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3-32B",
+                "name": "huggingface/Qwen3 32B",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3-8B",
+                "name": "huggingface/Qwen3 8B",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3-Coder-30B-A3B-Instruct",
+                "name": "huggingface/Qwen3-Coder 30B-A3B Instruct",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3-Coder-480B-A35B-Instruct",
+                "name": "huggingface/Qwen3-Coder-480B-A35B-Instruct",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3-Coder-Next",
+                "name": "huggingface/Qwen3-Coder-Next",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3-Next-80B-A3B-Instruct",
+                "name": "huggingface/Qwen3-Next-80B-A3B-Instruct",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3-VL-235B-A22B-Instruct",
+                "name": "huggingface/Qwen3 VL 235B A22B Instruct",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3-VL-235B-A22B-Thinking",
+                "name": "huggingface/Qwen3 VL 235B A22B Thinking",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3-VL-30B-A3B-Instruct",
+                "name": "huggingface/Qwen3 VL 30B A3B Instruct",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3.5-122B-A10B",
+                "name": "huggingface/Qwen3.5 122B-A10B",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3.5-27B",
+                "name": "huggingface/Qwen3.5 27B",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3.5-35B-A3B",
+                "name": "huggingface/Qwen3.5 35B-A3B",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3.5-397B-A17B",
+                "name": "huggingface/Qwen3.5-397B-A17B",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3.5-9B",
+                "name": "huggingface/Qwen3.5 9B",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3.6-27B",
+                "name": "huggingface/Qwen3.6 27B",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3.6-35B-A3B",
+                "name": "huggingface/Qwen3.6 35B-A3B",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3.8-2.4T-A95B",
+                "name": "huggingface/Qwen3.8 2.4T A95B",
+                "description": null
+              },
+              {
+                "value": "huggingface/Qwen/Qwen3.8-27B",
+                "name": "huggingface/Qwen3.8 27B",
+                "description": null
+              },
+              {
+                "value": "huggingface/stepfun-ai/Step-3.5-Flash",
+                "name": "huggingface/Step 3.5 Flash",
+                "description": null
+              },
+              {
+                "value": "huggingface/stepfun-ai/Step-3.7-Flash",
+                "name": "huggingface/Step 3.7 Flash",
+                "description": null
+              },
+              {
+                "value": "huggingface/tencent/Hy3",
+                "name": "huggingface/Hy3",
+                "description": null
+              },
+              {
+                "value": "huggingface/tencent/Hy4-flash",
+                "name": "huggingface/Hy4 flash",
+                "description": null
+              },
+              {
+                "value": "huggingface/tencent/Hy4-preview",
+                "name": "huggingface/Hy4 preview",
+                "description": null
+              },
+              {
+                "value": "huggingface/thinkingmachines/Inkling",
+                "name": "huggingface/Inkling",
+                "description": null
+              },
+              {
+                "value": "huggingface/thinkingmachines/Inkling-2-Small",
+                "name": "huggingface/Inkling 2 Small",
+                "description": null
+              },
+              {
+                "value": "huggingface/thinkingmachines/Inkling-Small",
+                "name": "huggingface/Inkling Small",
+                "description": null
+              },
+              {
+                "value": "huggingface/XiaomiMiMo/MiMo-V2.5",
+                "name": "huggingface/MiMo-V2.5",
+                "description": null
+              },
+              {
+                "value": "huggingface/XiaomiMiMo/MiMo-V2.5-Pro",
+                "name": "huggingface/MiMo-V2.5-Pro",
+                "description": null
+              },
+              {
+                "value": "huggingface/zai-org/GLM-4.5",
+                "name": "huggingface/GLM-4.5",
+                "description": null
+              },
+              {
+                "value": "huggingface/zai-org/GLM-4.5-Air",
+                "name": "huggingface/GLM-4.5-Air",
+                "description": null
+              },
+              {
+                "value": "huggingface/zai-org/GLM-4.5V",
+                "name": "huggingface/GLM-4.5V",
+                "description": null
+              },
+              {
+                "value": "huggingface/zai-org/GLM-4.6",
+                "name": "huggingface/GLM-4.6",
+                "description": null
+              },
+              {
+                "value": "huggingface/zai-org/GLM-4.6V",
+                "name": "huggingface/GLM-4.6V",
+                "description": null
+              },
+              {
+                "value": "huggingface/zai-org/GLM-4.6V-Flash",
+                "name": "huggingface/GLM-4.6V-Flash",
+                "description": null
+              },
+              {
+                "value": "huggingface/zai-org/GLM-4.7",
+                "name": "huggingface/GLM-4.7",
+                "description": null
+              },
+              {
+                "value": "huggingface/zai-org/GLM-4.7-Flash",
+                "name": "huggingface/GLM-4.7-Flash",
+                "description": null
+              },
+              {
+                "value": "huggingface/zai-org/GLM-5",
+                "name": "huggingface/GLM-5",
+                "description": null
+              },
+              {
+                "value": "huggingface/zai-org/GLM-5.1",
+                "name": "huggingface/GLM-5.1",
+                "description": null
+              },
+              {
+                "value": "huggingface/zai-org/GLM-5.2",
+                "name": "huggingface/GLM-5.2",
+                "description": null
+              },
+              {
+                "value": "huggingface/zai-org/GLM-5.3",
+                "name": "huggingface/GLM-5.3",
+                "description": null
+              },
+              {
+                "value": "huggingface/zai-org/GLM-5.3-Flash",
+                "name": "huggingface/GLM-5.3-Flash",
+                "description": null
+              },
+              {
+                "value": "local/Qwen3.8-Flash-Next-MXFP4",
+                "name": "local/Qwen3.8-Flash-Next-MXFP4",
+                "description": null
+              },
+              {
+                "value": "spark/dgx/Qwen3.6-35B-A3B--GGUF-MTP-Q8",
+                "name": "spark/dgx/Qwen3.6-35B-A3B--GGUF-MTP-Q8",
+                "description": null
+              },
+              {
+                "value": "spark/dgx/Qwen3.8-27B--SGLang-DFlash2-AWQ",
+                "name": "spark/dgx/Qwen3.8-27B--SGLang-DFlash2-AWQ",
+                "description": null
+              },
+              {
+                "value": "spark/dgx/Qwen3.8-Flash-Next--TensorFold-MLX4-MTP",
+                "name": "spark/dgx/Qwen3.8-Flash-Next--TensorFold-MLX4-MTP",
+                "description": null
+              },
+              {
+                "value": "spark/dgx/gemma-4-26B-A4B-it--GGUF-Q8",
+                "name": "spark/dgx/gemma-4-26B-A4B-it--GGUF-Q8",
+                "description": null
+              },
+              {
+                "value": "spark/pop/Qwen3.8-27B--NVFP4",
+                "name": "spark/pop/Qwen3.8-27B--NVFP4",
+                "description": null
+              },
+              {
+                "value": "spark/pop/gemma-4-12B-it--GGUF-Q8",
+                "name": "spark/pop/gemma-4-12B-it--GGUF-Q8",
+                "description": null
+              },
+              {
+                "value": "spark/pop/gemma-4-31B-it-qat--GGUF-Q4",
+                "name": "spark/pop/gemma-4-31B-it-qat--GGUF-Q4",
+                "description": null
+              },
+              {
+                "value": "local/Qwen3.8-27B-BF16-DFLASH2",
+                "name": "local/Qwen3.8-27B-BF16-DFLASH2",
+                "description": null
+              },
+              {
+                "value": "local/Qwen3.8-27B-NVFP4-r9700",
+                "name": "local/Qwen3.8-27B-NVFP4-r9700",
+                "description": null
+              },
+              {
+                "value": "local/Qwen3.8-Flash-Next-r9700",
+                "name": "local/Qwen3.8-Flash-Next-r9700",
+                "description": null
+              },
+              {
+                "value": "local/Qwen3.8-Flash-Next-radiance",
+                "name": "local/Qwen3.8-Flash-Next-radiance",
+                "description": null
+              },
+              {
+                "value": "spark/openrouter/z-ai/glm-5.1",
+                "name": "spark/openrouter/z-ai/glm-5.1",
+                "description": null
+              },
+              {
+                "value": "spark/openrouter/deepseek/deepseek-v4-pro",
+                "name": "spark/openrouter/deepseek/deepseek-v4-pro",
+                "description": null
+              },
+              {
+                "value": "spark/openrouter/moonshotai/kimi-k2.6",
+                "name": "spark/openrouter/moonshotai/kimi-k2.6",
+                "description": null
+              },
+              {
+                "value": "spark/openrouter/moonshotai/kimi-k2.5",
+                "name": "spark/openrouter/moonshotai/kimi-k2.5",
+                "description": null
+              },
+              {
+                "value": "spark/openrouter/xiaomi/mimo-v2.5",
+                "name": "spark/openrouter/xiaomi/mimo-v2.5",
+                "description": null
+              },
+              {
+                "value": "spark/openrouter/xiaomi/mimo-v2.5-pro",
+                "name": "spark/openrouter/xiaomi/mimo-v2.5-pro",
+                "description": null
+              },
+              {
+                "value": "spark/openrouter/moonshotai/kimi-k2.7-code",
+                "name": "spark/openrouter/moonshotai/kimi-k2.7-code",
+                "description": null
+              },
+              {
+                "value": "spark/openrouter/z-ai/glm-5.2",
+                "name": "spark/openrouter/z-ai/glm-5.2",
+                "description": null
+              },
+              {
+                "value": "spark/openrouter/deepseek/deepseek-v4-flash-0731",
+                "name": "spark/openrouter/deepseek/deepseek-v4-flash-0731",
+                "description": null
+              },
+              {
+                "value": "spark/openrouter/moonshotai/kimi-k3",
+                "name": "spark/openrouter/moonshotai/kimi-k3",
+                "description": null
+              },
+              {
+                "value": "spark/openrouter/qwen/qwen3.8-2.4t-a95b",
+                "name": "spark/openrouter/qwen/qwen3.8-2.4t-a95b",
+                "description": null
+              },
+              {
+                "value": "spark/openrouter/z-ai/glm-5.3-flash",
+                "name": "spark/openrouter/z-ai/glm-5.3-flash",
+                "description": null
+              },
+              {
+                "value": "spark/0/main-3.8-fp8",
+                "name": "spark/0/main-3.8-fp8",
+                "description": null
+              },
+              {
+                "value": "spark/Main",
+                "name": "spark/Main",
+                "description": null
+              }
+            ],
+            "category": "model",
+            "name": "Model",
+            "description": "Select the model for this session",
+            "currentValue": "local/Qwen3.8-27B-BF16-DFLASH2",
+            "configId": "model"
+          },
+          {
+            "type": "select",
+            "options": [
+              {
+                "value": "off",
+                "name": "Thinking: off",
+                "description": null
+              },
+              {
+                "value": "minimal",
+                "name": "Thinking: minimal",
+                "description": null
+              },
+              {
+                "value": "low",
+                "name": "Thinking: low",
+                "description": null
+              },
+              {
+                "value": "medium",
+                "name": "Thinking: medium",
+                "description": null
+              },
+              {
+                "value": "high",
+                "name": "Thinking: high",
+                "description": null
+              },
+              {
+                "value": "xhigh",
+                "name": "Thinking: xhigh",
+                "description": null
+              },
+              {
+                "value": "max",
+                "name": "Thinking: max",
+                "description": null
+              }
+            ],
+            "category": "thought_level",
+            "name": "Thinking",
+            "description": "Set the reasoning effort for this session",
+            "currentValue": "medium",
+            "configId": "thought_level"
+          }
+        ],
+        "state": {
+          "state": "idle",
+          "background": [],
+          "stopReason": "end_turn"
+        },
+        "sessionInfo": {
+          "title": "Search the web for the current stable Node.js LTS version, then answer in one sh",
+          "updatedAt": "2026-11-23T00:28:56.497Z"
+        }
+      },
+      "timeline": [
+        {
+          "target": "userMessage",
+          "id": "m1"
+        },
+        {
+          "target": "agentThought",
+          "id": "m2"
+        },
+        {
+          "target": "toolCall",
+          "id": "call_45941b49c9affe3561130aae"
+        },
+        {
+          "target": "agentThought",
+          "id": "m3"
+        },
+        {
+          "target": "toolCall",
+          "id": "call_651a462ba289de3953f6db27"
+        },
+        {
+          "target": "agentThought",
+          "id": "m4"
+        },
+        {
+          "target": "toolCall",
+          "id": "call_07a69e8a75654d8a0d9ee1f3"
+        },
+        {
+          "target": "agentThought",
+          "id": "m5"
+        },
+        {
+          "target": "agentMessage",
+          "id": "m6"
+        },
+        {
+          "target": "toolCall",
+          "id": "call_89d5d82f4edf6d04ebe2a0d4"
+        },
+        {
+          "target": "agentThought",
+          "id": "m7"
+        },
+        {
+          "target": "toolCall",
+          "id": "call_82716f02a7ccb445ff4d3786"
+        },
+        {
+          "target": "agentThought",
+          "id": "m8"
+        },
+        {
+          "target": "agentMessage",
+          "id": "m9"
+        }
+      ],
+      "requests": {},
+      "events": [],
+      "unknown": []
+    }
+  }
+}

@@ -90,7 +90,18 @@ impl Mirror {
                     // Sent again after a reconnect so it can be answered on this connection.
                     return Ok(Vec::new());
                 }
-                session.apply_request(rules, &id, method, params)
+                // Keep the request as the agent sent it, without the daemon's position mark,
+                // so that it is the same whether it was seen live or in a replay.
+                let mut params = params.clone();
+                if let Some(meta) = params.get_mut("_meta").and_then(Value::as_object_mut) {
+                    meta.remove(ext::META_KEY);
+                    if meta.is_empty()
+                        && let Some(object) = params.as_object_mut()
+                    {
+                        object.remove("_meta");
+                    }
+                }
+                session.apply_request(rules, &id, method, &params)
             }
             _ => self
                 .conversation

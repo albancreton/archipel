@@ -1,0 +1,750 @@
+{
+  "sessions": {
+    "2f3d3b02-32a0-45fe-bb7b-210b4c4a3435": {
+      "collections": {
+        "userMessage": {
+          "6aba40a1-525f-48b4-8735-30c88bdd72d9": {
+            "messageId": "6aba40a1-525f-48b4-8735-30c88bdd72d9",
+            "content": [
+              {
+                "text": "Search the web for the current stable Node.js LTS version, then answer in one short sentence.",
+                "type": "text"
+              }
+            ]
+          }
+        },
+        "toolCall": {
+          "toolu_012iArrXL3oYidqCnHt28sk5": {
+            "toolCallId": "toolu_012iArrXL3oYidqCnHt28sk5",
+            "name": "WebSearch",
+            "rawInput": {
+              "query": "current stable Node.js LTS version",
+              "mode": "standard"
+            },
+            "status": "completed",
+            "title": "Search \"current stable Node.js LTS version\"",
+            "kind": "fetch",
+            "content": [
+              {
+                "type": "content",
+                "content": {
+                  "type": "text",
+                  "text": "Node.js Releases (https://nodejs.org/de/about/releases/)\nNode.js Releases (https://nodejs.org/de/about/previous-releases)\ngithub.com (https://github.com/haines/Release)\nNode.js Releases (https://nodejs.org/about/previous-releases)\nNode.js Releases (https://nodejs.org/en/about/previous-releases)\nNode.js Releases (https://nodejs.org/tr/download/releases)\nNode.js Releases (https://nodejs.org/ar/about/releases/)\nNode.js Releases (https://nodejs.org/ar/download/releases)\nnode js versions (https://www.geeksforgeeks.org/node-js-versions/)\nNode.js Releases (https://nodejs.org/ru/about/releases/)\nRelease | Status | Codename | Initial Release | Active LTS Start | Maintenance Start | End-of-life | (https://github.com/iojs/LTS)\nNode.js Releases (https://nodejs.org/about/releases/)\nNode.js Releases (https://nodejs.org/pt/about/previous-releases)\nRelease | Status | Codename | Initial Release | Active LTS Start | Maintenance Start | End-of-life | (https://github.com/nodejs/release)\nNode.js Releases (https://nodejs.org/ro/about/previous-releases)\nThe search didn't settle this on a single answer, and the sources are snapshots from different dates.\n\n- **Node.js 24 (Krypton)** is the release most sources list as Active LTS. One snapshot shows 24.x | Active LTS | Krypton | 2025-05-06 | 2025-10-28 | 2026-10-20 | 2028-04-30.\n- **Node.js 22 (Jod)** is in Maintenance LTS, and 20.x | Maintenance LTS | Iron is near end-of-life. One listing shows 25.x | Current | 2025-10-15.\n- **Node.js 26** is listed as Current in a nodejs.org snapshot. Under the normal schedule, an even-numbered release is promoted to LTS about six months after it is released, so 26 may have become LTS by now. The results don't confirm this, so treat it as unverified.\n\nNode.js's own release pages are the authoritative check. The [nodejs.org/en/about/previous-releases](https://nodejs.org/en/about/previous-releases) page and the GitHub release schedule would show the current LTS line."
+                }
+              }
+            ],
+            "rawOutput": "Web search results for query: \"current stable Node.js LTS version\"\n\nLinks: [{\"title\":\"Node.js Releases\",\"url\":\"https://nodejs.org/de/about/releases/\"},{\"title\":\"Node.js Releases\",\"url\":\"https://nodejs.org/de/about/previous-releases\"},{\"title\":\"github.com\",\"url\":\"https://github.com/haines/Release\"},{\"title\":\"Node.js Releases\",\"url\":\"https://nodejs.org/about/previous-releases\"},{\"title\":\"Node.js Releases\",\"url\":\"https://nodejs.org/en/about/previous-releases\"},{\"title\":\"Node.js Releases\",\"url\":\"https://nodejs.org/tr/download/releases\"},{\"title\":\"Node.js Releases\",\"url\":\"https://nodejs.org/ar/about/releases/\"},{\"title\":\"Node.js Releases\",\"url\":\"https://nodejs.org/ar/download/releases\"},{\"title\":\"node js versions\",\"url\":\"https://www.geeksforgeeks.org/node-js-versions/\"},{\"title\":\"Node.js Releases\",\"url\":\"https://nodejs.org/ru/about/releases/\"},{\"title\":\"Release | Status | Codename | Initial Release | Active LTS Start | Maintenance Start | End-of-life |\",\"url\":\"https://github.com/iojs/LTS\"},{\"title\":\"Node.js Releases\",\"url\":\"https://nodejs.org/about/releases/\"},{\"title\":\"Node.js Releases\",\"url\":\"https://nodejs.org/pt/about/previous-releases\"},{\"title\":\"Release | Status | Codename | Initial Release | Active LTS Start | Maintenance Start | End-of-life |\",\"url\":\"https://github.com/nodejs/release\"},{\"title\":\"Node.js Releases\",\"url\":\"https://nodejs.org/ro/about/previous-releases\"}]\n\nThe search didn't settle this on a single answer, and the sources are snapshots from different dates.\n\n- **Node.js 24 (Krypton)** is the release most sources list as Active LTS. One snapshot shows 24.x | Active LTS | Krypton | 2025-05-06 | 2025-10-28 | 2026-10-20 | 2028-04-30.\n- **Node.js 22 (Jod)** is in Maintenance LTS, and 20.x | Maintenance LTS | Iron is near end-of-life. One listing shows 25.x | Current | 2025-10-15.\n- **Node.js 26** is listed as Current in a nodejs.org snapshot. Under the normal schedule, an even-numbered release is promoted to LTS about six months after it is released, so 26 may have become LTS by now. The results don't confirm this, so treat it as unverified.\n\nNode.js's own release pages are the authoritative check. The [nodejs.org/en/about/previous-releases](https://nodejs.org/en/about/previous-releases) page and the GitHub release schedule would show the current LTS line.\n\n\nREMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks."
+          },
+          "toolu_01YQWajDjvfR2SQsVqrCXxZJ": {
+            "toolCallId": "toolu_01YQWajDjvfR2SQsVqrCXxZJ",
+            "name": "WebSearch",
+            "rawInput": {
+              "query": "Node.js current LTS release line 2026 Active LTS",
+              "mode": "extended"
+            },
+            "status": "completed",
+            "title": "Search \"Node.js current LTS release line 2026 Active LTS\"",
+            "kind": "fetch",
+            "content": [
+              {
+                "type": "content",
+                "content": {
+                  "type": "text",
+                  "text": "Node.js Versions: Latest Releases & EOL Dates (Nov 2026) (https://www.herodevs.com/blog-posts/node-js-end-of-life-dates-you-should-be-aware-of)\nNode.js 26 Is Now LTS: A SaaS Production Upgrade Plan - DEV Community (https://dev.to/somnath_khadanga_2e5c2364/nodejs-26-is-now-lts-a-saas-production-upgrade-plan-271l)\nNode.js 26 Becomes LTS on 28 October 2026: Which Node Version to Use Now, and How the New Yearly Release Schedule Works (https://www.vilvaathiban.com/blog/nodejs-26-lts-october-2026-which-node-version-to-use-new-release-schedule)\nNode.js LTS Versions: Which One to Run in Production (https://seahawkmedia.com/nodejs/nodejs-lts-versions/)\nNode.js 26 LTS upgrade: Temporal, V8 14.6 and removed APIs (https://fireup.pro/news/nodejs-26-lts-whats-new-upgrade)\nNode.js latest version (2026): 26.13.1 LTS & end-of-life dates (https://latestat.com/nodejs)\nNode.js LTS in 2026: Easy Guide to Node 24 vs Node 26 (https://www.techbellasolutions.com/blogs/node-js-lts-version-guide/)\nNode.js 26 LTS: What's New and How to Upgrade (https://www.coderzap.com/articles/nodejs-26-lts-whats-new)\nNode.js 26 LTS on October 28: which version to run? (https://convika.com/blog/nodejs-26-lts-which-version-to-run/)\nNode.js End of Life (EOL) Dates and End of Support (EOS) Dates (https://eosl.date/eol/product/nodejs/)\nNode.js 26 (\"Lithium\") is the current Active LTS line as of late November 2026. Most sources agree on this, though a few older articles still describe it as Current.\n\n- **Status and dates:** Several sources say Node.js 26 became a Long Term Support release on October 28, 2026, and that it is supported through April 30, 2029.\n- **Patch level:** The latest patch I found is 26.13.1, from a security release on November 11, 2026 (the current Node.js version is 26.13.1, released Nov 11, 2026). Another source notes that 26.13.0 was the first LTS release.\n- **Other lines:** Node.js 24 is in Maintenance LTS, with April 30, 2028 as its end-of-life date. Node.js 22 is also in Maintenance LTS and reaches end of life on April 30, 2027. Node.js 20 has already reached end of life.\n- **Discrepancy:** Sources differ on when Node 26 moves to Maintenance. One gives Active support until Oct 27, 2027, while another says it moves from Active LTS to Maintenance on October 20, 2027.\n- **Older articles:** Some pre-October pieces still call Node 26 Current, such as one stating that Node.js 26 is still a Current release. These predate the promotion."
+                }
+              }
+            ],
+            "rawOutput": "Web search results for query: \"Node.js current LTS release line 2026 Active LTS\"\n\nLinks: [{\"title\":\"Node.js Versions: Latest Releases & EOL Dates (Nov 2026)\",\"url\":\"https://www.herodevs.com/blog-posts/node-js-end-of-life-dates-you-should-be-aware-of\"},{\"title\":\"Node.js 26 Is Now LTS: A SaaS Production Upgrade Plan - DEV Community\",\"url\":\"https://dev.to/somnath_khadanga_2e5c2364/nodejs-26-is-now-lts-a-saas-production-upgrade-plan-271l\"},{\"title\":\"Node.js 26 Becomes LTS on 28 October 2026: Which Node Version to Use Now, and How the New Yearly Release Schedule Works\",\"url\":\"https://www.vilvaathiban.com/blog/nodejs-26-lts-october-2026-which-node-version-to-use-new-release-schedule\"},{\"title\":\"Node.js LTS Versions: Which One to Run in Production\",\"url\":\"https://seahawkmedia.com/nodejs/nodejs-lts-versions/\"},{\"title\":\"Node.js 26 LTS upgrade: Temporal, V8 14.6 and removed APIs\",\"url\":\"https://fireup.pro/news/nodejs-26-lts-whats-new-upgrade\"},{\"title\":\"Node.js latest version (2026): 26.13.1 LTS & end-of-life dates\",\"url\":\"https://latestat.com/nodejs\"},{\"title\":\"Node.js LTS in 2026: Easy Guide to Node 24 vs Node 26\",\"url\":\"https://www.techbellasolutions.com/blogs/node-js-lts-version-guide/\"},{\"title\":\"Node.js 26 LTS: What's New and How to Upgrade\",\"url\":\"https://www.coderzap.com/articles/nodejs-26-lts-whats-new\"},{\"title\":\"Node.js 26 LTS on October 28: which version to run?\",\"url\":\"https://convika.com/blog/nodejs-26-lts-which-version-to-run/\"},{\"title\":\"Node.js End of Life (EOL) Dates and End of Support (EOS) Dates\",\"url\":\"https://eosl.date/eol/product/nodejs/\"}]\n\nNode.js 26 (\"Lithium\") is the current Active LTS line as of late November 2026. Most sources agree on this, though a few older articles still describe it as Current.\n\n- **Status and dates:** Several sources say Node.js 26 became a Long Term Support release on October 28, 2026, and that it is supported through April 30, 2029.\n- **Patch level:** The latest patch I found is 26.13.1, from a security release on November 11, 2026 (the current Node.js version is 26.13.1, released Nov 11, 2026). Another source notes that 26.13.0 was the first LTS release.\n- **Other lines:** Node.js 24 is in Maintenance LTS, with April 30, 2028 as its end-of-life date. Node.js 22 is also in Maintenance LTS and reaches end of life on April 30, 2027. Node.js 20 has already reached end of life.\n- **Discrepancy:** Sources differ on when Node 26 moves to Maintenance. One gives Active support until Oct 27, 2027, while another says it moves from Active LTS to Maintenance on October 20, 2027.\n- **Older articles:** Some pre-October pieces still call Node 26 Current, such as one stating that Node.js 26 is still a Current release. These predate the promotion.\n\n\nREMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks."
+          }
+        },
+        "agentThought": {
+          "msg_011ChK6rn3zTbFUcva7jpcxX": {
+            "messageId": "msg_011ChK6rn3zTbFUcva7jpcxX",
+            "content": [
+              {
+                "type": "text",
+                "text": "The standard search came back thin and possibly outdated, so I'll run the extended search next, keeping it efficient.\n\n"
+              }
+            ]
+          },
+          "msg_011ChK6sHZmPs1t3ZCgiVMi2": {
+            "messageId": "msg_011ChK6sHZmPs1t3ZCgiVMi2",
+            "content": [
+              {
+                "type": "text",
+                "text": "I need to keep the answer to one short sentence, with a couple of sources linked as markdown hyperlinks.\n\n"
+              }
+            ]
+          }
+        },
+        "agentMessage": {
+          "msg_011ChK6rn3zTbFUcva7jpcxX": {
+            "messageId": "msg_011ChK6rn3zTbFUcva7jpcxX",
+            "content": [
+              {
+                "type": "text",
+                "text": "The standard search was inconclusive and its snapshots may be outdated, so I'll run an extended search."
+              }
+            ]
+          },
+          "msg_011ChK6sHZmPs1t3ZCgiVMi2": {
+            "messageId": "msg_011ChK6sHZmPs1t3ZCgiVMi2",
+            "content": [
+              {
+                "type": "text",
+                "text": "The current stable Node.js LTS line is Node.js 26 (\"Lithium\"), which became LTS on October 28, 2026, with 26.13.1 as the latest patch ([herodevs](https://www.herodevs.com/blog-posts/node-js-end-of-life-dates-you-should-be-aware-of), [latestat](https://latestat.com/nodejs))."
+              }
+            ]
+          }
+        }
+      },
+      "values": {
+        "configOptions": [
+          {
+            "name": "Model",
+            "description": "AI model to use",
+            "category": "model",
+            "type": "select",
+            "currentValue": "haiku",
+            "options": [
+              {
+                "value": "default",
+                "name": "Default (recommended)",
+                "description": "Opus 5.5"
+              },
+              {
+                "value": "opus",
+                "name": "Opus 5.5",
+                "description": "For complex work and everyday tasks"
+              },
+              {
+                "value": "fable",
+                "name": "Fable 5.2",
+                "description": "For your toughest challenges"
+              },
+              {
+                "value": "sonnet",
+                "name": "Sonnet 5.5",
+                "description": "Most efficient for simpler tasks"
+              },
+              {
+                "value": "haiku",
+                "name": "Haiku 5.5",
+                "description": "Fastest for quick answers"
+              },
+              {
+                "value": "claude-fable-5-1",
+                "name": "Fable 5.1",
+                "description": "Most capable for your hardest and longest-running tasks"
+              },
+              {
+                "value": "claude-haiku-4-5-20251001",
+                "name": "Haiku 4.5",
+                "description": "Fastest for quick answers"
+              },
+              {
+                "value": "claude-sonnet-5",
+                "name": "Sonnet 5",
+                "description": "Efficient for routine tasks"
+              },
+              {
+                "value": "claude-opus-5",
+                "name": "Opus 5",
+                "description": "Best for everyday, complex tasks"
+              },
+              {
+                "value": "claude-fable-5",
+                "name": "Fable 5",
+                "description": "Most capable for your hardest and longest-running tasks"
+              },
+              {
+                "value": "claude-opus-4-8",
+                "name": "Opus 4.8",
+                "description": "Best for everyday, complex tasks"
+              },
+              {
+                "value": "claude-opus-4-7",
+                "name": "Opus 4.7",
+                "description": "Best for everyday, complex tasks"
+              },
+              {
+                "value": "claude-opus-4-6",
+                "name": "Opus 4.6",
+                "description": "Best for everyday, complex tasks"
+              },
+              {
+                "value": "claude-sonnet-4-6",
+                "name": "Sonnet 4.6",
+                "description": "Efficient for routine tasks"
+              }
+            ],
+            "configId": "model"
+          },
+          {
+            "name": "Effort",
+            "description": "Available effort levels for this model",
+            "category": "thought_level",
+            "type": "select",
+            "currentValue": "default",
+            "options": [
+              {
+                "value": "default",
+                "name": "Default"
+              },
+              {
+                "value": "low",
+                "name": "Low"
+              },
+              {
+                "value": "medium",
+                "name": "Medium"
+              },
+              {
+                "value": "high",
+                "name": "High"
+              },
+              {
+                "value": "xhigh",
+                "name": "Xhigh"
+              },
+              {
+                "value": "max",
+                "name": "Max"
+              }
+            ],
+            "configId": "effort"
+          },
+          {
+            "name": "Ultracode",
+            "description": "Dynamic workflows on every task, at any effort level",
+            "category": "model_config",
+            "type": "boolean",
+            "currentValue": false,
+            "configId": "ultracode"
+          },
+          {
+            "name": "Mode",
+            "description": "Session permission mode",
+            "category": "mode",
+            "type": "select",
+            "currentValue": "bypassPermissions",
+            "options": [
+              {
+                "value": "default",
+                "name": "Manual",
+                "description": "Always ask before making changes"
+              },
+              {
+                "value": "acceptEdits",
+                "name": "Accept edits",
+                "description": "Automatically accept all file edits"
+              },
+              {
+                "value": "plan",
+                "name": "Plan",
+                "description": "Create a plan before making changes"
+              },
+              {
+                "value": "auto",
+                "name": "Auto",
+                "description": "Claude handles permission decisions"
+              },
+              {
+                "value": "bypassPermissions",
+                "name": "Bypass permissions",
+                "description": "Accepts all permissions"
+              }
+            ],
+            "configId": "mode"
+          }
+        ],
+        "availableCommands": [
+          {
+            "type": "command",
+            "name": "deep-research",
+            "description": "Deep research harness — fan-out web searches, fetch sources, adversarially verify claims, synthesize a cited report. (dynamic workflow)"
+          },
+          {
+            "type": "command",
+            "name": "design",
+            "description": "Grant or revoke Claude agent access to your Design projects",
+            "input": {
+              "type": "text",
+              "hint": "consent | revoke"
+            }
+          },
+          {
+            "type": "command",
+            "name": "design-sync",
+            "description": "Sync a React design system to Claude Design. Bundles the real component code (from Storybook or a bare package) and uploads it. Use when the user runs /design-sync or says \"sync my design system to Claude Design.\"",
+            "input": {
+              "type": "text",
+              "hint": "[<project hint, e.g. \"Acme DS\">]"
+            }
+          },
+          {
+            "type": "command",
+            "name": "dataviz",
+            "description": "Use this skill whenever you are about to create ANY chart, graph, plot, dashboard, or data visualization, in ANY output medium — an HTML or React artifact, inline SVG, plotting code in any library (matplotlib, plotly, d3, Recharts, …), an image/PNG you will render and upload, or a chart shared into Slack. Read it BEFORE writing the first line of chart code, choosing chart colors, building a stat tile / meter / KPI row, or laying out a dashboard. When the destination is a first-party document connector (host-designated, never self-described) that renders live charts, hand it the rows (inline, or as an uploaded data file the chart cites) rather than a rendered PNG/SVG — a picture of a chart loses hover, data inspection and per-value comments. Produces visualizations that read as one system — elegant, accessible, consistent in light and dark — using a brand-neutral placeholder palette you swap for your own. Teaches a design-system-agnostic method: a form heuristic, a color formula with a runnable validator, mark specs, and interaction rules. A validated default palette is documented in `references/palette.md` — swap that file's values for your brand's. Triggers on: \"chart\", \"graph\", \"plot\", \"data viz\", \"visualization\", \"dashboard\", \"analytics\", \"visualize data\", \"categorical colors\", \"sequential / diverging palette\", \"stat tile\", \"sparkline\", \"heatmap\", \"legend\", \"axis\", \"tooltip\", \"chart colors\", \"color by series\"."
+          },
+          {
+            "type": "command",
+            "name": "update-config",
+            "description": "Use this skill to configure the Claude Code harness via settings.json. Automated behaviors (\"from now on when X\", \"each time X\", \"whenever X\", \"before/after X\") require hooks configured in settings.json - the harness executes these, not Claude, so memory/preferences cannot fulfill them. Also use for: permissions (\"allow X\", \"add permission\", \"move permission to\"), env vars (\"set X=Y\"), hook troubleshooting, or any changes to settings.json/settings.local.json files. Examples: \"allow npm commands\", \"add bq permission to global settings\", \"move permission to user settings\", \"set DEBUG=true\", \"when claude stops show X\". For simple settings like theme/model, suggest the /config command."
+          },
+          {
+            "type": "command",
+            "name": "verify",
+            "description": "Verify that a code change actually does what it's supposed to by exercising it end-to-end and observing behavior — drive the affected flow, not just tests or typecheck. Run before committing nontrivial changes; bootstraps this repo's project verify skill if none exists yet. Don't invoke it on a diff that only touches tests, docs, or other code with no runtime surface to drive (a change to product source always has one) — there's nothing to observe."
+          },
+          {
+            "type": "command",
+            "name": "debug",
+            "description": "Enable debug logging for this session and help diagnose issues",
+            "input": {
+              "type": "text",
+              "hint": "[issue description]"
+            }
+          },
+          {
+            "type": "command",
+            "name": "code-review",
+            "description": "Review the current diff, or a PR number/branch/path target, for correctness bugs (plus broken CLAUDE.md rules and cleanups where the model's recipe covers them; see /simplify) at the effort level given first, before any target (low|medium|high|xhigh|max: from few high-confidence findings to many, some uncertain; ultra: deep multi-agent review in the cloud); with no level given, it reuses the level you typed last. Pass --comment to post findings as inline PR comments, or --fix to apply them to the working tree after the review. Pass --max-findings <n> to report up to n findings, or --max-findings all for every finding. The choice stays until you pass --max-findings default. For ultra on a GitHub.com PR target, --post asks to post the finished review’s findings to the PR as a single comment from the user’s GitHub account (not a review; the launch dialog still confirms in interactive sessions, while non-interactive mode posts on the flag alone) and --no-post hides that option.",
+            "input": {
+              "type": "text",
+              "hint": "[low|medium|high|xhigh|max|ultra] [--fix] [--comment] [<pr#>|<branch>|<path>] [--max-findings <n>|all]"
+            }
+          },
+          {
+            "type": "command",
+            "name": "simplify",
+            "description": "Review the changed code for reuse, simplification, efficiency, and altitude cleanups, then apply the fixes. Quality only — it does not hunt for bugs; use /code-review for that.",
+            "input": {
+              "type": "text",
+              "hint": "[<target>]"
+            }
+          },
+          {
+            "type": "command",
+            "name": "batch",
+            "description": "Research and plan a large-scale change, then execute it in parallel across 5–30 isolated worktree agents that each open a PR.",
+            "input": {
+              "type": "text",
+              "hint": "<instruction>"
+            }
+          },
+          {
+            "type": "command",
+            "name": "fewer-permission-prompts",
+            "description": "Scan your transcripts for common read-only Bash and MCP tool calls, then add a prioritized allowlist to project .claude/settings.json to reduce permission prompts."
+          },
+          {
+            "type": "command",
+            "name": "loop",
+            "description": "Run a prompt or slash command on a recurring interval (e.g. /loop 5m /foo). Omit the interval to let the model self-pace.",
+            "input": {
+              "type": "text",
+              "hint": "[interval] [prompt]"
+            }
+          },
+          {
+            "type": "command",
+            "name": "schedule",
+            "description": "Create, update, list, or run scheduled cloud agents (routines) that execute on a cron schedule."
+          },
+          {
+            "type": "command",
+            "name": "claude-api",
+            "description": "Reference for the Claude API / Anthropic SDK — model ids, pricing, params, streaming, tool use, MCP, agents, caching, token counting, model migration.\nTRIGGER — read FIRST, before you answer, run a command or open a file (already started? read it now); don't skip because it \"looks like a one-liner\" — whenever: the prompt names Claude/Anthropic in any form (Claude, Anthropic, Fable, Opus, Sonnet, Haiku, `anthropic`, `@anthropic-ai`, `claude-*`, `us.anthropic.*`, `[1m]`); the user asks about an LLM (pricing/model choice/limits/caching) — never answer from memory; OR the task is LLM-shaped with provider unstated (agent/MCP/tool-definition/multi-agent/RAG/LLM-judge/computer-use; generate/summarize/extract/classify/rewrite/converse over NL; debugging refusals/cutoffs/streaming/tool-calls/tokens).\nSKIP only when another provider is being worked on (overrides all triggers): OpenAI/GPT/Gemini/Llama/Mistral/Cohere/Ollama named in the query; OR `grep -rE 'openai|langchain_openai|google.generativeai|genai|mistralai|cohere|ollama'` over the project hits (run this grep FIRST if no provider named — don't Read the file; if nothing hits, load this skill)."
+          },
+          {
+            "type": "command",
+            "name": "workflow-authoring",
+            "description": "Reference for writing a Workflow tool script (script API and gotchas, resume, quality patterns, worked examples). Load before authoring a script for a workflow the user already opted into; it does not itself authorize running one."
+          },
+          {
+            "type": "command",
+            "name": "run",
+            "description": "Launch and drive this project's app to see a change working. Use when asked to run, start, or screenshot the app, or to confirm a change works in the real app (not just tests). First looks for a project skill that already covers launching the app; otherwise falls back to built-in patterns per project type (CLI, server, TUI, Electron, browser-driven, library)."
+          },
+          {
+            "type": "command",
+            "name": "run-skill-generator",
+            "description": "Author or improve the run-<unit> skill - a per-project skill that tells agents how to build, launch, and drive this project's app. Use when the user asks to set up the project, get it running, write run instructions, or verify build/run steps work from a clean environment."
+          },
+          {
+            "type": "command",
+            "name": "plugin-authoring",
+            "description": "Make a mod: a change to Claude's own interface or behaviour, such as a theme, a panel or pane that stays beside the chat and updates, a band, status line, toast, slash command, or hook on tool calls. Use to make, change or debug a mod or its hooks module."
+          },
+          {
+            "type": "command",
+            "name": "advisor",
+            "description": "Let Claude consult a stronger model at key moments",
+            "input": {
+              "type": "text",
+              "hint": "[fable|opus|sonnet|off]"
+            }
+          },
+          {
+            "type": "command",
+            "name": "agents",
+            "description": "(removed) Ask Claude to create/manage subagents, or edit .claude/agents/"
+          },
+          {
+            "type": "command",
+            "name": "auto-mode-setup",
+            "description": "Teach auto mode about your environment, plus optional rule tweaks",
+            "input": {
+              "type": "text",
+              "hint": "[--request-id <uuid>] (--wizard posture=… scope=… depth=… --propose | --expect-sha256 <64-hex> --apply-file <path>)"
+            }
+          },
+          {
+            "type": "command",
+            "name": "autocompact",
+            "description": "Set how full the context gets before auto-summarizing",
+            "input": {
+              "type": "text",
+              "hint": "[auto|<tokens>]"
+            }
+          },
+          {
+            "type": "command",
+            "name": "compact",
+            "description": "Free up context by summarizing the conversation so far",
+            "input": {
+              "type": "text",
+              "hint": "<optional custom summarization instructions>"
+            }
+          },
+          {
+            "type": "command",
+            "name": "config",
+            "description": "Set a setting by key",
+            "input": {
+              "type": "text",
+              "hint": "key=value"
+            }
+          },
+          {
+            "type": "command",
+            "name": "output-style",
+            "description": "List output styles or switch to one",
+            "input": {
+              "type": "text",
+              "hint": "[style]"
+            }
+          },
+          {
+            "type": "command",
+            "name": "context",
+            "description": "Show current context usage"
+          },
+          {
+            "type": "command",
+            "name": "effort",
+            "description": "Set the model's effort level",
+            "input": {
+              "type": "text",
+              "hint": "<low|medium|high|xhigh|max|auto|ultracode [on|off]>"
+            }
+          },
+          {
+            "type": "command",
+            "name": "fast",
+            "description": "Toggle fast mode (Opus 5.5)",
+            "input": {
+              "type": "text",
+              "hint": "[on|off]"
+            }
+          },
+          {
+            "type": "command",
+            "name": "heapdump",
+            "description": "Dump the JS heap to the Desktop; on Linux with no Desktop folder, the home directory"
+          },
+          {
+            "type": "command",
+            "name": "init",
+            "description": "Initialize a new CLAUDE.md file with codebase documentation"
+          },
+          {
+            "type": "command",
+            "name": "import",
+            "description": "Import config from another AI coding agent"
+          },
+          {
+            "type": "command",
+            "name": "model",
+            "description": "Set the AI model for Claude Code",
+            "input": {
+              "type": "text",
+              "hint": "<model>"
+            }
+          },
+          {
+            "type": "command",
+            "name": "__remote-workflow",
+            "description": "Run the workflow script delivered in this session environment (server-launched sessions only)"
+          },
+          {
+            "type": "command",
+            "name": "workflow-launch-exec",
+            "description": "Execute a server-launched workflow handoff (workflow_launch event sessions only)"
+          },
+          {
+            "type": "command",
+            "name": "reload-skills",
+            "description": "Pick up skills added or changed on disk during this session"
+          },
+          {
+            "type": "command",
+            "name": "rename",
+            "description": "Rename the current conversation",
+            "input": {
+              "type": "text",
+              "hint": "[name]"
+            }
+          },
+          {
+            "type": "command",
+            "name": "ultrareview",
+            "description": "Start a cloud agent that finds and verifies bugs in your branch (~5-15 min, $5-$25 USD) · Runs in a cloud session. See https://code.claude.com/docs/en/claude-code-on-the-web"
+          },
+          {
+            "type": "command",
+            "name": "security-review",
+            "description": "Complete a security review of the pending changes on the current branch"
+          },
+          {
+            "type": "command",
+            "name": "usage-credits",
+            "description": "Configure usage credits or request them from your admin when you hit a limit"
+          },
+          {
+            "type": "command",
+            "name": "extra-usage",
+            "description": "Renamed to /usage-credits"
+          },
+          {
+            "type": "command",
+            "name": "usage",
+            "description": "Show session cost, plan usage, and what's contributing to your limits"
+          },
+          {
+            "type": "command",
+            "name": "insights",
+            "description": "Generate a report analyzing your Claude Code sessions"
+          },
+          {
+            "type": "command",
+            "name": "recap",
+            "description": "Generate a one-line session recap now"
+          },
+          {
+            "type": "command",
+            "name": "skill-doctor",
+            "description": "Show which loaded skills are unused and costing context"
+          },
+          {
+            "type": "command",
+            "name": "goal",
+            "description": "Set a goal — keep working until the condition is met"
+          },
+          {
+            "type": "command",
+            "name": "design-consent",
+            "description": "Grant Claude agent access to your Design projects"
+          },
+          {
+            "type": "command",
+            "name": "design-revoke",
+            "description": "Revoke Claude agent access to your Design projects"
+          },
+          {
+            "type": "command",
+            "name": "list-agents",
+            "description": "List subagents, teammates, and other Claude sessions you can message"
+          },
+          {
+            "type": "command",
+            "name": "team-onboarding",
+            "description": "Help teammates ramp on Claude Code with a guide from your usage"
+          },
+          {
+            "type": "command",
+            "name": "artifact-emulator",
+            "description": "See a page, slide deck or design canvas artifact you made, close to how a person will see it: open its files in the real artifact viewer inside this cloud session, then screenshot it and read its console errors with a short Python Playwright script. Use it when the person asks to see or check how it looks, or when the artifact type's own instructions tell you to check. Where a type's instructions say not to check unless asked, they win. Never a step before saving or publishing, nor a routine after every save. Not for web apps or pages that are not artifacts. Cloud sessions only (built for cloud Cowork): elsewhere its script stops with a one-line reason. Only you see the result. (claude.ai sync)"
+          },
+          {
+            "type": "command",
+            "name": "built-in-browser",
+            "description": "Read this skill before the first step that uses the built-in browser, the browser pane inside the Claude desktop app (also called the in-app browser, the browser pane, Claude's browser, or \"your own browser\"), whose tools are named mcp__Claude_Browser__* when the session runs in the desktop app and mcp__remote-devices__Claude_Browser__* when a cloud session is linked to the person's computer; before those tools are turned on there may be a single enable__mcp__remote-devices__Claude_Browser tool instead. It covers the pane's persistent sign-ins, tabs and preview_start, reading pages as text, site approvals, what the pane cannot open, and what to do when it cannot be reached. It is not for Claude in Chrome (mcp__claude-in-chrome__* tools), which has its own skill, and it does not decide which browser to use. (claude.ai sync)"
+          },
+          {
+            "type": "command",
+            "name": "chrome-browser",
+            "description": "Read this skill before the first step that uses Claude in Chrome, the browser extension whose tools are named mcp__claude-in-chrome__* (also called Chrome, the browser extension, or the external browser) and which acts in the person's real Chrome with their own sign-ins; before those tools are turned on there may be a single enable__mcp__claude-in-chrome tool instead. It covers loading the tools in one ToolSearch call, checking the person's open tabs and working in a new tab, site permissions, GIF recordings, console logs, dialogs to avoid, and when to stop and ask. It is not for the built-in browser (mcp__Claude_Browser__* or mcp__remote-devices__Claude_Browser__* tools), which has its own skill, and it does not decide which browser to use. (claude.ai sync)"
+          },
+          {
+            "type": "command",
+            "name": "computer-use",
+            "description": "Read this skill before the first step of any request to do something in an app on the person's own computer (Notes, Finder, System Settings, any desktop app), to look at their screen, or for \"computer use\". Computer use (desktop control) lets Claude take screenshots of the person's desktop and control it with clicks, typing and scrolling through the Claude desktop app; its tools are named mcp__computer-use__* when the session runs in the desktop app and mcp__remote-devices__computer_* when a cloud session is linked to the person's computer; before computer use is turned on for a conversation there may be no such tools, only an enable__mcp__remote-devices__computer tool, which turns it on. It covers turning it on, picking the right tool, the access flow, and the safety rules for tiered apps, links and financial actions. It is not for websites, which go through Claude in Chrome or the built-in browser and their own skills. (claude.ai sync)"
+          },
+          {
+            "type": "command",
+            "name": "docs",
+            "description": "docs (editable docs people share and comment on; the default for any document, named as a doc or not: a document, report, proposal, resume, cover letter, letter, contract, policy, form, template, worksheet, essay, handbook, guide, how-to, cheat sheet, SOP or other writing to keep, share, collaborate on, send, submit, print or sign; a doc exports to Word, PDF, Markdown or Google Docs, so needing a file to send, attach, upload, submit or print is no reason to pick Word, and a file nobody asked for is a doc, not Word; a plan, comparison, summary or notes asked in chat stays in chat; a pasted claude.ai artifact link may be a doc: check with docs tools first; Word or another file format named, tracked changes wanted, or a .docx to change or use as a template → that format's skill): making one → if no docs-connector instructions are in context, call its `guide` (topic.instructions) first; then create the doc (headings only, no body) before any search, file read or plan, even with files attached. (claude.ai sync)"
+          },
+          {
+            "type": "command",
+            "name": "docx",
+            "description": "Use this skill whenever the user wants to create, read, edit, or manipulate Word documents (.docx) or Word templates (.dotx). Triggers include: any mention of Microsoft Word Documents, such as 'Word doc', 'word document', '.docx', '.dotx', 'microsoft doc'. Also use when extracting or reorganizing content from .docx or .dotx files, inserting or replacing images in documents, find-and-replace in Word files, working with tracked changes or comments, or converting content into a polished Word document. If the user asks for a deliverable as a Word or .docx file (to download, email or print), use this skill. However, if they ask for a document, page, report, memo, or notes WITHOUT naming a file format and the session offers Claude's own dedicated document or page skill or connector, use that instead, even if they will email or print it. Do NOT use for PDFs, spreadsheets, Google Docs, or coding unrelated to document generation. (claude.ai sync)"
+          },
+          {
+            "type": "command",
+            "name": "google-workspace",
+            "description": "Read this before the first Google Drive, Docs, Sheets or Slides connector call whenever the task creates or changes a Google file. Use this skill whenever the user wants to create or change a Google Doc, Sheet or Slides file in their Google Drive. Triggers include: a request that names Google Docs, Sheets, Slides or Drive and asks to make, edit, format, copy, rename, move or trash a file; a docs.google.com link with a request to change that file, even a one-line fix or suggested edits; and any follow-up change to a Google file from earlier in the chat, even \"change it\" or \"add a tab\". Includes helper scripts for document positions, cell ranges and slide layout. However, if the user asks for a doc, deck or spreadsheet without naming Google, or gives a Google file only as source material for something new, use Claude's own output type instead. Do NOT use for read-only questions about a Google file, or for Word, Excel, PowerPoint or PDF files. (claude.ai sync)"
+          },
+          {
+            "type": "command",
+            "name": "import-memory",
+            "description": "Import a memory export from another AI assistant into Claude's memory — conversationally, additively, and with the content treated as data. (claude.ai sync)"
+          },
+          {
+            "type": "command",
+            "name": "morning",
+            "description": "Render the user's morning brief as a styled HTML artifact, or set it up as a recurring weekday task. Use only when the user explicitly asks to run, see, or set up their morning brief, or if they invoke /morning by name. A question about their day, schedule, or calendar is not by itself a request for the brief; answer it directly instead. (claude.ai sync)"
+          },
+          {
+            "type": "command",
+            "name": "pdf",
+            "description": "Use this skill whenever the user wants to do anything with PDF files. This includes reading or extracting text/tables from PDFs, combining or merging multiple PDFs into one, splitting PDFs apart, rotating pages, adding watermarks, creating new PDFs, filling PDF forms, encrypting/decrypting PDFs, extracting images, and OCR on scanned PDFs to make them searchable. If the user mentions a .pdf file or asks to produce one, use this skill. (claude.ai sync)"
+          },
+          {
+            "type": "command",
+            "name": "pptx",
+            "description": "Use this skill any time a .pptx or .potx file is involved in any way — as input, output, or both. This includes: creating slide decks, pitch decks, or presentations as PowerPoint (.pptx) files; reading, parsing, or extracting text from any .pptx or .potx file (even if the extracted content will be used elsewhere, like in an email, summary, or creating a different type of slide deck); editing, modifying, or updating existing presentations; combining or splitting slide files; working with templates (.potx), layouts, speaker notes, or comments. Trigger whenever the user asks for a PowerPoint or .pptx file, or references a .pptx or .potx filename, regardless of what they plan to do with the content afterward. However, when the user asks for a deck, slides, a slide deck, or a presentation without naming a file format, default to using a dedicated slide-deck artifact type or a separate slides skill if this session offers one; otherwise, use this skill. (claude.ai sync)"
+          },
+          {
+            "type": "command",
+            "name": "skill-creator",
+            "description": "Create new skills, modify and improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, edit, or optimize an existing skill, run evals to test a skill, benchmark skill performance with variance analysis, or optimize a skill's description for better triggering accuracy. (claude.ai sync)"
+          },
+          {
+            "type": "command",
+            "name": "xlsx",
+            "description": "Use this skill any time a spreadsheet file is the primary input or output. This means any task where the user wants to: open, read, edit, or fix an existing .xlsx, .xlsm, .xltx, .csv, or .tsv file (e.g., adding columns, computing formulas, formatting, charting, cleaning messy data); create a new spreadsheet from scratch or from other data sources; or convert between tabular file formats. Trigger especially when the user references a spreadsheet file by name or path — even casually (like \"the xlsx in my downloads\") — and wants something done to it or produced from it. Also trigger for cleaning or restructuring messy tabular data files (malformed rows, misplaced headers, junk data) into proper spreadsheets. The deliverable must be a spreadsheet file. Do NOT trigger when the primary deliverable is a Word document, HTML report, standalone Python script, database pipeline, or Google Sheets API integration, even if tabular data is involved. (claude.ai sync)"
+          },
+          {
+            "type": "command",
+            "name": "mcp",
+            "description": "Show the MCP servers and their status, or reconnect, enable, or disable a server",
+            "input": {
+              "type": "text",
+              "hint": "[reconnect|enable|disable [<server>|all]]"
+            }
+          },
+          {
+            "type": "command",
+            "name": "remote-control",
+            "description": "Continue this session from claude.ai/code or the Claude mobile app; `off` disconnects",
+            "input": {
+              "type": "text",
+              "hint": "[session name | off]"
+            }
+          }
+        ],
+        "state": {
+          "state": "idle",
+          "stopReason": "end_turn",
+          "usage": {
+            "inputTokens": 6,
+            "outputTokens": 464,
+            "cachedReadTokens": 81470,
+            "cachedWriteTokens": 20515,
+            "totalTokens": 102455
+          },
+          "_meta": {
+            "quota": {
+              "token_count": {
+                "totalTokens": 102455,
+                "inputTokens": 6,
+                "cachedInputTokens": 81470,
+                "cachedWriteTokens": 20515,
+                "outputTokens": 464,
+                "reasoningOutputTokens": 0
+              },
+              "model_usage": [
+                {
+                  "model": "claude-haiku-5-5",
+                  "token_count": {
+                    "totalTokens": 135996,
+                    "inputTokens": 31834,
+                    "cachedInputTokens": 81470,
+                    "cachedWriteTokens": 20515,
+                    "outputTokens": 2177,
+                    "reasoningOutputTokens": 0
+                  }
+                }
+              ]
+            }
+          },
+          "background": []
+        },
+        "usage": {
+          "used": 36742,
+          "size": 1000000,
+          "_meta": {
+            "_claude/origin": {
+              "kind": "human"
+            },
+            "_claude/model": "claude-haiku-5-5"
+          },
+          "cost": {
+            "amount": 0.029189600000000007,
+            "currency": "USD"
+          }
+        },
+        "sessionInfo": {
+          "title": "Current stable Node.js LTS version",
+          "updatedAt": "2026-11-23T02:51:46.007Z"
+        }
+      },
+      "timeline": [
+        {
+          "target": "userMessage",
+          "id": "6aba40a1-525f-48b4-8735-30c88bdd72d9"
+        },
+        {
+          "target": "toolCall",
+          "id": "toolu_012iArrXL3oYidqCnHt28sk5"
+        },
+        {
+          "target": "agentThought",
+          "id": "msg_011ChK6rn3zTbFUcva7jpcxX"
+        },
+        {
+          "target": "agentMessage",
+          "id": "msg_011ChK6rn3zTbFUcva7jpcxX"
+        },
+        {
+          "target": "toolCall",
+          "id": "toolu_01YQWajDjvfR2SQsVqrCXxZJ"
+        },
+        {
+          "target": "agentThought",
+          "id": "msg_011ChK6sHZmPs1t3ZCgiVMi2"
+        },
+        {
+          "target": "agentMessage",
+          "id": "msg_011ChK6sHZmPs1t3ZCgiVMi2"
+        }
+      ],
+      "requests": {},
+      "events": [],
+      "unknown": []
+    }
+  }
+}

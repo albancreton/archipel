@@ -128,6 +128,8 @@ struct App {
     next_id: u64,
     rules: RuleSet,
     mirror: Mirror,
+    /// Everything sent and received, as transcript frames.
+    log: Vec<Value>,
 }
 
 impl App {
@@ -152,6 +154,7 @@ impl App {
             next_id: 100,
             rules: RuleSet::pinned(),
             mirror,
+            log: Vec::new(),
         }
     }
 
@@ -160,17 +163,20 @@ impl App {
         self.next_id += 1;
         let message = json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params});
         self.mirror.sent(&self.rules, &message).expect("applies");
+        self.log.push(json!({"dir": "out", "m": message}));
         self.link.tx.send(message).await.expect("daemon is up");
         id
     }
 
     async fn notify(&mut self, method: &str, params: Value) {
         let message = json!({"jsonrpc": "2.0", "method": method, "params": params});
+        self.log.push(json!({"dir": "out", "m": message}));
         self.link.tx.send(message).await.expect("daemon is up");
     }
 
     async fn answer(&mut self, id: &Value, result: Value) {
         let message = json!({"jsonrpc": "2.0", "id": id, "result": result});
+        self.log.push(json!({"dir": "out", "m": message}));
         self.link.tx.send(message).await.expect("daemon is up");
     }
 
@@ -183,6 +189,7 @@ impl App {
         self.mirror
             .received(&self.rules, &message)
             .expect("applies");
+        self.log.push(json!({"dir": "in", "m": message}));
         message
     }
 
@@ -236,6 +243,21 @@ impl App {
 
     fn rendering(&self) -> String {
         render::conversation(&self.mirror.conversation)
+    }
+
+    /// What the app holds, as JSON.
+    fn state(&self) -> Value {
+        serde_json::to_value(&self.mirror.conversation).expect("serialises")
+    }
+
+    /// Everything sent and received, one frame per line.
+    fn frames(&self) -> String {
+        self.log
+            .iter()
+            // Session summaries carry the time of day, and a mirror has no use for them.
+            .filter(|frame| frame["m"]["method"] != ext::NOTIFICATION_SESSIONS_UPDATED)
+            .map(|frame| format!("{frame}\n"))
+            .collect()
     }
 }
 
@@ -333,6 +355,7 @@ fn method_of<'a>(frames: &'a [Frame], id: &Value) -> Option<&'a str> {
 
 #[tokio::test]
 async fn every_recorded_session_passes_through_unchanged_and_replays_the_same() {
+    let mut stale = Vec::new();
     for (name, transcript) in all_transcripts() {
         println!("playing {name}");
         let server = Server::builder().agent(fake(&transcript)).start();
@@ -348,6 +371,12 @@ async fn every_recorded_session_passes_through_unchanged_and_replays_the_same() 
         late.call("initialize", json!({"protocolVersion": 2})).await;
         late.attach(&session).await;
         assert_eq!(late.rendering(), vector(&name), "{name}: replay");
+        assert_eq!(
+            late.state(),
+            live.state(),
+            "{name}: a replay gives exactly the live state"
+        );
+        fixtures(&name, &live, &late, &mut stale);
 
         // A plain ACP v2 client, using only `session/resume`.
         let mut plain = App::connect(&server).await;
@@ -363,6 +392,42 @@ async fn every_recorded_session_passes_through_unchanged_and_replays_the_same() 
         assert_eq!(listed["state"], json!("idle"), "{name}");
         assert_eq!(listed["headSeq"], json!(live.mirror.seq), "{name}");
         server.shutdown().await;
+    }
+    assert!(
+        stale.is_empty(),
+        "testdata/daemon is out of date for {stale:?}; run with UPDATE_VECTORS=1 and review the diff"
+    );
+}
+
+/// Recordings of what an app sees through the daemon, for the client SDKs in other languages:
+/// the live conversation, a replay of it, and the state both must end in.
+const FIXTURES: &[&str] = &[
+    "claude-v2/approval_denied",
+    "claude-v2/files",
+    "claude-v2/plan",
+    "claude-v2/question",
+    "claude-v2/subagent",
+    "pi-v2/files",
+    "pi-v2/steer",
+];
+
+fn fixtures(name: &str, live: &App, late: &App, stale: &mut Vec<String>) {
+    if !FIXTURES.contains(&name) {
+        return;
+    }
+    let state = serde_json::to_string_pretty(&live.state()).unwrap() + "\n";
+    for (suffix, text) in [
+        ("live.ndjson", live.frames()),
+        ("replay.ndjson", late.frames()),
+        ("state.json", state),
+    ] {
+        let path = testdata().join(format!("daemon/{name}.{suffix}"));
+        if std::env::var_os("UPDATE_VECTORS").is_some() {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, &text).unwrap();
+        } else if fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
+            stale.push(format!("{name}.{suffix}"));
+        }
     }
 }
 
