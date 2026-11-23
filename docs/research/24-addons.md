@@ -91,4 +91,30 @@ Decisions taken on the way:
 
 Checked: twelve tests with a scripted adapter, one per capability and one for the layering with two addons, each reading what the adapter and the app actually received. They were run eight times in a row without a failure. Then the live conformance scenarios again, because the path every message takes had changed: Claude's free scenarios and `reopen.keeps_settings` (six Haiku turns), and Pi's two, all `same`.
 
-The four things still left out are listed in the design note.
+The four things still left out are listed in the design note. _(Three of them were closed the next step: see below.)_
+
+## Later again: the whole range, not only what is needed
+
+I had listed four gaps. The user asked whether they meant "an addon can only interact with the communication between the user and the adapter, but cannot simulate it", and then: "let's make the full featured, the whole spectrum we can see, not only the one we need".
+
+So the interface was completed along three lines. The tables are in `docs/design/addons.md`.
+
+1. **Every message can be held**, not only a request to the adapter: its response, a notification, an update, a request of the adapter, the user's answer, a method call. One rule covers all: the hook says hold, and the addon later releases the message by its number, as it is, with other content, with an outcome, or drops it.
+2. **An addon can send everything either side can send.** New: a notification to the adapter (`cx.notify`), a notification to apps (`cx.announce`), and a request for the user to answer (`cx.ask`). With the two that existed (`cx.call`, `cx.append`) that is the full set in both directions.
+3. **What an addon could not see or know is now given to it**: the adapter's notifications other than session updates (hook `agent_notification`), who each message is from (`from`), a timer (`cx.wake` and hook `timer`), the stop of an adapter (hook `stopped`), a notification from an app meant for addons (under `_x/`), and more of the log (`cx.updates`, `cx.session`).
+
+Decisions taken on the way:
+
+- **An addon's request of the user is an ordinary pending request.** It is logged in the session, shown to every attached app, answered by the first, cancelled when the session's adapter stops. Apps need nothing new to show it. It carries the addon's mark in `_meta.bridge`, next to its place in the log. For that, the daemon now adds the log position to `_meta.bridge` instead of replacing what is there.
+- **The layers apply to an addon's own messages in both directions.** What an inner addon asks of the user passes the outer addons, which may answer it in the user's place, exactly as for an adapter's approval. The answer stops at the addon that asked.
+- **A held approval is not logged until it goes on.** Logging it would show apps a request they cannot answer yet.
+- **A held update is logged when released**, so later than it arrived. Keeping its place would mean holding back everything after it, which is the opposite of "nothing else waits".
+- **A message somebody waits for cannot vanish.** Discarding a held request, response or answer ends it as an error marked with the addon's id.
+- **A passed-on method call now really goes on**, to the next addon and then to the extension. Before, releasing a held call with "pass" answered "nothing serves this method".
+- **The daemon still has no time limit on holds**, but an addon can now set one with a timer, which a test does.
+- **The adapter's other notifications are still not passed to apps by the core.** The addon hook can read, change and drop them, and what the core does with one (keep the login state) acts on the addon's version. To give one to apps, an addon sends its own.
+- **Adapter stop**: held requests and responses fail, a held answer is recorded as cancelled by the daemon, an addon's unanswered question to the user is cancelled and the addon told, then `stopped` runs.
+
+What stays outside is in the design note under "Where the interface ends". The one that is a real choice: the daemon's own conversation with apps (attach, replay, session list, the answer to an app's `initialize`) is not hookable. Addons are defined as sitting between the daemon and the adapters; hooking the app side would be a second seam.
+
+Checked: ten more tests with the scripted adapter (22 in all), one per new capability, each waiting on what the adapter or the app receives and not on time, run eight times in a row. One deliberate break (a hold treated as a pass) made three of them fail. All 78 Rust tests pass. Live, because the path of updates, approvals and notifications changed: Claude's six free scenarios, `reopen.keeps_settings`, `turn.interrupt` and `shell.output_streams` (cancel and approval paths, a few Haiku turns), and all ten of Pi's on the local model: every one `same`.

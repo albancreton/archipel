@@ -23,7 +23,7 @@ The daemon already had extensions (`daemon.md`, section 11). The two do differen
 |---|---|---|
 | Runs | In its own process, any language | Inside the daemon, Rust |
 | Connects | Like an app, with the `extend` scope | Compiled in |
-| Can | Add its own items to a session and serve its own methods | The same, and see, change, stop and answer the messages between an app and an adapter |
+| Can | Add its own items to a session and serve its own methods | The same, and see, change, stop, hold and answer every message between an app and an adapter, and send any of them itself |
 | Cannot | Touch what the harness and the apps say to each other | Run outside the daemon or be written in another language |
 | If it crashes | The daemon goes on | The daemon crashes |
 
@@ -31,27 +31,56 @@ The daemon already had extensions (`daemon.md`, section 11). The two do differen
 
 An addon is a Rust type that implements the trait `Addon` from the crate `bridge-addon-api`. That crate depends only on `serde_json`, so an addon crate does not pull in the daemon.
 
-An addon sees every message between an app and an adapter, in both directions:
+An addon can do three things: react to every message that passes, send messages of its own in either direction, and be called back later.
+
+### Reacting: every message, both directions
 
 | Message | Hook | The addon may |
 |---|---|---|
-| A request to the adapter: an app's, or the daemon's own (`initialize`, the `session/resume` that wakes a session, `session/list`) | `request` | Change the params; refuse it; answer it itself; hold it |
-| The answer to such a request | `response` | Change it, also from an error to a result or back. It gets the request's method and params, and the same request number as `request` did |
-| A notification from an app, such as `session/cancel` | `notification` | Change it or drop it |
-| A `session/update` from the adapter | `update` | Change it or drop it, before it is logged and passed to apps |
-| A request the adapter makes of the user: an approval, a question | `agent_request` | Change it; refuse it; answer it in the user's place |
-| The user's answer to such a request | `answer` | Change it |
+| A request to the adapter: an app's, the daemon's own (`initialize`, the `session/resume` that wakes a session, `session/list`), or another addon's | `request` | Change the params; refuse it; answer it itself; hold it |
+| The answer to such a request | `response` | Change it, also from an error to a result or back; hold it. It gets the request's method and params, and the same number as `request` did |
+| A notification to the adapter, such as `session/cancel` | `notification` | Change it; drop it; hold it |
+| A `session/update` from the adapter | `update` | Change it; drop it; hold it, before it is logged and passed to apps |
+| Any other notification from the adapter, such as `auth/status_update` | `agent_notification` | Change it; drop it; hold it |
+| A request made of the user: an approval, a question | `agent_request` | Change it; refuse it; answer it in the user's place; hold it |
+| The user's answer to such a request | `answer` | Change it; hold it |
+| An app's call of a method under `_x/` | `method` | Answer it; refuse it; hold it; pass, which leaves it to the next addon and then to the extension of that namespace |
 
-Besides reacting, an addon can act. It does so through the context every hook receives (`Cx`):
+Every message carries a number (`id`) and who it is from (`from`: an app with its name, the daemon, the adapter, or another addon by its id).
 
-| Action | What happens |
+**Holding** works the same for all of them. The hook says "hold" and remembers the message's number. From any later hook the addon ends the hold:
+
+| Call | A request, an approval, a method call | A response, an answer | A notification, an update |
+|---|---|---|---|
+| `cx.release(id, Pass)` | Goes on as it is | Goes on as it is | Goes on as it is |
+| `cx.release_with(id, content)` | Goes on with these params | Goes on with this result | Goes on with these params, or this update body |
+| `cx.release(id, Answer / Refuse)` | Ends here with that outcome | Goes on with that outcome | Dropped |
+| `cx.discard(id)` | Ends as an error, since somebody waits | Goes on as an error | Dropped |
+
+Nothing else waits behind a held message. A held approval is neither logged nor shown to apps until it goes on. A held update is logged when it is released, so after the ones that overtook it.
+
+### Acting: standing in for either side
+
+Through the context every hook receives (`Cx`), an addon sends what an app or an adapter could send:
+
+| As | Call | What happens |
+|---|---|---|
+| The app | `cx.call(method, params)` | A request to the adapter. The answer arrives in the hook `reply`. If the adapter stops first, the reply is an error |
+| The app | `cx.notify(method, params)` | A notification to the adapter, such as `session/cancel` |
+| The adapter | `cx.append(session, update)` | An update added to a session: logged, replayed and sent to apps like the adapter's, marked `_meta.bridge = {origin: "addon", addon: <id>}` |
+| The adapter | `cx.announce(method, params)` | A notification to apps that is not a session update. Not logged. With a `sessionId` it goes to the apps attached to that session, otherwise to every app |
+| The adapter | `cx.ask(method, params)` | A request for the user to answer, handled exactly like an adapter's approval: logged in the session its `sessionId` names, marked as the addon's, shown to every attached app, first answer wins. The answer arrives in `reply`. If the session's adapter stops first, the reply is a cancellation |
+
+In the other direction, an app reaches an addon with a call of a method under `_x/` (hook `method`) or a notification under `_x/` (hook `notification`). Neither ever reaches an adapter.
+
+### Being called back, and reading
+
+| Call or hook | What it is for |
 |---|---|
-| `cx.call(method, params)` | Sends a request of the addon's own to the adapter. The answer arrives in the hook `reply`. If the adapter stops first, the reply is an error |
-| `cx.append(session, update)` | Adds an update to a session. It is logged, replayed and sent to apps like the adapter's, marked `_meta.bridge = {origin: "addon", addon: <id>}` |
-| `Verdict::Hold`, then `cx.release(…)` or `cx.release_with(params)` | Keeps a request until the addon lets it go on, changes it, refuses it or answers it, from any later hook. Other requests are not kept waiting |
-| `cx.last_update(session, kind)` | Reads the most recent update of a kind from the session's log |
-
-And it can serve methods of its own: an app's call to a method under `_x/` is offered to the addons in order (hook `method`) before it goes to an extension. An addon can hold such a call too, for example to ask the adapter something first.
+| `cx.wake(after)`, then hook `timer` | To be called after a time. This is how an addon puts a time limit on something it holds, or acts on a turn that runs too long |
+| Hook `stopped` | An adapter stopped. By then every request that waited on it has failed, the addon's own included |
+| `cx.last_update(session, kind)`, `cx.updates(session)` | Read a session's log |
+| `cx.session(session)` | The session's agent, folder, title and turn state |
 
 Two more methods describe the addon: `info()` (its id, kind, what it does, what fault it stands in for, what has to happen upstream for it to go, which conformance scenario checks that) and `applies(agent)` (limits it by harness, adapter name and version, advertised capabilities, operating system). Every hook has a default that does nothing.
 
@@ -60,23 +89,27 @@ Two more methods describe the addon: `info()` (its id, kind, what it does, what 
 The first addon added is nearest the app, the last nearest the adapter. A message towards the adapter passes them first to last; a message towards the app last to first.
 
 - An addon that answers a request itself is the adapter as far as the layers nearer the app can tell: they see the response, the layers nearer the adapter see nothing. The same holds the other way round for a request of the adapter answered in the user's place.
-- What an addon sends itself starts at its own layer. Its request passes the layers nearer the adapter, there and back, and its update passes the layers nearer the app. It is never shown its own messages.
+- What an addon sends itself starts at its own layer and passes only the layers beyond it, in the direction it travels. Its request and its notification to the adapter pass the layers nearer the adapter. Its update, its notification to apps and its request of the user pass the layers nearer the app, which may change, answer or hold them like an adapter's. The answer comes back through the same layers and stops at the addon that asked. An addon is never shown its own messages.
+- A released message goes on from the layer that held it.
 
 ### Rules an addon lives by
 
-- The daemon handles one message at a time on one task and calls the hooks from there. A hook returns quickly and does not block. An addon that has to wait holds the request and releases it from a later hook.
+- The daemon handles one message at a time on one task and calls the hooks from there. A hook returns quickly and does not block. An addon that has to wait holds the message and releases it from a later hook.
 - What an addon asks for through `Cx` happens when its hook returns, before the message it was looking at moves on. So a request it sends from the `request` hook reaches the adapter before the request it was looking at.
-- A held request that is never released is never answered, unless its adapter stops. There is no timeout.
+- The daemon puts no time limit on a hold. A held message that is never released stays held, unless its adapter stops: then held requests and responses fail, a held answer is recorded as cancelled, and the rest is dropped. An addon that wants a limit sets a timer.
 - An addon keeps no state that must survive a restart. What it needs to know about a session it reads from the log.
+- What an addon sends goes to the adapter of the message it is looking at. For a method call or a notification under `_x/` that is the adapter of the session the params name, or the first agent.
 - Ids are `<scope>.<name>`: `acp.` for any adapter, `claude.`, `pi.` for one harness, anything else for a consumer's own.
 - While `initialize` itself passes the hooks, the adapter's name, version and capabilities are not known yet, so an addon that limits itself by those does not see it.
 
-What is still left out:
+### Where the interface ends
 
-- A request of the adapter cannot be held, only passed, changed, refused or answered.
-- A request of the adapter that an addon answers is still sent to the attached apps, followed at once by its resolution, because that is how the log records it. An app sees it appear and resolve.
-- Notifications from an adapter other than `session/update` are not shown to addons. The daemon drops them, except the login state.
-- An addon cannot send a request to an app, or a notification to an adapter.
+Addons sit between the daemon and the adapters. Four things are outside that:
+
+- **What an app and the daemon say to each other without an adapter**: attaching to a session and replaying it, the session list, the agent list, the daemon's answer to an app's `initialize`. An addon sees the requests these cause at an adapter (`session/list`, `session/resume`, `initialize`), not the app's own call or the daemon's answer to it.
+- **The adapter's other notifications are not passed to apps by the daemon**, with or without addons. Some carry private data (Claude's `auth/status_update` has the account's email address). An addon that wants apps to have one sends its own with `cx.announce`.
+- **A request of the adapter that an addon answers is still sent to the attached apps**, followed at once by its resolution, because that is how the log records it.
+- **An addon acts on one adapter at a time**, the one of the message at hand. It cannot address another agent's adapter from the same hook.
 
 `crates/bridge-server/tests/addons.rs` has one test per capability and is the reference for exact behaviour.
 

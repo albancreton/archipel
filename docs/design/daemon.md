@@ -258,7 +258,7 @@ An extension crashing does not take the server down, and extensions can be writt
 
 Not in the first version: extensions that block or rewrite the flow (for example, approve a prompt before it is sent). That needs ordering and timeout rules; the namespaces leave room for it.
 
-A product written in Rust has a third option: build its own server from the crates (section 12) and add code in-process. Since 2026-11-23 that option has a defined form, the **addon**, which is also where the library keeps its own fixes for upstream faults. An addon may change or refuse a request and change or drop an update, which is the blocking and rewriting left out above, done in-process where no ordering or timeout rules are needed. See `addons.md`.
+A product written in Rust has a third option: build its own server from the crates (section 12) and add code in-process. Since 2026-11-23 that option has a defined form, the **addon**, which is also where the library keeps its own fixes for upstream faults. An addon may change, stop, hold or answer every message between an app and an adapter and send any of them itself, which is the blocking and rewriting left out above, done in-process where no ordering or timeout rules are needed. See `addons.md`.
 
 ## 12. Implementation
 
