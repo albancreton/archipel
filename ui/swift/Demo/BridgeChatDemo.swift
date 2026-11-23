@@ -14,6 +14,9 @@ struct BridgeChatDemo: App {
     @State private var failure: String?
 
     init() {
+        // Started from a terminal there is no app bundle: without this the window gets no keyboard.
+        NSApplication.shared.setActivationPolicy(.regular)
+        NSApplication.shared.activate(ignoringOtherApps: true)
         let home = CommandLine.arguments.dropFirst().first ?? NSHomeDirectory() + "/.harness-bridge"
         _client = State(initialValue: BridgeClient(name: "BridgeChatDemo") {
             try UnixSocketTransport(path: home + "/daemon.sock")
