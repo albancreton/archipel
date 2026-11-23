@@ -28,6 +28,9 @@ bridge: talk to the harness-bridge daemon
   bridge answer SESSION --json JSON      answer the oldest open request with a raw result
   bridge cancel SESSION                  interrupt the running turn
   bridge set SESSION OPTION VALUE        change a setting, e.g. `set SESSION mode plan`
+  bridge fork SESSION                    copy a session to continue with, and print the copy's
+                                         id. For a session that is open somewhere else (`!` in
+                                         the list): the daemon will not act on those
   bridge call METHOD [JSON]              send any request and print the result, for example
                                          an extension's `_x/<namespace>/…` method
 
@@ -104,6 +107,8 @@ async fn run(mut args: Vec<String>) -> Result<(), Failure> {
                     text(session, "agentId"),
                     if session["live"] == json!(true) {
                         "live"
+                    } else if session["openElsewhere"] == json!(true) {
+                        "!"
                     } else if session["logged"] == json!(false) {
                         "+"
                     } else {
@@ -220,6 +225,13 @@ async fn run(mut args: Vec<String>) -> Result<(), Failure> {
                 return Err("usage: bridge set SESSION OPTION VALUE".into());
             };
             set(&mut daemon, &session, option, value).await?;
+        }
+        "fork" => {
+            let session = session(&mut daemon, &mut args).await?;
+            let forked = daemon
+                .call("session/fork", json!({"sessionId": session}))
+                .await?;
+            println!("{}", text(&forked, "sessionId"));
         }
         "call" => {
             let [method, rest @ ..] = args.as_slice() else {

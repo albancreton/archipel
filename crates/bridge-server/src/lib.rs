@@ -45,6 +45,7 @@ impl Server {
             agents: Vec::new(),
             store: Box::new(MemoryStore::default()),
             retention: None,
+            share: false,
         }
     }
 }
@@ -54,6 +55,7 @@ pub struct Builder {
     agents: Vec<AgentSpec>,
     store: Box<dyn Store>,
     retention: Option<Duration>,
+    share: bool,
 }
 
 impl Builder {
@@ -80,12 +82,27 @@ impl Builder {
         self
     }
 
+    /// Lets the daemon act on a session that another process of the harness has open, such as
+    /// the harness's own terminal UI. By default it refuses, because the two would not see
+    /// each other's turns; the app can fork the session instead.
+    #[must_use]
+    pub fn act_on_sessions_open_elsewhere(mut self, allow: bool) -> Self {
+        self.share = allow;
+        self
+    }
+
     /// Starts the daemon on the current tokio runtime.
     #[must_use]
     pub fn start(self) -> Handle {
         let (events, inbox) = mpsc::channel(bridge_transport::QUEUE);
         let retention = self.retention.map(|time| time.as_millis() as u64);
-        let daemon = daemon::Daemon::new(self.agents, self.store, events.clone(), retention);
+        let daemon = daemon::Daemon::new(
+            self.agents,
+            self.store,
+            events.clone(),
+            retention,
+            self.share,
+        );
         tokio::spawn(daemon.run(inbox));
         if retention.is_some() {
             // Once at start, then every hour.

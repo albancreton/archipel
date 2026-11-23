@@ -57,6 +57,8 @@ config.json:
 Without it, one agent `claude` is started as `claude-agent-acp` from PATH.
 Pi: {\"id\": \"pi\", \"profile\": \"pi\", \"command\": \"pi-acp\", \"model\": \"provider/model\",
      \"idleSeconds\": 600}. One pi process runs per session and is stopped when idle.
+whenOpenElsewhere: \"block\" (default) refuses to act on a session that another process of the
+harness has open, such as its own terminal UI; the app can fork it. \"allow\" acts anyway.
 retentionDays: remove sessions from the log when unused for that long (default: never). The
 harness keeps its own copy; a removed session stays listed and is loaded again when opened.
 ";
@@ -68,6 +70,9 @@ type Failure = Box<dyn std::error::Error>;
 struct Config {
     agents: Vec<AgentConfig>,
     retention_days: Option<u64>,
+    /// `block` (the default) or `allow`: what to do with a session that another process of
+    /// the harness has open.
+    when_open_elsewhere: Option<String>,
 }
 
 /// One entry of `tokens.json`. The token itself is not kept, only its SHA-256.
@@ -322,7 +327,14 @@ fn switch(args: &mut Vec<String>, name: &str) -> bool {
     args.len() != before
 }
 
-fn agents(home: &Path, args: &mut Vec<String>) -> Result<(Vec<AgentSpec>, Option<u64>), Failure> {
+/// What `config.json` says besides the agents.
+#[derive(Default)]
+struct Settings {
+    retention_days: Option<u64>,
+    share: bool,
+}
+
+fn agents(home: &Path, args: &mut Vec<String>) -> Result<(Vec<AgentSpec>, Settings), Failure> {
     let show_stderr = switch(args, "--agent-stderr");
     let speed = option(args, "--fake-speed").map_or(Ok(1.0), |text| text.parse::<f64>())?;
     if let Some(path) = option(args, "--fake") {
@@ -332,7 +344,7 @@ fn agents(home: &Path, args: &mut Vec<String>) -> Result<(Vec<AgentSpec>, Option
             name: format!("Fake ({})", transcript.header.scenario),
             launcher: Arc::new(Fake { transcript, speed }),
         };
-        return Ok((vec![fake], None));
+        return Ok((vec![fake], Settings::default()));
     }
     let path = home.join("config.json");
     let config = if path.exists() {
@@ -351,9 +363,19 @@ fn agents(home: &Path, args: &mut Vec<String>) -> Result<(Vec<AgentSpec>, Option
                 env: BTreeMap::new(),
             }],
             retention_days: None,
+            when_open_elsewhere: None,
         }
     };
-    let retention_days = config.retention_days;
+    let settings = Settings {
+        retention_days: config.retention_days,
+        share: match config.when_open_elsewhere.as_deref() {
+            None | Some("block") => false,
+            Some("allow") => true,
+            Some(other) => {
+                return Err(format!("whenOpenElsewhere: `{other}` is not block or allow").into());
+            }
+        },
+    };
     let specs: Result<Vec<AgentSpec>, Failure> = config
         .agents
         .into_iter()
@@ -388,7 +410,7 @@ fn agents(home: &Path, args: &mut Vec<String>) -> Result<(Vec<AgentSpec>, Option
             Ok(spec)
         })
         .collect();
-    Ok((specs?, retention_days))
+    Ok((specs?, settings))
 }
 
 #[tokio::main]
@@ -426,7 +448,7 @@ async fn run(mut args: Vec<String>) -> Result<(), Failure> {
     while let Some(origin) = option(&mut args, "--ws-origin") {
         origins.push(origin);
     }
-    let (agents, retention_days) = agents(&home, &mut args)?;
+    let (agents, settings) = agents(&home, &mut args)?;
     if let Some(unknown) = args.first() {
         return Err(format!("unknown argument `{unknown}`; try --help").into());
     }
@@ -434,7 +456,8 @@ async fn run(mut args: Vec<String>) -> Result<(), Failure> {
     let socket = home.join("daemon.sock");
     let local = LocalServer::bind(&socket)?;
     let mut builder = Server::builder().store(SqliteStore::open(&home.join("log.sqlite"))?);
-    if let Some(days) = retention_days {
+    builder = builder.act_on_sessions_open_elsewhere(settings.share);
+    if let Some(days) = settings.retention_days {
         builder = builder.retention(Duration::from_secs(days * 86_400));
     }
     for agent in agents {

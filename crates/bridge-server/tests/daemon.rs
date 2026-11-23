@@ -1145,3 +1145,126 @@ async fn an_extension_adds_its_own_items_and_serves_its_own_methods() {
     assert_eq!(gone["error"]["code"], json!(-32601));
     server.shutdown().await;
 }
+
+/// A fake agent whose session can be marked as open in another process, as Claude's registry
+/// would report it.
+struct Shared {
+    fake: Fake,
+    elsewhere: Arc<std::sync::Mutex<Option<String>>>,
+}
+
+impl Launcher for Shared {
+    fn launch(&self) -> std::io::Result<Running> {
+        self.fake.launch()
+    }
+
+    fn elsewhere(&self, session_id: &str) -> Option<bridge_agents::Elsewhere> {
+        (self.elsewhere.lock().unwrap().as_deref() == Some(session_id)).then(|| {
+            bridge_agents::Elsewhere {
+                pid: 4242,
+                status: Some("idle".into()),
+                client: Some("cli".into()),
+            }
+        })
+    }
+}
+
+#[tokio::test]
+async fn a_session_open_in_another_process_is_not_acted_on_but_can_be_forked() {
+    let transcript = transcript("simple");
+    let session = session_of(&transcript);
+    let elsewhere = Arc::new(std::sync::Mutex::new(None));
+    let spec = |elsewhere: &Arc<std::sync::Mutex<Option<String>>>| AgentSpec {
+        id: "claude".into(),
+        name: "Fake".into(),
+        launcher: Arc::new(Shared {
+            fake: Fake {
+                transcript: transcript.clone(),
+                speed: 0.0,
+            },
+            elsewhere: elsewhere.clone(),
+        }),
+    };
+    let server = Server::builder().agent(spec(&elsewhere)).start();
+    let mut app = App::connect(&server).await;
+    Driver::default().play(&mut app, &transcript.frames).await;
+
+    // The user resumes the session in the harness's own terminal.
+    *elsewhere.lock().unwrap() = Some(session.clone());
+    let prompt = json!({"sessionId": session, "prompt": [{"type": "text", "text": "more"}]});
+    let refused = app.call("session/prompt", prompt.clone()).await;
+    assert_eq!(
+        refused["error"]["code"],
+        json!(ext::ERROR_OPEN_ELSEWHERE),
+        "{refused}"
+    );
+    assert_eq!(refused["error"]["data"]["pid"], json!(4242));
+    assert!(
+        refused["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("fork")
+    );
+    let listed = app.call(ext::METHOD_SESSIONS_LIST, json!({})).await;
+    assert_eq!(
+        listed["result"]["sessions"][0]["openElsewhere"],
+        json!(true)
+    );
+    // Reading it is still fine.
+    let mut reader = App::observer(&server);
+    reader.attach(&session).await;
+    assert_eq!(reader.rendering(), vector("simple"));
+
+    // The way on: a copy with the same history, which only the daemon has open.
+    let forked = app
+        .call("session/fork", json!({"sessionId": session}))
+        .await;
+    let copy = forked["result"]["sessionId"]
+        .as_str()
+        .expect("a new session")
+        .to_owned();
+    assert_ne!(copy, session);
+    let mut on_copy = App::connect(&server).await;
+    on_copy.attach(&copy).await;
+    assert_eq!(
+        on_copy.rendering(),
+        vector("simple"),
+        "the copy has the history"
+    );
+    let listed = app
+        .call(ext::METHOD_SESSIONS_LIST, json!({"loggedOnly": true}))
+        .await;
+    let about = |id: &str| {
+        listed["result"]["sessions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|summary| summary["sessionId"] == json!(id))
+            .cloned()
+            .unwrap()
+    };
+    assert_eq!(about(&copy)["openElsewhere"], json!(false));
+    assert_eq!(about(&copy)["live"], json!(true));
+    // A prompt for the copy reaches the agent. (The fake has nothing recorded for it.)
+    let prompt_copy = json!({"sessionId": copy, "prompt": [{"type": "text", "text": "more"}]});
+    let reached = app.call("session/prompt", prompt_copy).await;
+    assert_eq!(reached["error"]["code"], json!(-32603), "{reached}");
+
+    // Once the other process is gone, the original can be used again.
+    *elsewhere.lock().unwrap() = None;
+    let reached = app.call("session/prompt", prompt.clone()).await;
+    assert_eq!(reached["error"]["code"], json!(-32603), "{reached}");
+    server.shutdown().await;
+
+    // A daemon told to act anyway does not refuse.
+    let elsewhere = Arc::new(std::sync::Mutex::new(Some(session.clone())));
+    let server = Server::builder()
+        .agent(spec(&elsewhere))
+        .act_on_sessions_open_elsewhere(true)
+        .start();
+    let mut app = App::connect(&server).await;
+    Driver::default().play(&mut app, &transcript.frames).await;
+    let reached = app.call("session/prompt", prompt).await;
+    assert_eq!(reached["error"]["code"], json!(-32603), "{reached}");
+    server.shutdown().await;
+}

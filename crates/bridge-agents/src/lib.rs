@@ -27,6 +27,22 @@ pub trait Launcher: Send + Sync {
     /// # Errors
     /// When the adapter cannot be started.
     fn launch(&self) -> io::Result<Running>;
+
+    /// Another process of the harness, not started by this daemon, that has the session open
+    /// right now. The default says there is none, for harnesses that offer no way to know.
+    fn elsewhere(&self, _session_id: &str) -> Option<Elsewhere> {
+        None
+    }
+}
+
+/// A process outside the daemon that has a session open.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Elsewhere {
+    pub pid: u32,
+    /// What the process says it is doing, such as `busy` or `idle`.
+    pub status: Option<String>,
+    /// How the process was started, such as `cli`.
+    pub client: Option<String>,
 }
 
 /// One agent the daemon can start.
@@ -108,8 +124,99 @@ pub fn claude(mut process: Process) -> AgentSpec {
     AgentSpec {
         id: "claude".to_owned(),
         name: "Claude Code".to_owned(),
-        launcher: Arc::new(process),
+        launcher: Arc::new(Claude {
+            process,
+            registry: Claude::default_registry(),
+        }),
     }
+}
+
+/// Claude Code's adapter, plus a look at Claude Code's own record of its running processes.
+#[derive(Debug, Clone)]
+pub struct Claude {
+    pub process: Process,
+    /// The directory where every Claude Code process writes `<pid>.json` with the session it
+    /// has open. This is Claude Code's own layout (seen in 2.1.330), not a documented
+    /// interface: if it is missing or changes, the answer is "nobody else", not an error.
+    pub registry: std::path::PathBuf,
+}
+
+impl Claude {
+    /// `$CLAUDE_CONFIG_DIR/sessions`, or `~/.claude/sessions`.
+    #[must_use]
+    pub fn default_registry() -> std::path::PathBuf {
+        std::env::var_os("CLAUDE_CONFIG_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                std::path::PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
+                    .join(".claude")
+            })
+            .join("sessions")
+    }
+}
+
+impl Launcher for Claude {
+    fn launch(&self) -> io::Result<Running> {
+        self.process.launch()
+    }
+
+    fn elsewhere(&self, session_id: &str) -> Option<Elsewhere> {
+        let entries = std::fs::read_dir(&self.registry).ok()?;
+        entries.flatten().find_map(|file| {
+            let path = file.path();
+            if path.extension()? != "json" {
+                return None;
+            }
+            let entry: Value = serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
+            if entry.get("sessionId")?.as_str()? != session_id {
+                return None;
+            }
+            let pid = u32::try_from(entry.get("pid")?.as_u64()?).ok()?;
+            // The adapter's own Claude processes are in the registry too. Those are ours.
+            (!started_by_this_process(pid)?).then(|| Elsewhere {
+                pid,
+                status: entry
+                    .get("status")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned),
+                client: entry
+                    .get("entrypoint")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned),
+            })
+        })
+    }
+}
+
+/// Whether `pid` is this process or one it started, directly or not. `None` when `pid` is not
+/// running, which is how a registry entry left behind by a dead process is told apart.
+fn started_by_this_process(pid: u32) -> Option<bool> {
+    let me = std::process::id();
+    let mut current = pid;
+    for step in 0..32 {
+        if current == me {
+            return Some(true);
+        }
+        let parent = std::process::Command::new("ps")
+            .args(["-o", "ppid=", "-p", &current.to_string()])
+            .output()
+            .ok()
+            .filter(|output| output.status.success())
+            .and_then(|output| {
+                String::from_utf8_lossy(&output.stdout)
+                    .trim()
+                    .parse::<u32>()
+                    .ok()
+            });
+        match parent {
+            Some(parent) if parent > 1 => current = parent,
+            Some(_) => return Some(false),
+            // Not running. For the pid we were asked about that means "gone".
+            None if step == 0 => return None,
+            None => return Some(false),
+        }
+    }
+    Some(false)
 }
 
 /// What the daemon sends as `initialize` params to an adapter.
@@ -120,4 +227,60 @@ pub fn initialize_params() -> Value {
         "info": {"name": "harness-bridge", "version": env!("CARGO_PKG_VERSION")},
         "capabilities": {"elicitation": {"form": {}, "url": {}}},
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_session_open_in_a_process_we_did_not_start_is_seen_and_our_own_is_not() {
+        let registry = std::env::temp_dir().join(format!("bridge-registry-{}", std::process::id()));
+        std::fs::create_dir_all(&registry).unwrap();
+        let write = |pid: u32, session: &str| {
+            let entry =
+                json!({"pid": pid, "sessionId": session, "status": "busy", "entrypoint": "cli"});
+            std::fs::write(registry.join(format!("{pid}.json")), entry.to_string()).unwrap();
+        };
+        // A child of this test process, kept alive for the check, stands in for the adapter's own.
+        let mut child = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .unwrap();
+        write(std::process::id(), "mine");
+        write(child.id(), "my-child");
+        write(1, "someone-else"); // pid 1 always runs and is nobody's child
+        write(4_000_000, "left-behind"); // no such process
+        std::fs::write(registry.join("notes.txt"), "not a registry entry").unwrap();
+        let claude = Claude {
+            process: Process::default(),
+            registry: registry.clone(),
+        };
+
+        assert_eq!(
+            claude.elsewhere("someone-else"),
+            Some(Elsewhere {
+                pid: 1,
+                status: Some("busy".into()),
+                client: Some("cli".into())
+            })
+        );
+        assert_eq!(claude.elsewhere("mine"), None);
+        assert_eq!(claude.elsewhere("my-child"), None);
+        assert_eq!(claude.elsewhere("left-behind"), None, "its process is gone");
+        assert_eq!(claude.elsewhere("unknown"), None);
+        let missing = Claude {
+            process: Process::default(),
+            registry: registry.join("nope"),
+        };
+        assert_eq!(
+            missing.elsewhere("someone-else"),
+            None,
+            "no registry means nobody else"
+        );
+
+        child.kill().unwrap();
+        child.wait().unwrap();
+        std::fs::remove_dir_all(&registry).unwrap();
+    }
 }

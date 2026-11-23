@@ -184,6 +184,7 @@ A second option for Pi is to drop `pi-acp` and have the daemon speak Pi's own RP
 - A pending approval or question is shown to all, and `state_update` reports `requires_action`; the first answer wins and every app receives `_bridge/request/resolved`. Done.
 - A pending request survives all apps disconnecting, and is sent again to every app that attaches, since an app can only answer on its current connection. Done. Tested on Claude: still valid after 150 seconds, no timeout seen.
 - Prompts are handed to the adapter in the order the daemon receives them; the adapter queues or steers.
+- A session that another process of the harness has open (its own terminal UI, an editor extension) is not acted on: the two would not see each other's turns. Requests are refused with `-32004`; the app can read the session, or fork it (`session/fork`) and continue on the copy. Detection is per agent profile; Claude's reads Claude Code's registry of running processes (`docs/research/20`).
 - An app that reads too slowly (4096 messages behind) is disconnected instead of buffered without limit. It catches up when it attaches again.
 
 ## 8. Adapter processes

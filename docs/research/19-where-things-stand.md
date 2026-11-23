@@ -29,7 +29,7 @@ Live runs with real harnesses: Claude Code (approval, daemon killed and restarte
 
 1. **The name.** "harness-bridge" is temporary; it is in crate names, package names, the copyright line and the daemon's home directory.
 2. **Windows.** A local pipe only its owner can open needs the Windows API directly: one audited `unsafe` block or a small dependency, and a Windows machine to test on.
-3. **A session open in two places.** Adopting a session that is also running in the harness's own terminal puts two processes on one transcript. Refuse, warn, or allow?
+3. ~~A session open in two places.~~ Decided and built: block by default, offer to fork (`docs/research/20`). Claude only; Pi has no way to tell yet.
 4. **Pi, later:** keep `pi-acp` behind the translator, or speak Pi's own protocol directly. The translator works; the direct route would remove a dependency and a process per session's adapter.
 5. **Publishing:** npm packages, a tagged Swift release, binaries. Nothing is set up.
 6. **ACP v2 is a preview.** The pinned revision is from the SDK of 2026-11-20. Moving to a newer one is one deliberate change (schema, rules, recordings), and should be scheduled, not stumbled into.

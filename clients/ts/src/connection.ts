@@ -15,10 +15,18 @@ export interface Transport {
 /** The daemon or the agent refused a request. */
 export class RpcError extends Error {
   code: number;
-  constructor(code: number, message: string) {
+  /** What the error says beyond its message. For -32004: who has the session open. */
+  data: Json;
+  constructor(code: number, message: string, data: Json = null) {
     super(message);
     this.name = "RpcError";
     this.code = code;
+    this.data = data;
+  }
+
+  /** The session is open in another process of the harness. Fork it to continue. */
+  get openElsewhere(): boolean {
+    return this.code === -32004;
   }
 }
 
@@ -94,7 +102,7 @@ export class Connection {
         this.waiting.delete(message["id"]);
         const error = message["error"];
         if (isObject(error)) {
-          waiting.reject(new RpcError(Number(error["code"] ?? 0), String(error["message"] ?? "refused")));
+          waiting.reject(new RpcError(Number(error["code"] ?? 0), String(error["message"] ?? "refused"), error["data"] ?? null));
         } else {
           waiting.resolve(message["result"] ?? null);
         }

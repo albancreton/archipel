@@ -26,6 +26,10 @@ pub(crate) fn error(id: &Value, code: i64, message: &str) -> Value {
     json!({"jsonrpc": "2.0", "id": id, "error": {"code": code, "message": message}})
 }
 
+pub(crate) fn error_with(id: &Value, code: i64, message: &str, data: Value) -> Value {
+    json!({"jsonrpc": "2.0", "id": id, "error": {"code": code, "message": message, "data": data}})
+}
+
 /// A response with the same outcome as `response` (its `result` or its `error`), under another id.
 pub(crate) fn relay(id: &Value, response: &Value) -> Value {
     let mut relayed = json!({"jsonrpc": "2.0", "id": id});

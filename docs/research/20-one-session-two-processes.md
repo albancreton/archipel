@@ -32,3 +32,20 @@ Limits:
 - The registry is Claude Code's own file layout, not a documented interface. It can change with any release, so the daemon must treat a missing or unreadable registry as "unknown", not as "free".
 - It is a check, not a lock. Two processes can still start at the same moment.
 - Pi was not probed. Whether it has anything similar is unknown.
+
+## What was built from this (2026-11-22)
+
+Decision from the user: block by default, offer to fork.
+
+- **Block.** A request that acts on a session (a prompt, a setting) is refused with error `-32004` when another process of the harness has the session open. The error says which process and whether it is busy. The check comes before anything is loaded, so a refused request starts nothing. `whenOpenElsewhere: "allow"` in `config.json` turns the block off.
+- **Reading stays allowed.** Attaching loads the history through the adapter. In the live check that wrote nothing to the transcript.
+- **The list says so.** `openElsewhere` on each session; `!` in `bridge sessions`.
+- **Fork.** ACP's `session/fork`: the harness makes a new session with the same history, which only the daemon has open. The daemon records it and loads its history like an adopted session. `bridge fork SESSION`, `forkSession()` in TypeScript, `fork()` in Swift. The original is untouched.
+
+Probe of fork on the Claude adapter (`spikes/acp-probe/fork.mjs`, no model call): it works on a session the adapter process never opened, returns a new id, and the copy is titled "… (fork)".
+
+Live check, with no model call: the daemon listed 116 sessions and marked two as open elsewhere, this conversation's among them. A prompt for it was refused: "open in another process of the agent (pid 60406, busy)". A fork of a small session was created and read back with its history.
+
+Where the check comes from: each agent's profile may say who else has a session open. Claude's reads Claude Code's registry and ignores the processes the daemon's own adapter started. Pi's says nothing yet, so Pi sessions are never blocked; Pi was not probed, and its adapter has no fork.
+
+Still not covered: a second process that starts in the moment between the check and the prompt, and any harness without a registry.

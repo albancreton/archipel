@@ -39,6 +39,7 @@ export interface BridgeExtensionsToACPV2Draft {
   registerExtensionRequest: RegisterExtensionRequest;
   appendRequest: AppendRequest;
   appendResponse: AppendResponse;
+  openElsewhere: OpenElsewhere;
 }
 /**
  * Added by the daemon under `_meta.bridge` on every `session/update` it sends.
@@ -168,6 +169,12 @@ export interface SessionSummary {
    * anything, makes the daemon load its history from the harness first.
    */
   logged: boolean;
+  /**
+   * True when another process of the harness has the session open right now, for example
+   * the harness's own terminal UI. The daemon then refuses to act on the session; it can
+   * still be read, and `session/fork` makes a copy to continue with.
+   */
+  openElsewhere?: boolean;
   /**
    * The last ACP `state_update` state, such as `idle` or `running`, when known.
    */
@@ -337,4 +344,22 @@ export interface AppendResponse {
    * The sequence number the update got.
    */
   seq: number;
+}
+/**
+ * The `data` of an [`ERROR_OPEN_ELSEWHERE`] error: who has the session open.
+ *
+ * This interface was referenced by `BridgeExtensionsToACPV2Draft`'s JSON-Schema
+ * via the `definition` "OpenElsewhere".
+ */
+export interface OpenElsewhere {
+  sessionId: string;
+  pid: number;
+  /**
+   * What that process says it is doing, such as `busy` or `idle`.
+   */
+  status?: string | null;
+  /**
+   * How that process was started, such as `cli`.
+   */
+  client?: string | null;
 }

@@ -15,6 +15,11 @@ export interface SessionSummary {
   live: boolean;
   /** The session is in the daemon's log. If not, opening it loads its history first. */
   logged: boolean;
+  /**
+   * Another process of the harness has the session open, such as its own terminal UI. The
+   * daemon then refuses to act on it (error code -32004); `forkSession` makes a copy to use.
+   */
+  openElsewhere?: boolean;
   /** `running`, `requires_action` or `idle`. */
   state?: string;
   headSeq: number;
@@ -132,6 +137,17 @@ export class BridgeClient {
     const sessionId = get(created, "sessionId");
     if (typeof sessionId !== "string") throw new Error("the agent did not return a session id");
     return this.session(sessionId);
+  }
+
+  /**
+   * Makes a copy of a session to continue with and attaches to it. The original is left as it
+   * is. This is the way on when a session is open somewhere else.
+   */
+  async forkSession(sessionId: string): Promise<Session> {
+    const forked = await this.call("session/fork", { sessionId });
+    const id = get(forked, "sessionId");
+    if (typeof id !== "string") throw new Error("the agent did not return a session id");
+    return this.session(id);
   }
 
   /** Attaches to a session and resolves once the app holds all of it. */

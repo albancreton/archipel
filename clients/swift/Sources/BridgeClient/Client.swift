@@ -5,7 +5,11 @@ import Observation
 public struct RPCError: Error, CustomStringConvertible, Equatable {
     public var code: Int
     public var message: String
+    /// What the error says beyond its message. For -32004: who has the session open.
+    public var data: JSON = .null
     public var description: String { "\(message) (\(code))" }
+    /// The session is open in another process of the harness. Fork it to continue.
+    public var openElsewhere: Bool { code == -32004 }
 }
 
 /// One line of the session list.
@@ -18,6 +22,9 @@ public struct SessionSummary: Identifiable, Equatable, Sendable {
     public var live: Bool
     /// The session is in the daemon's log. If not, opening it loads its history first.
     public var logged: Bool
+    /// Another process of the harness has the session open, such as its own terminal UI. The
+    /// daemon then refuses to act on it (error -32004); `fork` makes a copy to use.
+    public var openElsewhere: Bool
     /// `running`, `requires_action` or `idle`.
     public var state: String?
     public var headSeq: Int
@@ -31,6 +38,7 @@ public struct SessionSummary: Identifiable, Equatable, Sendable {
         cwd = json["cwd"]?.string ?? ""
         live = json["live"] == .bool(true)
         logged = json["logged"] != .bool(false)
+        openElsewhere = json["openElsewhere"] == .bool(true)
         state = json["state"]?.string
         headSeq = json["headSeq"]?.number.map(Int.init) ?? 0
         updatedAt = json["updatedAt"]?.string
@@ -117,7 +125,8 @@ public final class BridgeClient {
             for session in followed.values { session.received(message) }
             if let error = message["error"] {
                 continuation?.resume(throwing: RPCError(
-                    code: error["code"]?.number.map(Int.init) ?? 0, message: error["message"]?.string ?? "refused"))
+                    code: error["code"]?.number.map(Int.init) ?? 0, message: error["message"]?.string ?? "refused",
+                    data: error["data"] ?? .null))
             } else {
                 continuation?.resume(returning: message["result"] ?? .null)
             }
@@ -178,6 +187,14 @@ public final class BridgeClient {
         let created = try await call("session/new", params)
         guard let id = created["sessionId"]?.string else { throw RPCError(code: 0, message: "the agent did not return a session id") }
         return try await session(id)
+    }
+
+    /// Makes a copy of a session to continue with and attaches to it. The original is left as
+    /// it is. This is the way on when a session is open somewhere else.
+    public func fork(_ id: String) async throws -> BridgeSession {
+        let forked = try await call("session/fork", ["sessionId": .string(id)])
+        guard let copy = forked["sessionId"]?.string else { throw RPCError(code: 0, message: "the agent did not return a session id") }
+        return try await session(copy)
     }
 
     /// Attaches to a session and returns once the app holds all of it.

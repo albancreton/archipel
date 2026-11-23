@@ -16,6 +16,24 @@ pub const METHOD_SESSION_DETACH: &str = "_bridge/session/detach";
 pub const NOTIFICATION_REQUEST_RESOLVED: &str = "_bridge/request/resolved";
 pub const NOTIFICATION_SESSIONS_UPDATED: &str = "_bridge/sessions/updated";
 pub const METHOD_EXTENSION_REGISTER: &str = "_bridge/extension/register";
+
+/// Error code: the session is open in another process of the harness, so the daemon will not
+/// act on it. The error's `data` is an [`OpenElsewhere`]. The way to continue is `session/fork`.
+pub const ERROR_OPEN_ELSEWHERE: i64 = -32004;
+
+/// The `data` of an [`ERROR_OPEN_ELSEWHERE`] error: who has the session open.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenElsewhere {
+    pub session_id: String,
+    pub pid: u32,
+    /// What that process says it is doing, such as `busy` or `idle`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// How that process was started, such as `cli`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client: Option<String>,
+}
 pub const METHOD_SESSION_APPEND: &str = "_bridge/session/append";
 
 /// `_bridge/extension/register` request: this connection is the extension `namespace`.
@@ -198,6 +216,11 @@ pub struct SessionSummary {
     /// knows, for example one started in the harness's own UI: attaching to it, or sending it
     /// anything, makes the daemon load its history from the harness first.
     pub logged: bool,
+    /// True when another process of the harness has the session open right now, for example
+    /// the harness's own terminal UI. The daemon then refuses to act on the session; it can
+    /// still be read, and `session/fork` makes a copy to continue with.
+    #[serde(default)]
+    pub open_elsewhere: bool,
     /// The last ACP `state_update` state, such as `idle` or `running`, when known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state: Option<String>,
@@ -290,4 +313,5 @@ pub struct BridgeExtensions {
     pub register_extension_request: RegisterExtensionRequest,
     pub append_request: AppendRequest,
     pub append_response: AppendResponse,
+    pub open_elsewhere: OpenElsewhere,
 }

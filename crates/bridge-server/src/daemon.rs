@@ -99,6 +99,8 @@ pub(crate) struct Daemon {
     next_list: u64,
     /// Sessions untouched for longer than this many milliseconds are removed from the log.
     retention: Option<u64>,
+    /// Act on sessions that another process of the harness has open, instead of refusing.
+    share: bool,
     /// Registered extensions: namespace to the connection that serves it.
     extensions: HashMap<String, u64>,
     /// Requests passed to an extension: our id to the extension, the asking app and its id.
@@ -159,6 +161,14 @@ enum Call {
     Initialize,
     /// An app's `session/new`.
     New {
+        client: u64,
+        id: Value,
+        agent: String,
+        cwd: String,
+        setup: Value,
+    },
+    /// An app's `session/fork`.
+    Fork {
         client: u64,
         id: Value,
         agent: String,
@@ -227,6 +237,7 @@ impl Daemon {
         store: Box<dyn Store>,
         events: mpsc::Sender<Event>,
         retention: Option<u64>,
+        share: bool,
     ) -> Self {
         Self {
             rules: RuleSet::pinned(),
@@ -252,6 +263,7 @@ impl Daemon {
             lists: HashMap::new(),
             next_list: 0,
             retention,
+            share,
             extensions: HashMap::new(),
             extension_calls: HashMap::new(),
             next_extension_call: 0,
@@ -417,6 +429,7 @@ impl Daemon {
             ext::METHOD_SESSION_APPEND => self.append(client, &id, &message),
             _ if method.starts_with("_x/") => self.call_extension(client, method, id, params),
             "session/new" => self.new_session(client, id, &message),
+            "session/fork" => self.fork(client, id, &message),
             _ => match text(&params, "/sessionId").map(str::to_owned) {
                 Some(session_id) => self.forward(client, id, &session_id, message),
                 None => self.forward_to_default_agent(client, id, &message),
@@ -492,6 +505,9 @@ impl Daemon {
                 .get(&record.session_id)
                 .is_some_and(|session| session.live),
             logged: true,
+            open_elsewhere: self
+                .elsewhere(&record.agent_id, &record.session_id)
+                .is_some(),
             updated_at: Some(rfc3339(record.updated_at)),
             session_id: record.session_id.clone(),
             agent_id: record.agent_id.clone(),
@@ -638,6 +654,11 @@ impl Daemon {
                 cwd: cwd.to_owned(),
                 live: false,
                 logged: false,
+                open_elsewhere: self
+                    .agents
+                    .get(agent)
+                    .and_then(|known| known.spec.launcher.elsewhere(session_id))
+                    .is_some(),
                 state: None,
                 head_seq: 0,
                 updated_at: text(session, "/updatedAt").map(str::to_owned),
@@ -925,6 +946,43 @@ impl Daemon {
 
     /// Passes an app's request about a session to the adapter that holds it.
     fn forward(&mut self, client: u64, id: Value, session_id: &str, message: Value) {
+        // Two processes on one session do not see each other's turns, and the harness keeps
+        // only one of the two branches for later readers. So do not become the second one.
+        // This comes before anything is loaded: a refused request starts nothing.
+        let holder = match self.load(session_id) {
+            Some(root) => self
+                .sessions
+                .get(&root)
+                .map(|session| (root.clone(), session.record.agent_id.clone())),
+            None => self
+                .harness
+                .get(session_id)
+                .map(|known| (session_id.to_owned(), known.agent.clone())),
+        };
+        if !self.share
+            && let Some((root, agent)) = holder
+            && let Some(other) = self.elsewhere(&agent, &root)
+        {
+            let message = format!(
+                "this session is open in another process of the agent (pid {}{}); fork it to continue here",
+                other.pid,
+                other
+                    .status
+                    .as_deref()
+                    .map(|status| format!(", {status}"))
+                    .unwrap_or_default()
+            );
+            let data = json!(ext::OpenElsewhere {
+                session_id: root,
+                pid: other.pid,
+                status: other.status,
+                client: other.client,
+            });
+            return self.send(
+                client,
+                wire::error_with(&id, ext::ERROR_OPEN_ELSEWHERE, &message, data),
+            );
+        }
         let Some(root) = self.open(client, &id, session_id, &message) else {
             return;
         };
@@ -949,6 +1007,65 @@ impl Daemon {
                     let params = resume_params(&session.record, false);
                     self.call(&agent, Call::Resume { root }, "session/resume", params);
                 }
+            }
+        }
+    }
+
+    /// Another process of the harness that has the session open, if the agent can tell.
+    fn elsewhere(&self, agent: &str, session_id: &str) -> Option<bridge_agents::Elsewhere> {
+        self.agents.get(agent)?.spec.launcher.elsewhere(session_id)
+    }
+
+    /// Makes a copy of a session to continue with: a new session with the same history, which
+    /// only this daemon has open. The original is left as it is, for whoever else has it.
+    fn fork(&mut self, client: u64, id: Value, message: &Value) {
+        let params = message.get("params").cloned().unwrap_or(Value::Null);
+        let source = text(&params, "/sessionId").unwrap_or_default();
+        // The session need not be loaded here: the harness copies it from its own transcript.
+        let known = match self.load(source) {
+            Some(root) => self.sessions.get(&root).map(|session| {
+                (
+                    session.record.agent_id.clone(),
+                    session.record.cwd.clone(),
+                    session.record.setup.clone(),
+                )
+            }),
+            None => self
+                .harness
+                .get(source)
+                .map(|known| (known.agent.clone(), known.cwd.clone(), json!({}))),
+        };
+        let Some((agent, cwd, setup)) = known else {
+            return self.refuse(
+                client,
+                &id,
+                wire::INVALID_PARAMS,
+                "unknown session; list the sessions first",
+            );
+        };
+        match self.ensure_ready(&agent, client, message) {
+            Ready::Later => {}
+            Ready::No(why) => self.refuse(client, &id, wire::INTERNAL_ERROR, &why),
+            Ready::Yes => {
+                let mut params = params;
+                if params.get("cwd").is_none() {
+                    params["cwd"] = cwd.as_str().into();
+                }
+                if params.get("mcpServers").is_none() {
+                    params["mcpServers"] = setup
+                        .get("mcpServers")
+                        .cloned()
+                        .unwrap_or_else(|| json!([]));
+                }
+                let cwd = text(&params, "/cwd").unwrap_or(&cwd).to_owned();
+                let call = Call::Fork {
+                    client,
+                    id,
+                    agent: agent.clone(),
+                    cwd,
+                    setup,
+                };
+                self.call(&agent, call, "session/fork", params);
             }
         }
     }
@@ -1502,6 +1619,52 @@ impl Daemon {
                 }
             }
             Call::List { job, agent } => self.sessions_listed(job, &agent, response),
+            Call::Fork {
+                client,
+                id,
+                agent,
+                cwd,
+                setup,
+            } => {
+                let Some(session_id) = text(response, "/result/sessionId").map(str::to_owned)
+                else {
+                    return self.send(client, wire::relay(&id, response));
+                };
+                let at = now();
+                let record = SessionRecord {
+                    session_id: session_id.clone(),
+                    agent_id: agent.clone(),
+                    cwd,
+                    title: None,
+                    state: None,
+                    setup,
+                    head_seq: 0,
+                    created_at: at,
+                    updated_at: at,
+                };
+                if let Err(error) = self.store.put_session(&record) {
+                    return self.refuse(client, &id, wire::INTERNAL_ERROR, &error.to_string());
+                }
+                // The copy comes with its history, which the adapter has not sent. Ask for it
+                // the way an adopted session is loaded; until then apps that open it wait.
+                let params = resume_params(&record, true);
+                self.roots.insert(session_id.clone(), session_id.clone());
+                self.sessions.insert(
+                    session_id.clone(),
+                    Session {
+                        record,
+                        live: false,
+                        resuming: true,
+                        adopting: true,
+                        queued: Vec::new(),
+                        subscribers: BTreeSet::from([client]),
+                        pending: IndexMap::new(),
+                    },
+                );
+                self.send(client, wire::relay(&id, response));
+                let call = Call::Resume { root: session_id };
+                self.call(&agent, call, "session/resume", params);
+            }
             Call::New {
                 client,
                 id,
@@ -1669,7 +1832,9 @@ impl Daemon {
         agent.last_error = Some(why.to_owned());
         for (_, call) in adapter.calls {
             match call {
-                Call::New { client, id, .. } | Call::Forward { client, id } => {
+                Call::New { client, id, .. }
+                | Call::Fork { client, id, .. }
+                | Call::Forward { client, id } => {
                     self.refuse(client, &id, wire::INTERNAL_ERROR, why);
                 }
                 Call::Resume { root } => {

@@ -82,10 +82,17 @@ impl Fake {
             };
             let result = match got {
                 "session/list" => Some(json!({"sessions": self.recorded_session()})),
+                // A copy of the recorded session under a new id.
+                "session/fork" => self.setup().map(|mut setup| {
+                    setup["sessionId"] =
+                        format!("{}-fork", setup["sessionId"].as_str().unwrap_or_default()).into();
+                    setup
+                }),
                 // ACP v1's `session/load` always replays; v2's `session/resume` only when asked.
                 "session/resume" | "session/load" => {
                     if got == "session/load" || message["params"].get("replayFrom").is_some() {
-                        let mut updates = self.recorded_updates();
+                        let asked = message["params"]["sessionId"].clone();
+                        let mut updates = self.recorded_updates(&asked);
                         if got == "session/load" {
                             updates.pop(); // v1 has no marker for the end of a replay
                         }
@@ -137,9 +144,11 @@ impl Fake {
         }
     }
 
-    /// Every recorded update again, then the marker that ends a replay.
-    fn recorded_updates(&self) -> Vec<Value> {
-        let session = self.setup().map(|setup| setup["sessionId"].clone());
+    /// Every recorded update again, then the marker that ends a replay. `asked` is the session
+    /// id to send them under: the recorded one, or that of a fork of it.
+    fn recorded_updates(&self, asked: &Value) -> Vec<Value> {
+        let recorded = self.setup().map(|setup| setup["sessionId"].clone());
+        let session = Some(asked.clone());
         let mut updates: Vec<Value> = self
             .transcript
             .frames
@@ -148,7 +157,13 @@ impl Fake {
                 frame.dir == Direction::In
                     && frame.m.get("method").and_then(Value::as_str) == Some("session/update")
             })
-            .map(|frame| frame.m.clone())
+            .map(|frame| {
+                let mut message = frame.m.clone();
+                if Some(&message["params"]["sessionId"]) == recorded.as_ref() {
+                    message["params"]["sessionId"] = asked.clone();
+                }
+                message
+            })
             .collect();
         updates.push(
             json!({"jsonrpc": "2.0", "method": "session/update", "params": {
