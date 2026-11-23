@@ -19,6 +19,7 @@ let package = Package(
             resources: [.copy("Resources/state-rules.json")]
         ),
         .target(name: "BridgeUI", dependencies: ["BridgeClient"], path: "ui/swift/Sources/BridgeUI"),
+        .executableTarget(name: "BridgeChatDemo", dependencies: ["BridgeClient", "BridgeUI"], path: "ui/swift/Demo"),
         .testTarget(name: "BridgeClientTests", dependencies: ["BridgeClient"], path: "clients/swift/Tests/BridgeClientTests"),
         .testTarget(name: "BridgeUITests", dependencies: ["BridgeUI"], path: "ui/swift/Tests/BridgeUITests"),
     ],

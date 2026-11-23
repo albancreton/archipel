@@ -4,7 +4,7 @@ A library for building apps that render the agent loop of terminal coding harnes
 
 Claude Code and Pi are the main targets. Other harnesses are accessory.
 
-Status: milestone 5 of 7 done. The daemon runs Claude Code and Pi side by side, numbers and logs everything, and lets clients attach, catch up after a disconnect, and answer approvals. It lists the sessions each harness already has and loads one when it is opened. Connections can be limited to reading. Other programs can add their own items and methods as extensions. Tested against 29 recorded sessions and live.
+Status: milestone 6 of 7 done. The daemon runs Claude Code and Pi side by side, numbers and logs everything, and lets clients attach, catch up after a disconnect, and answer approvals. It lists the sessions each harness already has and loads one when it is opened. Connections can be limited to reading. Other programs can add their own items and methods as extensions. There are client SDKs for TypeScript and Swift, and component kits for React and SwiftUI. Tested against 29 recorded sessions and live.
 
 ## Try it
 
@@ -38,7 +38,9 @@ With the real Claude adapter: put a `config.json` in the daemon's home (see `bri
 | Path | What |
 |---|---|
 | `docs/design/daemon.md` | The daemon design (current work) |
-| `schema/`, `crates/`, `clients/`, `ui/`, `testdata/` | The scaffolded layout (design, section 13). Run `just` for the commands |
+| `schema/`, `crates/` | The data model and the Rust workspace (daemon, command-line client). Run `just` for the commands |
+| `clients/ts`, `clients/swift` | The client SDKs |
+| `ui/react`, `ui/swift` | The component kits |
 | `docs/research/01` to `03` | T3 Code provider report, activity analysis, Claude changes over 30 days |
 | `docs/research/04` | First recommendation on the library shape (partly superseded) |
 | `docs/research/05`, `06` | T3's Pi and Claude adapters run outside the app (historical) |
@@ -51,6 +53,7 @@ With the real Claude adapter: put a `config.json` in the daemon's home (see `bri
 | `docs/research/14` | Milestone 3: scopes, listing and adopting the harness's own sessions |
 | `docs/research/15` | Milestone 4: the Pi translator, one process per session |
 | `docs/research/16` | Milestone 5: extensions, and items that carry their own state rule |
+| `docs/research/17` | Milestone 6: the TypeScript and Swift SDKs, the React and SwiftUI kits, and how they are kept identical |
 | `testdata/` | Recorded sessions and readable renderings of what the core makes of them |
 | `spikes/` | The scripts and raw logs behind 05, 06, 09, 10. See `spikes/README.md` |
 | `data/t3-claude-commits-30d.txt` | The 230 Claude-related T3 commits analysed in 03 |

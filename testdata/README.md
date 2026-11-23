@@ -32,3 +32,11 @@ For each transcript, a plain-text rendering of the state the core ends with: the
 They are meant to be read. To check the core, open a vector next to what the harness showed for the same prompt.
 
 After a deliberate change to the core or to the rendering, run `just vectors` and review the diff before committing.
+
+## states/
+
+For each transcript, the exact state the core ends with, as JSON. The client SDKs in other languages apply the same transcript and must get exactly this.
+
+## daemon/
+
+For seven sessions, what an app sees through the daemon: `live.ndjson` (the session as it happened), `replay.ndjson` (the same session read back by an app that attached later), and `state.json` (what both must end in). Written by the daemon's tests.

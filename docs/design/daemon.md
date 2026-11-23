@@ -1,6 +1,6 @@
 # Daemon design
 
-Draft 10, 2026-11-22: based on ACP v2; milestones 0 to 5 done (`docs/research/11` to `16`). The daemon runs Claude and Pi side by side. "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
+Draft 11, 2026-11-22: based on ACP v2; milestones 0 to 6 done (`docs/research/11` to `17`). The daemon runs Claude and Pi side by side. "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
 
 ## 1. What the daemon is for
 
@@ -233,7 +233,7 @@ The contract lives in `schema/`:
 
 - **ACP:** the pinned file is the reference. Rust types come from the official `agent-client-protocol-schema` crate, which is the schema's upstream source. A test parses every recorded update with those types, so the file and the crate cannot drift apart unnoticed.
 - **Extensions:** the Rust types in `bridge-schema` are the source, and the schema file is generated from them. This is how ACP itself is produced.
-- **Clients:** TypeScript and Swift types are generated from the three files.
+- **Clients:** the TypeScript and Swift SDKs carry a copy of `state-rules.json` and interpret it. TypeScript types for the extensions are generated from `bridge.schema.json`. ACP's own types are not generated (the generator cannot read that schema, and the reducer does not need them).
 
 `just gen` regenerates the two derived files, and CI fails if they are stale. Capability negotiation at `initialize` tells each side what the other supports, as in ACP.
 
@@ -343,7 +343,7 @@ Two rules:
 - **Recorded transcripts:** `spikes/acp-probe/logs` is already the format: timestamped inbound and outbound frames. A fake adapter replays them, as T3 does with its fixtures.
 - **Scenario catalogue:** T3's scenario names and prompts (simple, approval, interrupt mid-tool, subagent, background wake, steering, compaction, resume after restart and so on) are the checklist. T3's fix history for Claude is a backlog of edge cases.
 - **Conformance matrix:** scenario by agent, generated from the runs, so a new adapter version shows what changed.
-- **Reducer vectors:** `testdata/vectors` holds a readable rendering of the state each transcript ends in; the Rust core reproduces them, and every client SDK must.
+- **Reducer vectors:** `testdata/vectors` holds a readable rendering of the state each transcript ends in, and `testdata/states` the exact state as JSON. The Rust core writes both; the TypeScript and Swift SDKs must reproduce the JSON exactly. `testdata/daemon` does the same for what an app sees through the daemon.
 - **Invariants on every transcript:** a condensed replay gives the same state as the full log; a client that catches up from the middle reaches the same state; every update parses with the official ACP types.
 
 ## 15. Milestones
@@ -354,7 +354,7 @@ Two rules:
 3. **Several apps.** Done except Windows; see `docs/research/14`. Scopes, harness sessions listed and adopted, session-list notifications, remembered setup, retention.
 4. **Adapter profiles for Claude and Pi.** Done; see `docs/research/15`.
 5. **Extensions.** Done; see `docs/research/16`.
-6. **Client SDKs and UI kits.** TypeScript and Swift SDKs; a React and a SwiftUI chat view rendering the same session.
+6. **Client SDKs and UI kits.** Done; see `docs/research/17`.
 7. **Remote.** Pairing, tokens, SSH stdio mode, Tailscale notes.
 
 ## 16. Open decisions
