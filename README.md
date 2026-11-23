@@ -11,7 +11,7 @@ Status: research and design. The repository layout is scaffolded; the crates are
 - **Greenfield.** T3 Code is a source of specs, recorded transcripts and edge cases. Its code is not adapted or vendored.
 - **Scope is the chat loop only.** Not T3's surroundings (projects, git checkpoints, worktrees, scheduling, source control).
 - **A daemon, not an in-process library.** Harnesses are processes that live next to the code; apps may be remote. The daemon sits next to the harness and apps talk to it.
-- **ACP is the vocabulary.** The Agent Client Protocol already carries most of the content, and both main harnesses have working ACP adapters (tested live, see docs/research/09 and 10). The daemon adds what ACP lacks and normalises what adapters do differently.
+- **ACP v2 is the vocabulary.** Apps speak ACP v2 plus a few extensions; v2 shapes are the daemon's canonical form. Claude's adapter is driven over v2; Pi's v1 adapter is translated up. The daemon adds what ACP lacks: several apps per session, catching up after a disconnect, a remote transport (tested live, see docs/research/09 to 11).
 - **The server is written in Rust.** One static binary per host, embeddable later; the data model is a schema that server and client types are generated from. UIs are separate packages (Swift and React component kits) and optional.
 - **Extensible from the start.** Other products add namespaced content and extension processes without forking (design, section 11).
 - **Maintained third parties first.** Official adapters and SDKs on the harness side; platform TLS/WebSocket, SSH or Tailscale for transport. No home-made crypto.

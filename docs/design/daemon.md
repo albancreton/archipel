@@ -1,6 +1,6 @@
 # Daemon design
 
-Draft 4, 2026-11-22, after milestone 0 (`docs/research/11`). "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
+Draft 5, 2026-11-22: based on ACP v2 after milestone 0 (`docs/research/11`). "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
 
 ## 1. What the daemon is for
 
@@ -46,120 +46,137 @@ Inside:
 
 ## 3. The protocol apps speak
 
-**Decision: ACP, unmodified, plus a small set of extensions.** ACP reserves `_`-prefixed method names and `_meta` fields for this.
+**Decision (2026-11-22): ACP v2, unmodified, plus a small set of extensions.** v2 shapes are also the daemon's canonical internal form.
 
 Reasons:
 
-- One vocabulary to learn, with a public spec, schema and SDKs.
-- An app can be tested against a bare adapter, and a stock ACP client can talk to the daemon in a degraded way.
-- If ACP ships its remote transport and replay, the daemon gets thinner instead of obsolete.
+- One vocabulary with a public spec, schema and SDKs, including an official Rust crate.
+- v2 already has what a UI needs and v1 lacked: a prompt call that returns at once, turn state as an update, ids on messages, replay on resume, streamed command output, background work (tested on the Claude adapter, `docs/research/11`).
+- If ACP later ships a remote transport or multi-client attach, the daemon gets thinner instead of obsolete.
 
-The alternative, an own item-upsert protocol as T3 has, makes clients simpler but means owning a schema, its docs and its evolution. Section 5 gets most of that simplicity without leaving ACP.
+The cost: v2 has been in preview since 2026-11-20 and will change. The daemon is where that churn is absorbed:
 
-### Extensions
+- The repository pins one revision of the v2 schema. Apps see that revision, whatever each adapter speaks.
+- Moving to a newer revision is one deliberate change: schema, generated types, adapter profiles, recorded transcripts.
+- Unknown update kinds and `_meta` keys pass through untouched.
+
+### What v2 gives natively
+
+| Need | v2 |
+|---|---|
+| Turn state | `state_update`: `running`, `requires_action`, `idle` (with stop reason and usage) |
+| Background work | `state_update.background` |
+| Start a turn without blocking | `session/prompt` returns a `messageId` |
+| Message while busy | A second `session/prompt` is accepted (seen on Claude) |
+| Ids | `messageId` on messages and thoughts, `toolCallId`, `terminalId`, `compactionId` |
+| Command output | `terminal_update`, `terminal_output_chunk` |
+| History | `session/resume` with `replayFrom`, ended by `replay_complete` |
+| Approvals, questions | `session/request_permission` with a subject, `elicitation/create` |
+| Model, mode, effort | Config options |
+
+### Extensions the daemon adds
+
+ACP reserves `_`-prefixed methods and `_meta` for this.
 
 | Addition | Purpose |
 |---|---|
 | `_bridge/agents/list` | Which agents the daemon can start, with version and readiness |
-| `_bridge/sessions/list` | Sessions the daemon knows, live or stored, with status and title |
-| `_bridge/session/attach {sessionId, afterSeq?}` | Subscribe; returns a snapshot or the events after `afterSeq` |
-| `_bridge/session/detach` | Unsubscribe without ending the session |
-| `_bridge/session/state` (notification) | `idle`, `running`, `awaiting_input`, plus background work count |
+| `_bridge/sessions/list` | Sessions across all agents, live or stored, with state and title |
+| `_bridge/session/attach {sessionId, afterSeq?}` | Subscribe to a session another app may already be using |
+| `_bridge/session/detach` | Unsubscribe without closing the session |
+| `_meta.bridge.seq` on every `session/update` | Position in the session log, for catching up |
 | `_bridge/request/resolved` (notification) | A pending approval or question was answered, and by whom |
-| `_meta.bridge.seq` on every `session/update` | Position in the session log |
-| `_meta.bridge.itemId` on every `session/update` | Stable id of the thing the update belongs to (section 5) |
 
 Extensions by other products use their own namespace (section 11).
 
-`session/new`, `session/prompt`, `session/cancel`, `session/set_mode`, `session/set_config_option`, `session/request_permission` and `elicitation/create` pass through with ACP semantics.
-
-### What milestone 0 changed
-
-ACP v2, which the Claude adapter already serves in preview, provides much of what this section adds on top of v1: `session/prompt` returns at once and `state_update` carries the turn state (`running`, `requires_action`, `idle`) and the background work; chunks carry a `messageId`; `session/resume` replays history and ends with `replay_complete`; command output streams as `terminal_output_chunk`.
-
-**Recommended, pending your decision (section 16):** make v2 shapes the canonical form. Apps receive ACP v2 plus the extensions; Claude is driven over v2 nearly as-is; Pi's v1 stream is translated up. With that:
-
-- `_bridge/session/state` is replaced by v2's `state_update`.
-- `_meta.bridge.itemId` is needed only where v2 has no id (it has `messageId` and `toolCallId`).
-- The extensions that remain are the ones v2 lacks: attach and detach, sequence numbers for catching up without a full replay, session and agent lists across adapters, request resolution across several apps.
-
-The text below still describes the v1-based plan and will be rewritten once the base is decided.
-
-### One difference from plain ACP
-
-In ACP v1, `session/prompt` returns when the turn ends. The tests showed that updates keep coming after that (a subagent finishing, a background command waking the agent). Apps must therefore take turn state from `_bridge/session/state`, not from the prompt response. This matches where ACP v2 is going (`state_update`), which should make a later move to v2 mechanical.
+**To verify:** only three prompts were run on v2. Subagents, questions, plans, compaction and notices need the full scenario set rerun on v2 (milestone 2).
 
 ## 4. Session log and replay
 
-Every canonical event gets a per-session sequence number and is appended to the log before it is sent to anyone.
+Every canonical (v2) update gets a per-session sequence number and is appended to the log before it is sent to anyone.
 
-- **Attach with no `afterSeq`:** the daemon sends a snapshot (section 5) and its sequence number, then live events.
-- **Attach with `afterSeq`:** the daemon sends the events after it. If the gap is larger than a threshold, it sends a snapshot instead and says so.
-- **Coalescing:** consecutive text chunks for the same item are merged in storage, so replay cost grows with content, not with token count.
-- **Storage:** one SQLite file, one row per event, indexed by session and sequence. The log is a cache: the harness still owns the transcript of record, and a lost log can be rebuilt with `session/load`. Tested: Claude replays everything including subagent child sessions; Pi replays messages and tools but not reasoning.
-- **Retention:** configurable by age and size; pruned sessions remain listed if the harness still has them.
+- **Attach with `afterSeq`:** the daemon sends the updates after it, then live ones.
+- **Attach without it, or with too large a gap:** the daemon replays the session from its log in v2's own replay form, ending with `replay_complete`. There is no separate snapshot format: a snapshot is a coalesced replay.
+- **Coalescing:** chunk runs for the same id are merged in storage, so replay cost grows with content, not with token count.
+- **Storage:** one SQLite file, one row per update, indexed by session and sequence.
+- **The log is a cache.** The harness owns the transcript of record. A lost log is rebuilt from the adapter: Claude replays everything including subagent child sessions; Pi replays messages and tools but not reasoning (tested).
+- **Retention:** configurable by age and size; pruned sessions stay listed if the harness still has them.
 
-SQLite revises the earlier "no database" note. That note was about not owning a domain model like T3's orchestrator; a replay log needs ordered reads, an index and crash safety, which is what SQLite is for. Append-only files per session are the fallback if a dependency-free daemon matters more.
+SQLite revises the earlier "no database" note. That note was about not owning a domain model like T3's orchestrator; a replay log needs ordered reads, an index and crash safety. Append-only files per session are the fallback if a dependency-free daemon matters more.
 
 ## 5. Items: what makes clients thin
 
-ACP v1 chunks carry no message id, and tool updates are partial. A client that folds raw ACP has to guess boundaries. The daemon does that once:
+A client keeps a list of items and applies each update to it. With v2 ids the rule is: *find the item by id; a chunk appends; anything else merges; an unknown id creates the item.*
 
-- It assigns an `itemId` to every renderable thing and stamps it on each update.
-- A snapshot is the ordered list of items in their current state.
+| Item | v2 updates | Id |
+|---|---|---|
+| User message | `user_message`, `user_message_chunk` | `messageId` |
+| Assistant message | `agent_message`, `agent_message_chunk` | `messageId` |
+| Reasoning | `agent_thought`, `agent_thought_chunk` | `messageId` |
+| Tool call (command, read, edit with diff, search, fetch, other) | `tool_call_update` | `toolCallId` |
+| Command output | `terminal_update`, `terminal_output_chunk` | `terminalId`, linked from the tool call |
+| Approval request | `session/request_permission` | request id; its subject names the tool call |
+| Question | `elicitation/create` | request id |
+| Plan / todo list | `plan_update`, `plan_removed` | plan id |
+| Subagent | `subagent_update`; content is a child session with its own items | child session id |
+| Compaction | `compaction_update`, `compaction_summary_chunk` | `compactionId` |
+| Notice / error | `notice`; adapter failure | **to verify** |
 
-Item kinds, from `docs/research/07` mapped to ACP:
+Session-level state sits beside the items: `state_update`, config options, usage, available commands, title.
 
-| Item | Built from |
+Where an update has no usable id, the daemon adds `_meta.bridge.itemId`. That is expected to be rare on v2.
+
+The rule is small enough to write by hand in Swift or Kotlin, and the same recorded transcripts test every implementation.
+
+## 6. Adapter profiles
+
+One profile per adapter: how to start it, which protocol version and capabilities to use, and how to bring its output to the canonical form.
+
+### Claude (`claude-agent-acp`, v2)
+
+Driven over v2, so little translation is needed.
+
+- Set `CLAUDE_CODE_THINKING_DISPLAY=summarized`; without it no reasoning is sent (tested).
+- One adapter process hosts many sessions (tested).
+- Strip account details from `auth/status_update` before logging; expose readiness through `_bridge/agents/list`.
+- The session starts in the user's own permission mode (`auto` on the test machine). Report it; the app chooses.
+- Todo lists: the adapter maps them to plan entries, but this could not be tested because the installed Claude Code has no todo tool.
+
+### Pi (`pi-acp`, v1)
+
+Translated up to v2 by the daemon.
+
+| v1 behaviour | Canonical form |
 |---|---|
-| User message | `user_message_chunk`, or the prompt the daemon forwarded |
-| Assistant message | `agent_message_chunk` runs |
-| Reasoning | `agent_thought_chunk` runs |
-| Tool call (command, read, edit with diff, search, fetch, other) | `tool_call` + `tool_call_update`, keyed by `toolCallId` |
-| Approval request | `session/request_permission`, linked to its tool call |
-| Question | `elicitation/create` |
-| Plan | `plan_update` with markdown |
-| Todo list | `plan` entries |
-| Subagent | `subagent_update`; its content is a child session with its own items |
-| Compaction | `compaction_update` |
-| Notice / error | `notice`, failed prompt, adapter exit |
+| `session/prompt` blocks until the turn ends | Return a `messageId` at once; emit `state_update` from the turn's start and end and from `_meta.piAcp` (`running`, `queueDepth`) |
+| Chunks carry no id | Assign a `messageId` per run of chunks |
+| No echo of the user message | Emit `user_message` for each prompt |
+| Command output under a `terminal_output` meta key | `terminal_update` and `terminal_output_chunk` |
+| Queueing announced as assistant text ("Queued message (position 1).") | Dropped; queue depth goes into state |
+| Startup banner as an assistant message | Dropped, or `quietStartup` set in Pi's settings |
+| Subagent as one tool call with details in `rawOutput` | Kept as a tool call at first; a child session later if the raw shape is stable |
+| MCP tools as kind `other`, title is the tool name | Tool call with server and tool name |
+| No approvals, questions, plans | Nothing to translate |
+| Reasoning not replayed on reload | Accepted; the daemon's own log keeps it |
 
-Session-level state sits beside the items: status, model, mode, usage, available commands, prompt suggestions, title.
-
-The client rule becomes: *upsert by `itemId`; a chunk appends; anything else merges.* That is small enough to write by hand in Swift or Kotlin, and the same recorded transcripts test every implementation.
-
-## 6. Normaliser
-
-One profile per adapter. Each entry is a difference seen in testing.
-
-| Difference | Claude adapter | Pi adapter | Canonical form |
-|---|---|---|---|
-| Command output while running | Only at completion | `terminal_output` meta, incremental | Incremental output on the tool item. For Claude: accept end-only at first; later consider tailing the task output file as T3 does |
-| Subagents | Child session | One tool call, details in `rawOutput` | Child session. For Pi: show the tool call at first; unpack later if the raw shape is stable |
-| Background work | Wake-up text after the turn; task items only behind the JetBrains AIR extension | Not tested | Background count in session state. Tested: declaring the AIR capabilities yields `async_task_*` updates on v1; v2 reports background terminals in `state_update` |
-| Message while busy | Steering, advertised in `_meta` | Queue; announced as assistant text, depth in `_meta.piAcp` | Explicit queued/steered state on the user message; drop the announcement text |
-| Reasoning | None seen | Thought chunks | Reasoning item. Tested: set `CLAUDE_CODE_THINKING_DISPLAY=summarized` or pass `thinking` options in `_meta.claudeCode.options` |
-| Todos | Mapped to plan entries by the adapter; untestable here because this Claude Code install has no todo tool | None | Todo list item |
-| Startup banner | None | Assistant message at session start | Dropped (or set `quietStartup`) |
-| MCP tool calls | `claudeCode.toolName` in meta | Title is the tool name, kind `other` | Tool item with server and tool name |
-| Auth status | `auth/status_update` with account details | Error on `session/new` | Agent readiness in `_bridge/agents/list`; account details not logged |
-| Default permission mode | Inherits the user's (`auto` here) | No approvals | Reported as-is; the app chooses |
-
-The profile also records which ACP capabilities to declare to each adapter, since adapters gate features on them (plans, subagents, elicitation, notices, compaction were all opt-in).
-
-Unknown updates and `_meta` keys pass through untouched, so a client can use something the normaliser does not know yet.
+A second option for Pi is to drop `pi-acp` and have the daemon speak Pi's own RPC protocol (section 8).
 
 ## 7. Several apps on one session
 
 - Every attached app receives every event.
 - Any app with the right scope may prompt, cancel, or answer.
-- A pending approval or question is shown to all; the first answer wins and the others receive `_bridge/request/resolved`.
+- A pending approval or question is shown to all, and `state_update` reports `requires_action`; the first answer wins and the others receive `_bridge/request/resolved`.
 - A pending request survives all apps disconnecting. It is in the snapshot when one returns. Tested on Claude: still valid after 150 seconds, no timeout seen.
 - Prompts are serialised per session by the daemon, then handed to the adapter, which queues or steers.
 
 ## 8. Adapter processes
 
-- Whether sessions share an adapter process is a profile setting. Tested: Claude's adapter hosts several concurrent sessions; Pi's keeps one session per process and silently drops the others, so Pi gets one process per session.
+- Whether sessions share an adapter process is a profile setting. Claude's adapter hosts several concurrent sessions (tested).
+- **Pi: one process per session.** Pi's RPC mode holds one conversation per `pi` process, and `pi-acp` starts one `pi` per session anyway. `pi-acp` additionally closes every other session when a new one is created, so today each session needs its own `pi-acp` plus its own `pi`. Measured on the test machine: one idle `pi --mode rpc` is about 680 MB across four processes, most of it the user's own extensions and MCP servers. Ways to reduce this, in order of effort:
+  1. Accept it for the first version, and stop idle Pi processes after a timeout; `session/load` brings a session back.
+  2. Remove the one-line `closeAllExcept` call in `pi-acp` (ideally upstream) so one `pi-acp` serves all sessions. This saves the adapter process, not the `pi` process.
+  3. Write a Pi bridge in the daemon that speaks Pi's RPC protocol directly. No `pi-acp` at all, and it emits v2 natively, which removes the translation table in section 6. Still one `pi` per session. T3's Pi adapter and its recorded transcripts are the specification.
+  4. Host several sessions in one Node process through Pi's SDK (`createAgentSession`). The only way to truly share a process, but it means maintaining a Node program that embeds Pi and loses the isolation between sessions. Not recommended.
 - Adapters are pinned by version in the daemon's manifest and updated deliberately; the ACP registry is the catalogue for accessory agents.
 - If an adapter dies: sessions go to `error` with a notice item; the next prompt restarts the adapter and resumes with `session/resume` or `session/load`.
 - If the daemon restarts: sessions are listed from the log; adapters are started on first attach or prompt.
@@ -234,7 +251,7 @@ A correction to draft 1: it is not true that every setup already needs Node. Pi 
 | Crate | Contents | Depends on IO |
 |---|---|---|
 | `bridge-schema` | Schema files and generated types | no |
-| `bridge-core` | Items, reducer, session state, sequencing, normaliser and store traits | no |
+| `bridge-core` | Items, reducer, session state, sequencing, profile and store traits | no |
 | `bridge-store-sqlite` | The session log on SQLite | yes |
 | `bridge-agents` | Adapter supervisor, ACP client connection, profiles for Claude and Pi | yes |
 | `bridge-transport` | Local socket / named pipe, WebSocket, stdio; auth and scopes | yes |
@@ -302,7 +319,7 @@ Two rules:
 1. **Schema and core.** The extension schema, generated types, the reducer, and reducer vectors from the recorded logs. No network yet.
 2. **Single-session daemon.** Local socket and WebSocket, one adapter, log, attach with replay. A command-line client prints a live session and survives a reconnect.
 3. **Several apps.** Fan-out, request broker, scopes, session state.
-4. **Normaliser for Claude and Pi.** The table in section 6, with a recorded transcript for each row.
+4. **Adapter profiles for Claude and Pi.** Section 6, with a recorded transcript for each rule, and the full scenario set rerun on v2.
 5. **Extensions.** Namespaced items and extension peers, proven with a toy checkpoint extension.
 6. **Client SDKs and UI kits.** TypeScript and Swift SDKs; a React and a SwiftUI chat view rendering the same session.
 7. **Remote.** Pairing, tokens, SSH stdio mode, Tailscale notes.
@@ -310,8 +327,8 @@ Two rules:
 ## 16. Open decisions
 
 1. **Log storage:** SQLite (recommended) or append-only files.
-2. **ACP v1 or v2 as the base.** Milestone 0 showed v2 covers turn state, ids, replay, command output and background work on Claude. Recommended now: v2 shapes as the canonical form, with Pi's v1 translated up. The cost is tracking a preview that will change; the alternative is building on v1 what v2 already has.
+2. **Pi integration:** keep `pi-acp` and translate v1 up (first version), or write a direct Pi RPC bridge (section 8, option 3).
 3. **How far to go for Pi subagents and Claude command output** in the first version, or accept the adapters' current behaviour.
 4. **Name.** "harness-bridge" is temporary; the copyright line in `LICENSE-MIT` follows it.
 
-Decided (2026-11-22): Rust for the server. Dual licence, MIT OR Apache-2.0: the Rust convention, compatible with every dependency (ACP and its adapters are Apache-2.0; Pi, pi-acp and T3 Code are MIT), and it gives adopters a patent grant or MIT's simplicity as they prefer. Copyleft was ruled out because it would deter embedding the server in commercial apps.
+Decided (2026-11-22): ACP v2 as the canonical form and the protocol apps speak. Rust for the server. Dual licence, MIT OR Apache-2.0: the Rust convention, compatible with every dependency (ACP and its adapters are Apache-2.0; Pi, pi-acp and T3 Code are MIT), and it gives adopters a patent grant or MIT's simplicity as they prefer. Copyleft was ruled out because it would deter embedding the server in commercial apps.
