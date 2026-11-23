@@ -26,8 +26,8 @@ Principles:
 
 ```
  Swift app ─┐                                   ┌─ claude-agent-acp ── claude
- RN app    ─┼─ bridge protocol ──  DAEMON  ── ACP (stdio) ─┼─ pi-acp ─────────── pi
- Electron  ─┘  (ACP + extensions)    │           └─ any other ACP agent
+ RN app    ─┼─ bridge protocol ──  DAEMON  ── ACP v2 or v1 (stdio) ─┼─ pi-acp ─────────── pi
+ Electron  ─┘  (ACP v2 + extensions)    │           └─ any other ACP agent
                                      └─ event log (one file)
 ```
 
@@ -39,7 +39,7 @@ Inside:
 |---|---|
 | Listener | Accepts app connections (local socket, WebSocket, stdio) and authenticates them |
 | Agent supervisor | Starts, restarts and stops adapter processes; holds their ACP connections |
-| Normaliser | Turns each adapter's dialect into one canonical stream (section 6) |
+| Adapter profiles | Bring each adapter's output to the canonical v2 form (section 6) |
 | Session log | Appends every canonical event with a sequence number; serves replay |
 | Session state | Folds the log into a current snapshot: items, status, pending requests |
 | Hub | Fans events out to attached apps; routes prompts, cancels and answers back |
