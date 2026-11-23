@@ -1,0 +1,13 @@
+[package]
+name = "bridge-store-sqlite"
+description = "The session log on SQLite."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bridge-core = { path = "../bridge-core" }
+
+[lints]
+workspace = true

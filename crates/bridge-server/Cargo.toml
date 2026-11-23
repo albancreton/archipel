@@ -1,0 +1,16 @@
+[package]
+name = "bridge-server"
+description = "Assembles the other crates behind a builder. The library entry point."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bridge-core = { path = "../bridge-core" }
+bridge-store-sqlite = { path = "../bridge-store-sqlite" }
+bridge-agents = { path = "../bridge-agents" }
+bridge-transport = { path = "../bridge-transport" }
+
+[lints]
+workspace = true

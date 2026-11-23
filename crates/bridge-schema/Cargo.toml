@@ -1,0 +1,12 @@
+[package]
+name = "bridge-schema"
+description = "Schema files and the types generated from them. No IO."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true

@@ -1,0 +1,13 @@
+[package]
+name = "bridge-transport"
+description = "Local socket / named pipe, WebSocket and stdio transports; auth and scopes."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bridge-core = { path = "../bridge-core" }
+
+[lints]
+workspace = true

@@ -1,0 +1,13 @@
+[package]
+name = "bridge-core"
+description = "Items, reducer, session state, sequencing, and the normaliser and store traits. No IO."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bridge-schema = { path = "../bridge-schema" }
+
+[lints]
+workspace = true

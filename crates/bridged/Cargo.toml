@@ -1,0 +1,13 @@
+[package]
+name = "bridged"
+description = "The daemon binary: config, CLI, pairing."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bridge-server = { path = "../bridge-server" }
+
+[lints]
+workspace = true
