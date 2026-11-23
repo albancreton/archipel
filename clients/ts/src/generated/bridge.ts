@@ -35,6 +35,7 @@ export interface BridgeExtensionsToACPV2Draft {
   detachSessionResponse: DetachSessionResponse;
   requestResolvedNotification: RequestResolvedNotification;
   sessionsUpdatedNotification: SessionsUpdatedNotification;
+  sessionsRemovedNotification: SessionsRemovedNotification;
   scope: Scope;
   registerExtensionRequest: RegisterExtensionRequest;
   appendRequest: AppendRequest;
@@ -295,6 +296,16 @@ export interface RequestResolvedNotification {
  */
 export interface SessionsUpdatedNotification {
   session: SessionSummary;
+}
+/**
+ * `_bridge/sessions/removed`: a session was deleted at its harness through the daemon, which
+ * dropped its log too. Sent to every app.
+ *
+ * This interface was referenced by `BridgeExtensionsToACPV2Draft`'s JSON-Schema
+ * via the `definition` "SessionsRemovedNotification".
+ */
+export interface SessionsRemovedNotification {
+  sessionId: string;
 }
 /**
  * `_bridge/extension/register` request: this connection is the extension `namespace`.

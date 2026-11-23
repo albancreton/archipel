@@ -10,6 +10,7 @@
 //! | app | `_bridge/session/attach` | send what the app missed (or a full replay), then live messages |
 //! | app | `_bridge/sessions/list` | the daemon's sessions, plus those each harness reports |
 //! | app | `session/new` | pass to the adapter, record the session, attach the app |
+//! | app | `session/delete` | pass to the adapter; once it agrees, drop the session and its log and tell every app |
 //! | app | any other request for a session | pass to the adapter, waking the session first if needed |
 //!
 //! A session is *live* while an adapter process holds it. A session that is not live can still be
@@ -202,6 +203,12 @@ enum Call {
     /// The daemon waking a session that is not live, or adopting one.
     Resume {
         root: String,
+    },
+    /// An app's `session/delete`.
+    Delete {
+        client: u64,
+        id: Value,
+        session: String,
     },
     /// Any other app request: the answer goes back to the app unchanged.
     Forward {
@@ -451,6 +458,7 @@ impl Daemon {
             _ if method.starts_with("_x/") => self.call_extension(client, method, id, params),
             "session/new" => self.new_session(client, id, &message),
             "session/fork" => self.fork(client, id, &message),
+            "session/delete" => self.delete(client, id, &message),
             _ => match text(&params, "/sessionId").map(str::to_owned) {
                 Some(session_id) => self.forward(client, id, &session_id, message),
                 None => self.forward_to_default_agent(client, id, &message),
@@ -481,6 +489,7 @@ impl Daemon {
                     ext::METHOD_SESSION_DETACH,
                     ext::NOTIFICATION_REQUEST_RESOLVED,
                     ext::NOTIFICATION_SESSIONS_UPDATED,
+                    ext::NOTIFICATION_SESSIONS_REMOVED,
                 ],
                 "scope": self.scope(client),
                 "namespaces": self.extensions.keys().collect::<Vec<_>>(),
@@ -969,34 +978,9 @@ impl Daemon {
 
     /// Passes an app's request about a session to the adapter that holds it.
     fn forward(&mut self, client: u64, id: Value, session_id: &str, message: Value) {
-        // Two processes on one session do not see each other's turns, and the harness keeps
-        // only one of the two branches for later readers. So do not become the second one.
         // This comes before anything is loaded: a refused request starts nothing.
-        let holder = match self.load(session_id) {
-            Some(root) => self
-                .sessions
-                .get(&root)
-                .map(|session| (root.clone(), session.record.agent_id.clone())),
-            None => self
-                .harness
-                .get(session_id)
-                .map(|known| (session_id.to_owned(), known.agent.clone())),
-        };
-        if let Some((root, agent)) = holder
-            && let Some(held) = self.held_elsewhere(&agent, &root)
-        {
-            let message = format!(
-                "this session is open in another process of the agent (pid {}{}); fork it to continue here",
-                held.pid,
-                held.status
-                    .as_deref()
-                    .map(|status| format!(", {status}"))
-                    .unwrap_or_default()
-            );
-            return self.send(
-                client,
-                wire::error_with(&id, ext::ERROR_OPEN_ELSEWHERE, &message, json!(held)),
-            );
+        if self.refused_as_held(client, &id, session_id) {
+            return;
         }
         let Some(root) = self.open(client, &id, session_id, &message) else {
             return;
@@ -1023,6 +1007,103 @@ impl Daemon {
                     self.call(&agent, Call::Resume { root }, "session/resume", params);
                 }
             }
+        }
+    }
+
+    /// The root session and the agent of a session, whether it is in the log or only in a
+    /// harness's list.
+    fn whose(&mut self, session_id: &str) -> Option<(String, String)> {
+        match self.load(session_id) {
+            Some(root) => self
+                .sessions
+                .get(&root)
+                .map(|session| (root.clone(), session.record.agent_id.clone())),
+            None => self
+                .harness
+                .get(session_id)
+                .map(|known| (session_id.to_owned(), known.agent.clone())),
+        }
+    }
+
+    /// Refuses a request about a session that another process of the harness has open, and
+    /// says whether it did. Two processes on one session do not see each other's turns, and
+    /// the harness keeps only one of the two branches for later readers. So the daemon does
+    /// not become the second one.
+    fn refused_as_held(&mut self, client: u64, id: &Value, session_id: &str) -> bool {
+        let Some(held) = self
+            .whose(session_id)
+            .and_then(|(root, agent)| self.held_elsewhere(&agent, &root))
+        else {
+            return false;
+        };
+        let message = format!(
+            "this session is open in another process of the agent (pid {}{}); fork it to continue here",
+            held.pid,
+            held.status
+                .as_deref()
+                .map(|status| format!(", {status}"))
+                .unwrap_or_default()
+        );
+        self.send(
+            client,
+            wire::error_with(id, ext::ERROR_OPEN_ELSEWHERE, &message, json!(held)),
+        );
+        true
+    }
+
+    /// Deletes a session at its harness. Once the harness agrees, the daemon drops its own
+    /// copy too. The session need not be loaded or live for this.
+    fn delete(&mut self, client: u64, id: Value, message: &Value) {
+        let session = text(message, "/params/sessionId")
+            .unwrap_or_default()
+            .to_owned();
+        if self.refused_as_held(client, &id, &session) {
+            return;
+        }
+        let Some((_, agent)) = self.whose(&session) else {
+            return self.refuse(
+                client,
+                &id,
+                wire::INVALID_PARAMS,
+                "unknown session; list the sessions first",
+            );
+        };
+        match self.ensure_ready(&agent, client, message) {
+            Ready::Later => {}
+            Ready::No(why) => self.refuse(client, &id, wire::INTERNAL_ERROR, &why),
+            Ready::Yes => {
+                let params = message.get("params").cloned().unwrap_or(Value::Null);
+                let call = Call::Delete {
+                    client,
+                    id,
+                    session,
+                };
+                self.call(&agent, call, "session/delete", params);
+            }
+        }
+    }
+
+    /// A session is gone at its harness: drop it here and tell every app.
+    fn removed(&mut self, session_id: &str) {
+        self.harness.remove(session_id);
+        // Only a whole session has a log of its own; a subagent's is part of its root's.
+        if self
+            .roots
+            .get(session_id)
+            .is_some_and(|root| root != session_id)
+        {
+            return;
+        }
+        self.forget(session_id);
+        let message = wire::notification(
+            ext::NOTIFICATION_SESSIONS_REMOVED,
+            json!(ext::SessionsRemovedNotification {
+                session_id: session_id.to_owned(),
+            }),
+        );
+        let clients: Vec<u64> = self.clients.keys().copied().collect();
+        for client in clients {
+            self.send(client, message.clone());
         }
     }
 
@@ -1857,6 +1938,16 @@ impl Daemon {
                     }
                 }
             }
+            Call::Delete {
+                client,
+                id,
+                session,
+            } => {
+                if response.get("error").is_none() {
+                    self.removed(&session);
+                }
+                self.send(client, wire::relay(&id, response));
+            }
             Call::Forward { client, id } => self.send(client, wire::relay(&id, response)),
         }
     }
@@ -1949,6 +2040,7 @@ impl Daemon {
             match call {
                 Call::New { client, id, .. }
                 | Call::Fork { client, id, .. }
+                | Call::Delete { client, id, .. }
                 | Call::Forward { client, id } => {
                     self.refuse(client, &id, wire::INTERNAL_ERROR, why);
                 }

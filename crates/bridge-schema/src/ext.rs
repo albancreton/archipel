@@ -15,6 +15,7 @@ pub const METHOD_SESSION_ATTACH: &str = "_bridge/session/attach";
 pub const METHOD_SESSION_DETACH: &str = "_bridge/session/detach";
 pub const NOTIFICATION_REQUEST_RESOLVED: &str = "_bridge/request/resolved";
 pub const NOTIFICATION_SESSIONS_UPDATED: &str = "_bridge/sessions/updated";
+pub const NOTIFICATION_SESSIONS_REMOVED: &str = "_bridge/sessions/removed";
 pub const METHOD_EXTENSION_REGISTER: &str = "_bridge/extension/register";
 
 /// Error code: the session is open in another process of the harness, so the daemon will not
@@ -194,6 +195,14 @@ pub struct SessionsUpdatedNotification {
     pub session: SessionSummary,
 }
 
+/// `_bridge/sessions/removed`: a session was deleted at its harness through the daemon, which
+/// dropped its log too. Sent to every app.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsRemovedNotification {
+    pub session_id: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ListSessionsResponse {
@@ -313,6 +322,7 @@ pub struct BridgeExtensions {
     pub detach_session_response: DetachSessionResponse,
     pub request_resolved_notification: RequestResolvedNotification,
     pub sessions_updated_notification: SessionsUpdatedNotification,
+    pub sessions_removed_notification: SessionsRemovedNotification,
     pub scope: Scope,
     pub register_extension_request: RegisterExtensionRequest,
     pub append_request: AppendRequest,

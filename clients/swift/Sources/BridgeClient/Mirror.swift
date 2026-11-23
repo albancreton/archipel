@@ -6,6 +6,7 @@ import Foundation
 public enum Bridge {
     public static let requestResolved = "_bridge/request/resolved"
     public static let sessionsUpdated = "_bridge/sessions/updated"
+    public static let sessionsRemoved = "_bridge/sessions/removed"
     public static let sessionAttach = "_bridge/session/attach"
     public static let sessionDetach = "_bridge/session/detach"
     public static let sessionsList = "_bridge/sessions/list"

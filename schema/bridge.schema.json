@@ -43,6 +43,9 @@
     "sessionsUpdatedNotification": {
       "$ref": "#/$defs/SessionsUpdatedNotification"
     },
+    "sessionsRemovedNotification": {
+      "$ref": "#/$defs/SessionsRemovedNotification"
+    },
     "scope": {
       "$ref": "#/$defs/Scope"
     },
@@ -73,6 +76,7 @@
     "detachSessionResponse",
     "requestResolvedNotification",
     "sessionsUpdatedNotification",
+    "sessionsRemovedNotification",
     "scope",
     "registerExtensionRequest",
     "appendRequest",
@@ -469,6 +473,18 @@
       },
       "required": [
         "session"
+      ]
+    },
+    "SessionsRemovedNotification": {
+      "description": "`_bridge/sessions/removed`: a session was deleted at its harness through the daemon, which\ndropped its log too. Sent to every app.",
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId"
       ]
     },
     "Scope": {
