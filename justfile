@@ -11,6 +11,12 @@ gen:
 vectors:
     UPDATE_VECTORS=1 cargo test -q -p bridge-core --test transcripts
 
+# Start a daemon with a fake agent that replays a recorded session. Then use `target/debug/bridge --home target/demo-home …`.
+demo scenario="approval_command":
+    cargo build -q
+    mkdir -p target/demo-home
+    target/debug/bridged --home target/demo-home --fake testdata/transcripts/claude-v2/{{scenario}}.ndjson
+
 # Format, lint and type-check everything.
 check:
     cargo fmt --all --check

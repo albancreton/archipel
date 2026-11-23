@@ -1,6 +1,6 @@
 # Daemon design
 
-Draft 6, 2026-11-22: based on ACP v2; milestones 0 and 1 done (`docs/research/11`, `12`). "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
+Draft 7, 2026-11-22: based on ACP v2; milestones 0, 1 and 2 done (`docs/research/11`, `12`, `13`). A first daemon runs. "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
 
 ## 1. What the daemon is for
 
@@ -82,25 +82,33 @@ ACP reserves `_`-prefixed methods and `_meta` for this.
 |---|---|
 | `_bridge/agents/list` | Which agents the daemon can start, with version and readiness |
 | `_bridge/sessions/list` | Sessions across all agents, live or stored, with state and title |
-| `_bridge/session/attach {sessionId, afterSeq?}` | Subscribe to a session another app may already be using |
+| `_bridge/session/attach {sessionId, afterSeq?}` | Subscribe to a session another app may already be using. The response says whether a delta or a full replay follows |
 | `_bridge/session/detach` | Unsubscribe without closing the session |
-| `_meta.bridge.seq` on every `session/update` | Position in the session log, for catching up |
-| `_bridge/request/resolved` (notification) | A pending approval or question was answered, and by whom |
+| `_meta.bridge.seq` on every logged message | Position in the session log, for catching up |
+| `_meta.bridge.rootSessionId` | On a subagent's messages: the session whose log (and sequence numbers) they belong to |
+| `_bridge/request/resolved` (notification) | A pending approval or question was answered, and by whom. In a replay it also carries the question |
+| `_meta.bridge.agentId` on `session/new` | Which agent to create the session with |
+| `_meta.bridge.origin = "daemon"` in an update | The daemon wrote this update itself (section 4) |
 
 Extensions by other products use their own namespace (section 11).
+
+A plain ACP v2 client also works: the daemon answers `session/resume` (with or without `replayFrom`) from its log, in ACP's order. It gets no sequence-based catch-up, only full replays.
 
 Tested: 17 scenarios recorded on v2 through the Claude adapter, including subagents, questions, plans, compaction, steering, interrupt and background work (`testdata/transcripts/claude-v2`). Notices have not been seen yet.
 
 ## 4. Session log and replay
 
-Every canonical (v2) update gets a per-session sequence number and is appended to the log before it is sent to anyone.
+Every canonical (v2) update, every request from the agent and every answer gets a sequence number and is appended to the log before it is sent to anyone. Numbers count per conversation: a subagent's entries are in its parent's log.
 
-- **Attach with `afterSeq`:** the daemon sends the updates after it, then live ones.
-- **Attach without it, or with too large a gap:** the daemon replays the session from its log in v2's own replay form, ending with `replay_complete`. There is no separate snapshot format: a snapshot is a coalesced replay.
-- **Coalescing:** chunk runs for the same id are merged in storage, so replay cost grows with content, not with token count.
-- **Storage:** one SQLite file, one row per update, indexed by session and sequence.
+- **Three kinds of entry:** update, request, answer. Requests have to be there because the state rules let a permission request create its tool call; a replay without them could show different items.
+- **Attach with `afterSeq`:** the daemon sends the entries after it, then live ones.
+- **Attach without it, or with a position beyond the log's end:** the daemon replays the session from its log in v2's own replay form, ending with `replay_complete`. There is no separate snapshot format: a snapshot is a condensed replay.
+- **Requests in a replay:** one that can still be answered is sent as a real request. One that was answered cannot be asked again; it is sent as a single `_bridge/request/resolved` with the question and the answer, at the request's place.
+- **Setup values:** `configOptions` and `availableCommands` arrive in the response to `session/new`, not as updates. The daemon writes them into the log as updates marked `origin = "daemon"`, so the log alone rebuilds a session.
+- **Condensing:** chunk runs for the same id are merged when replaying, so a replay grows with content, not with token count. Stored entries are not merged yet (to do with retention).
+- **Storage:** one SQLite file, one row per entry, keyed by session and sequence. Write-ahead log with `synchronous = NORMAL`.
 - **The log is a cache.** The harness owns the transcript of record. A lost log is rebuilt from the adapter: Claude replays everything including subagent child sessions; Pi replays messages and tools but not reasoning (tested).
-- **Retention:** configurable by age and size; pruned sessions stay listed if the harness still has them.
+- **Retention:** configurable by age and size; pruned sessions stay listed if the harness still has them. Not implemented yet.
 
 SQLite revises the earlier "no database" note. That note was about not owning a domain model like T3's orchestrator; a replay log needs ordered reads, an index and crash safety. Append-only files per session are the fallback if a dependency-free daemon matters more.
 
@@ -169,11 +177,12 @@ A second option for Pi is to drop `pi-acp` and have the daemon speak Pi's own RP
 
 ## 7. Several apps on one session
 
-- Every attached app receives every event.
-- Any app with the right scope may prompt, cancel, or answer.
-- A pending approval or question is shown to all, and `state_update` reports `requires_action`; the first answer wins and the others receive `_bridge/request/resolved`.
-- A pending request survives all apps disconnecting. It is in the snapshot when one returns. Tested on Claude: still valid after 150 seconds, no timeout seen.
-- Prompts are serialised per session by the daemon, then handed to the adapter, which queues or steers.
+- Every attached app receives every event. Done.
+- Any app with the right scope may prompt, cancel, or answer. Scopes are not implemented: today every app may do everything.
+- A pending approval or question is shown to all, and `state_update` reports `requires_action`; the first answer wins and every app receives `_bridge/request/resolved`. Done.
+- A pending request survives all apps disconnecting, and is sent again to every app that attaches, since an app can only answer on its current connection. Done. Tested on Claude: still valid after 150 seconds, no timeout seen.
+- Prompts are handed to the adapter in the order the daemon receives them; the adapter queues or steers.
+- An app that reads too slowly (4096 messages behind) is disconnected instead of buffered without limit. It catches up when it attaches again.
 
 ## 8. Adapter processes
 
@@ -184,8 +193,8 @@ A second option for Pi is to drop `pi-acp` and have the daemon speak Pi's own RP
   3. Write a Pi bridge in the daemon that speaks Pi's RPC protocol directly. No `pi-acp` at all, and it emits v2 natively, which removes the translation table in section 6. Still one `pi` per session. T3's Pi adapter and its recorded transcripts are the specification.
   4. Host several sessions in one Node process through Pi's SDK (`createAgentSession`). The only way to truly share a process, but it means maintaining a Node program that embeds Pi and loses the isolation between sessions. Not recommended.
 - Adapters are pinned by version in the daemon's manifest and updated deliberately; the ACP registry is the catalogue for accessory agents.
-- If an adapter dies: sessions go to `error` with a notice item; the next prompt restarts the adapter and resumes with `session/resume` or `session/load`.
-- If the daemon restarts: sessions are listed from the log; adapters are started on first attach or prompt.
+- If an adapter dies: its sessions stop being live. Open approvals are cancelled, and a turn that was running gets a `notice` and a `state_update` to `idle` with stop reason `cancelled`, all written to the log by the daemon. The next request for such a session restarts the adapter and resumes the session with `session/resume`. Done, tested live.
+- If the daemon restarts: sessions are listed and replayed from the log with no adapter running; the adapter is started on the first request that needs it. Done, tested live.
 - The daemon never passes app-supplied commands or environment to a spawn. Agents come from its own manifest.
 
 ## 9. Transport and security
@@ -196,9 +205,11 @@ The daemon can run commands as the user. Anything that can talk to it has that p
 |---|---|---|
 | Same machine | Unix socket (named pipe on Windows) | File permissions, owner only |
 | Remote, over SSH | `bridge connect --stdio` run through SSH, same frames | SSH |
-| Remote, direct | WebSocket, bound to loopback unless configured | Bearer token from pairing; TLS from Tailscale serve or a reverse proxy |
+| Remote, direct | WebSocket, off unless asked for | Bearer token; TLS from Tailscale serve or a reverse proxy |
 
-All three carry the same newline-delimited JSON-RPC, so the daemon and clients have one codec.
+All three carry the same JSON-RPC messages (one per line, or one per WebSocket text frame), so the daemon and clients have one codec.
+
+Implemented in milestone 2: the Unix socket (owner-only file in an owner-only directory) and the WebSocket. The WebSocket requires `Authorization: Bearer <token>`, with the token in a file only the owner can read, and refuses any request that has an `Origin` header: any web page may try to open a WebSocket to a local port, so binding to loopback is not a protection by itself. Browser clients therefore cannot connect yet.
 
 - **Pairing:** the daemon prints a one-time code; the app exchanges it for a long-lived token stored in the platform keychain. Tokens are listed and revocable.
 - **Scopes:** `observe` (read), `interact` (prompt, answer, cancel), `admin` (pair, configure). A wall display gets `observe`.
@@ -264,19 +275,25 @@ A correction to draft 1: it is not true that every setup already needs Node. Pi 
 | Crate | Contents | Depends on IO |
 |---|---|---|
 | `bridge-schema` | Schema files and generated types | no |
-| `bridge-core` | Items, reducer, session state, sequencing, profile and store traits | no |
+| `bridge-core` | Reducer, log records and condensing, the store trait, the client mirror, transcripts | no |
 | `bridge-store-sqlite` | The session log on SQLite | yes |
-| `bridge-agents` | Adapter supervisor, ACP client connection, profiles for Claude and Pi | yes |
-| `bridge-transport` | Local socket / named pipe, WebSocket, stdio; auth and scopes | yes |
-| `bridge-server` | Assembles the above behind a builder; the library entry point | yes |
-| `bridged` | The daemon binary: config, CLI, pairing | yes |
+| `bridge-agents` | Starting adapters, profiles (Claude so far), the fake adapter | yes |
+| `bridge-transport` | The message codec over lines, a Unix socket and a WebSocket | yes |
+| `bridge-server` | The daemon as a library, behind a builder | yes |
+| `bridged` | The daemon program: config, listeners | yes |
+| `bridge-client` | A client's connection, and the `bridge` command-line tool | yes |
 | `bridge-ffi` | C interface for embedding in native apps | later |
 
 `bridge-core` holds no IO so it can be tested with recorded transcripts alone, and so the reducer can later be shipped to clients (FFI or WebAssembly) if hand-written reducers drift.
 
 Adding a harness means: an ACP adapter (any language, its own process) and a profile in `bridge-agents`. A profile is mostly data (how to start the adapter, which capabilities to declare) plus the normalising rules for that adapter.
 
-In use since milestone 1: `agent-client-protocol-schema` for the ACP types, serde, schemars. Planned: the `agent-client-protocol` crate for connections (it has Client, Agent and Proxy roles, and v2 behind `unstable_protocol_v2`), tokio, rusqlite. The reducer works on JSON, not on the typed structs, so update kinds the crate does not know pass through; the connection layer must preserve that (to verify in milestone 2).
+In use: `agent-client-protocol-schema` for the ACP types, serde, schemars, tokio, rusqlite (SQLite compiled in), tokio-tungstenite.
+
+Two choices made in milestone 2:
+
+- **The connection layer is ours.** The daemon forwards messages it must not interpret, and the `agent-client-protocol` crate's typed connection would drop kinds and fields its types do not know. Reading and writing JSON values line by line is about 60 lines. The official types check shapes in tests.
+- **One task owns all state.** Messages from apps, messages from adapters and closed connections are events on one queue, handled one at a time. No locks; the order of events is the only thing to reason about. `crates/bridge-server/src/daemon.rs` opens with a table of what each message causes.
 
 ### Client side
 
@@ -331,8 +348,8 @@ Two rules:
 
 0. **Close the unknowns.** Done; see `docs/research/11`.
 1. **Schema and core.** Done; see `docs/research/12`.
-2. **Single-session daemon.** Local socket and WebSocket, one adapter, log, attach with replay. A command-line client prints a live session and survives a reconnect.
-3. **Several apps.** Fan-out, request broker, scopes, session state.
+2. **Single-session daemon.** Done; see `docs/research/13`. Fan-out to several apps and "first answer wins" came with it.
+3. **Several apps.** What is left: scopes, a named pipe for Windows, the gaps listed in `docs/research/13` (sessions created outside the daemon, remembered `mcpServers`, stale pending tool calls, retention).
 4. **Adapter profiles for Claude and Pi.** Section 6, with a recorded transcript for each rule, and the full scenario set rerun on v2.
 5. **Extensions.** Namespaced items and extension peers, proven with a toy checkpoint extension.
 6. **Client SDKs and UI kits.** TypeScript and Swift SDKs; a React and a SwiftUI chat view rendering the same session.
@@ -340,9 +357,9 @@ Two rules:
 
 ## 16. Open decisions
 
-1. **Log storage:** SQLite (recommended) or append-only files.
+1. **Sessions created outside the daemon:** list and adopt what the harness has (ACP `session/list`), or only show the daemon's own.
 2. **Pi integration, later:** whether to replace `pi-acp` with a direct Pi RPC bridge (section 8, option 3). The first version keeps `pi-acp`, one process per session, with idle sessions stopped and reloaded.
 3. **How far to go for Pi subagents and Claude command output** in the first version, or accept the adapters' current behaviour.
 4. **Name.** "harness-bridge" is temporary; the copyright line in `LICENSE-MIT` follows it.
 
-Decided (2026-11-22): ACP v2 as the canonical form and the protocol apps speak. Rust for the server. Dual licence, MIT OR Apache-2.0: the Rust convention, compatible with every dependency (ACP and its adapters are Apache-2.0; Pi, pi-acp and T3 Code are MIT), and it gives adopters a patent grant or MIT's simplicity as they prefer. Copyleft was ruled out because it would deter embedding the server in commercial apps.
+Decided (2026-11-22): SQLite for the log, behind a trait. ACP v2 as the canonical form and the protocol apps speak. Rust for the server. Dual licence, MIT OR Apache-2.0: the Rust convention, compatible with every dependency (ACP and its adapters are Apache-2.0; Pi, pi-acp and T3 Code are MIT), and it gives adopters a patent grant or MIT's simplicity as they prefer. Copyleft was ruled out because it would deter embedding the server in commercial apps.

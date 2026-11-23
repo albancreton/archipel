@@ -16,7 +16,9 @@ bridge: talk to the harness-bridge daemon
   bridge sessions                        all sessions, newest first
   bridge new [--cwd DIR] [--agent ID] [--mode MODE]
                                          create a session and print its id
-  bridge prompt SESSION TEXT...          send a message to the agent
+  bridge prompt SESSION TEXT... [--watch]
+                                         send a message to the agent; with --watch, print what
+                                         happens until the turn ends or the agent asks something
   bridge watch SESSION [--until-idle]    print the session as it happens; reconnects by itself
   bridge show SESSION                    print the session as it stands and exit
   bridge answer SESSION OPTION           answer the oldest open approval with one of its options
@@ -147,11 +149,42 @@ async fn run(mut args: Vec<String>) -> Result<(), Failure> {
             println!("{session}");
         }
         "prompt" => {
+            let follow = switch(&mut args, "--watch");
             let session = session(&mut daemon, &mut args).await?;
+            let mut mirror = Mirror::default();
+            if follow {
+                attach(&mut daemon, &session, &mut mirror, |_, _| {}).await?;
+            }
             let prompt = json!([{"type": "text", "text": args.join(" ")}]);
             let params = json!({"sessionId": session, "prompt": prompt});
             let sent = daemon.call("session/prompt", params).await?;
-            println!("sent {}", text(&sent, "messageId"));
+            if !follow {
+                println!("sent {}", text(&sent, "messageId"));
+                return Ok(());
+            }
+            // Print what happens until the turn ends or the agent waits for an answer.
+            let rules = RuleSet::pinned();
+            let mut printer = Printer::default();
+            // A session that had to be woken first reports `idle` before the turn starts, so
+            // only an `idle` that follows another state ends the watch.
+            let mut started = false;
+            while let Some(message) = daemon.next().await {
+                mirror.received(&rules, &message)?;
+                printer.print(&message);
+                let update = &message["params"]["update"];
+                if message.get("id").is_some() && message.get("method").is_some() {
+                    printer.note("waiting for an answer");
+                    break;
+                }
+                if update["sessionUpdate"] == json!("state_update") {
+                    if update["state"] != json!("idle") {
+                        started = true;
+                    } else if started {
+                        printer.note("idle");
+                        break;
+                    }
+                }
+            }
         }
         "show" => {
             let session = session(&mut daemon, &mut args).await?;

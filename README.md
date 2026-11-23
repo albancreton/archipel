@@ -4,7 +4,24 @@ A library for building apps that render the agent loop of terminal coding harnes
 
 Claude Code and Pi are the main targets. Other harnesses are accessory.
 
-Status: milestone 1 of 7 done. The schema and the core (reducer, session log, condensed replay) exist and are tested against 17 recorded Claude sessions. There is no daemon yet.
+Status: milestone 2 of 7 done. A first daemon runs: it starts the Claude adapter, numbers and logs everything, and lets command-line clients attach, catch up after a disconnect, and answer approvals. Tested against 17 recorded Claude sessions and live.
+
+## Try it
+
+No cost: a fake agent replays a recorded session.
+
+```
+cargo build
+target/debug/bridged --home /tmp/bridge-demo --fake testdata/transcripts/claude-v2/approval_command.ndjson &
+alias b='target/debug/bridge --home /tmp/bridge-demo'
+b new --mode default            # prints the session id; its first characters are enough afterwards
+b prompt <id> hello --watch     # stops when the agent asks for approval
+b answer <id> allow-once
+b watch <id> --until-idle
+b show <id>
+```
+
+With the real Claude adapter: put a `config.json` in the daemon's home (see `bridged --help`) and run `bridged` without `--fake`. `bridge --help` lists the client's commands.
 
 ## Decisions so far
 
@@ -30,6 +47,7 @@ Status: milestone 1 of 7 done. The schema and the core (reducer, session log, co
 | `docs/research/09`, `10` | Claude and Pi driven live through their ACP adapters |
 | `docs/research/11` | Milestone 0: the unknowns closed, ACP v2 tried, the Rust crate checked |
 | `docs/research/12` | Milestone 1: schema and core, and how the v2 schema drives the reducer |
+| `docs/research/13` | Milestone 2: the first running daemon, what was tested, what is missing |
 | `testdata/` | Recorded sessions and readable renderings of what the core makes of them |
 | `spikes/` | The scripts and raw logs behind 05, 06, 09, 10. See `spikes/README.md` |
 | `data/t3-claude-commits-30d.txt` | The 230 Claude-related T3 commits analysed in 03 |

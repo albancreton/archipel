@@ -18,6 +18,8 @@ The scenario names and several prompts are taken from or modelled on T3 Code's r
 
 To add a scenario, add it to `v2rec.mjs`, run `node v2rec.mjs <name>` (a live, paid call), then `just vectors` and read the new file in `vectors/`.
 
+A transcript can also stand in for an adapter: `bridged --fake <transcript>` replays it, and the daemon's tests do the same in-process (`bridge-agents`, `fake`).
+
 ## vectors/
 
 For each transcript, a plain-text rendering of the state the core ends with: the items in order, tool output, approvals and their answers, subagent sessions indented, and the final session state. These files are the expected results of the test `rendering_matches_the_vectors`.
