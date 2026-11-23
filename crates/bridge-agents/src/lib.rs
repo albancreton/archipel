@@ -2,9 +2,11 @@
 //!
 //! An agent is described by an [`AgentSpec`]. Its [`Launcher`] starts the adapter and returns a
 //! [`Link`] of JSON-RPC messages: [`Process`] runs a program and uses its stdin and stdout,
-//! [`Fake`] replays a recorded session without any program.
+//! [`Fake`] replays a recorded session without any program. [`pi::Pi`] is the Pi profile: a
+//! translator in front of one `pi-acp` process per session.
 
 pub mod fake;
+pub mod pi;
 
 use bridge_core::transcript::Transcript;
 use bridge_transport::{Link, lines};

@@ -1,5 +1,6 @@
 //! `bridge`: a command-line client for the daemon.
 
+use base64::Engine as _;
 use bridge_client::{Connection, Endpoint, Error};
 use bridge_core::{
     mirror::{Mirror, seq_of},
@@ -410,9 +411,13 @@ impl Printer {
             Some("session/update") => {
                 let update = &params["update"];
                 let kind = text(update, "sessionUpdate");
-                let streamed = update["content"]["text"]
+                // Command output is streamed as base64.
+                let decoded = update["data"]
                     .as_str()
-                    .or_else(|| update["data"].as_str().filter(|_| kind.ends_with("_chunk")));
+                    .filter(|_| kind.ends_with("_chunk"))
+                    .and_then(|data| base64::engine::general_purpose::STANDARD.decode(data).ok())
+                    .map(|bytes| String::from_utf8_lossy(&bytes).into_owned());
+                let streamed = update["content"]["text"].as_str().or(decoded.as_deref());
                 if let (true, Some(piece)) = (kind.ends_with("_chunk"), streamed) {
                     let id = ["messageId", "terminalId", "compactionId"]
                         .iter()

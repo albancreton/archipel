@@ -29,35 +29,59 @@ fn testdata() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata")
 }
 
+/// `set/name`, or just `name` for a Claude recording.
+fn qualified(name: &str) -> String {
+    if name.contains('/') {
+        name.to_owned()
+    } else {
+        format!("claude-v2/{name}")
+    }
+}
+
 fn transcript(name: &str) -> Transcript {
-    let path = testdata().join(format!("transcripts/claude-v2/{name}.ndjson"));
+    let path = testdata().join(format!("transcripts/{}.ndjson", qualified(name)));
     Transcript::parse(&fs::read_to_string(path).expect("readable")).expect("parses")
 }
 
+/// Every recording: Claude's, and Pi's as the Pi profile translates them.
 fn all_transcripts() -> Vec<(String, Transcript)> {
-    let mut names: Vec<String> = fs::read_dir(testdata().join("transcripts/claude-v2"))
-        .expect("transcripts exist")
-        .flatten()
-        .filter_map(|file| {
+    let mut names = Vec::new();
+    for set in ["claude-v2", "pi-v2"] {
+        for file in fs::read_dir(testdata().join("transcripts").join(set))
+            .expect("transcripts exist")
+            .flatten()
+        {
             let path = file.path();
-            (path.extension()? == "ndjson")
-                .then(|| path.file_stem()?.to_str().map(str::to_owned))?
-        })
-        .collect();
+            if path.extension().is_some_and(|ext| ext == "ndjson") {
+                names.push(format!(
+                    "{set}/{}",
+                    path.file_stem().unwrap().to_string_lossy()
+                ));
+            }
+        }
+    }
     names.sort();
-    assert!(names.len() >= 17);
+    assert!(names.len() >= 29);
     names
         .into_iter()
         .map(|name| {
+            println!("recording {name}");
             let transcript = transcript(&name);
             (name, transcript)
+        })
+        // These tests create the session; a recording that starts by reloading one cannot.
+        .filter(|(_, transcript)| {
+            transcript
+                .frames
+                .iter()
+                .any(|frame| frame.m["method"] == "session/new")
         })
         .collect()
 }
 
 /// The rendering stored for a transcript, without its heading lines.
 fn vector(name: &str) -> String {
-    let text = fs::read_to_string(testdata().join(format!("vectors/claude-v2/{name}.txt")))
+    let text = fs::read_to_string(testdata().join(format!("vectors/{}.txt", qualified(name))))
         .expect("vector exists");
     let (_, body) = text.split_once("\n\n").expect("heading, blank line, body");
     body.to_owned()
@@ -223,6 +247,9 @@ struct Driver {
     /// Requests from the agent that are waiting for the recorded answer.
     unanswered: VecDeque<Value>,
     last_seq: u64,
+    /// Responses that arrived before updates the recording has ahead of them. The daemon
+    /// holds a new session's updates back until the session exists, so that can happen.
+    early: Vec<Value>,
 }
 
 impl Driver {
@@ -245,7 +272,11 @@ impl Driver {
                     assert_eq!(told["params"]["outcome"], frame.m["result"]);
                 }
                 (Direction::In, None, Some(id)) => {
-                    let got = app.next_from_agent().await;
+                    let ours = json!(self.ids[&id.to_string()]);
+                    let got = match self.early.iter().position(|early| early["id"] == ours) {
+                        Some(at) => self.early.remove(at),
+                        None => app.next_from_agent().await,
+                    };
                     assert_eq!(got["id"], json!(self.ids[&id.to_string()]), "a response");
                     if method_of(frames, id) != Some("initialize") {
                         assert_eq!(
@@ -256,7 +287,14 @@ impl Driver {
                     }
                 }
                 (Direction::In, Some("session/update"), None) => {
-                    let got = self.numbered(app.next_from_agent().await);
+                    let got = loop {
+                        let got = app.next_from_agent().await;
+                        if got.get("method").is_some() {
+                            break got;
+                        }
+                        self.early.push(got);
+                    };
+                    let got = self.numbered(got);
                     assert_eq!(got["method"], "session/update");
                     assert_eq!(without_meta(&got["params"]), params, "passed on unchanged");
                 }
@@ -296,6 +334,7 @@ fn method_of<'a>(frames: &'a [Frame], id: &Value) -> Option<&'a str> {
 #[tokio::test]
 async fn every_recorded_session_passes_through_unchanged_and_replays_the_same() {
     for (name, transcript) in all_transcripts() {
+        println!("playing {name}");
         let server = Server::builder().agent(fake(&transcript)).start();
         let session = session_of(&transcript);
 

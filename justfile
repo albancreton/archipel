@@ -9,6 +9,7 @@ gen:
 
 # Rewrite the expected renderings in testdata/vectors after a deliberate change. Review the diff.
 vectors:
+    UPDATE_VECTORS=1 cargo test -q -p bridge-agents --test pi
     UPDATE_VECTORS=1 cargo test -q -p bridge-core --test transcripts
 
 # Start a daemon with a fake agent that replays a recorded session. Then use `target/debug/bridge --home target/demo-home …`.

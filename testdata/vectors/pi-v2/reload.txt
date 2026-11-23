@@ -1,0 +1,17 @@
+# pi-v2/reload
+# prompt: What was the codeword? One word.
+
+[user] Remember the codeword PAPAYA. Then read package.json and tell me its name field in one short sentence.
+[tool read completed] read
+    = {"name":"acp-probe","version":"1.0.0"}⏎
+[assistant] Noted the codeword PAPAYA. The package.json's name field is "acp-probe".
+[user] Spawn one subagent whose only task is to read tsconfig.json and reply with whether strict is true. Wait for it, then reply with exactly what it said.
+[tool other completed] subagent
+    = The `strict` option is true.
+[assistant] The subagent replied: "The `strict` option is true."
+[user] What was the codeword? One word.
+[thought] The user is asking for the password that I just told to remember. That was PAPAYA. However, "one word" — the password is "PAPAYA".⏎
+[assistant] PAPAYA
+-- state: idle end_turn background=0
+-- title: Remember the codeword PAPAYA. Then read package.json and tell me its name field
+-- events: replay_complete

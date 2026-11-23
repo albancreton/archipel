@@ -1,0 +1,11 @@
+# pi-v2/subagent
+# prompt: Spawn one subagent whose only task is to read package.json and reply with its name field. Wait for it to finish, then reply with exactly what it said.
+
+[user] Spawn one subagent whose only task is to read package.json and reply with its name field. Wait for it to finish, then reply with exactly what it said.
+[thought] The user is asking to launch one subagent, have it read the name field of package.json, and then return exactly that content.⏎
+[tool other completed] subagent
+    = acp-probe
+[thought] The user asked me to reply with exactly the same content the subagent said. The subagent said "acp-probe".⏎
+[assistant] acp-probe
+-- state: idle end_turn background=0
+-- title: Spawn one subagent whose only task is to read package.json and reply with its na

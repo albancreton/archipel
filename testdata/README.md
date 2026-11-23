@@ -13,12 +13,17 @@ One file per recorded session: every JSON-RPC message between a client and an AC
 | Set | Recorded from | With |
 |---|---|---|
 | `claude-v2/` | Claude Code 2.1.330 through `@agentclientprotocol/claude-agent-acp` 0.109.1, ACP v2, Haiku | `spikes/acp-probe/v2rec.mjs` |
+| `pi-v2/` | The Pi recordings in `adapters/pi-v1`, as the Pi profile translates them to ACP v2 | the test `recorded_pi_sessions_come_out_as_acp_v2` |
 
 The scenario names and several prompts are taken from or modelled on T3 Code's replay fixtures (MIT, Copyright (c) 2026 T3 Tools Inc.).
 
 To add a scenario, add it to `v2rec.mjs`, run `node v2rec.mjs <name>` (a live, paid call), then `just vectors` and read the new file in `vectors/`.
 
 A transcript can also stand in for an adapter: `bridged --fake <transcript>` replays it, and the daemon's tests do the same in-process (`bridge-agents`, `fake`).
+
+## adapters/
+
+Recordings of adapters that do not speak ACP v2, in the same file format. `pi-v1/` holds twelve sessions of Pi 1.6.0 through `pi-acp` 0.0.35 (ACP v1). They are the input of the Pi profile's tests; its output is `transcripts/pi-v2/`.
 
 ## vectors/
 

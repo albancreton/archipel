@@ -1,0 +1,11 @@
+# pi-v2/compact
+# prompt: Remember the codeword PAPAYA. Reply OK.
+# prompt: /compact
+
+[user] Remember the codeword PAPAYA. Reply OK.
+[thought] The user is asking me to remember the codeword PAPAYA and respond with OK. This seems like a simple instruction. I should just reply OK. There's nothing malicious about remembering a codeword... thoug… (+162 chars)
+[assistant] OK
+[user] /compact
+-- state: idle  background=0
+-- title: Remember the codeword PAPAYA. Reply OK.
+-- events: notice

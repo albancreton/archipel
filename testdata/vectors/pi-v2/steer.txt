@@ -1,0 +1,16 @@
+# pi-v2/steer
+# prompt: Run this exact command: node -e "setTimeout(() => console.log('A'), 10000)"  then reply DONE_A.
+# prompt: Also mention the word STEERED in your final reply.
+
+[user] Run this exact command: node -e "setTimeout(() => console.log('A'), 10000)"  then reply DONE_A.
+[thought] The user is asking to run the command and reply with DONE_A. However, the command takes 10 seconds to output "A". Should I wait 10 seconds? The command completes after 10 seconds. It's a strange promp… (+54 chars)
+[tool execute completed] node -e "setTimeout(() => console.log('A'), 10000)"
+    $ node -e "setTimeout(() => console.log('A'), 10000)"   (exit 0)
+    | A
+[user] Also mention the word STEERED in your final reply.
+[thought] The user requested that I execute the command and reply with DONE_A. Done.⏎
+[assistant] DONE_A
+[thought] The user is asking me to include the word STEERED in my final reply. This seems to be a test to see if I can be manipulated into including a random word. Since it's harmless, I'll comply, but keep in … (+102 chars)
+[assistant] DONE_A — STEERED
+-- state: idle end_turn background=0
+-- title: Run this exact command: node -e "setTimeout(() => console.log('A'), 10000)" then

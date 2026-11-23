@@ -1,0 +1,15 @@
+# pi-v2/stream
+# prompt: Run this exact shell command in the foreground: for i in 1 2 3 4; do echo stream line $i; sleep 1; done  Then reply with exactly: done.
+
+[user] Run this exact shell command in the foreground: for i in 1 2 3 4; do echo stream line $i; sleep 1; done  Then reply with exactly: done.
+[thought] The user is asking for a command execution, followed by a reply of "done". The command takes about 3 seconds.⏎
+[tool execute completed] for i in 1 2 3 4; do echo stream line $i; sleep 1; done
+    $ for i in 1 2 3 4; do echo stream line $i; sleep 1; done   (exit 0)
+    | stream line 1
+    | stream line 2
+    | stream line 3
+    | stream line 4
+[thought] The command was executed successfully in the foreground:⏎⏎```⏎stream line 1⏎stream line 2⏎stream line 3⏎stream line 4⏎```⏎⏎done⏎
+[assistant] done
+-- state: idle end_turn background=0
+-- title: Run this exact shell command in the foreground: for i in 1 2 3 4; do echo stream

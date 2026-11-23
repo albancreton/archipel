@@ -1,0 +1,11 @@
+# pi-v2/interrupt
+# prompt: Run this exact local command: node -e "console.log('interrupt fixture tool started'); setTimeout(() => {}, 30000)"  Do not answer until it completes.
+
+[user] Run this exact local command: node -e "console.log('interrupt fixture tool started'); setTimeout(() => {}, 30000)"  Do not answer until it completes.
+[thought] The user is requesting to execute this exact command. It sleeps for 30 seconds. I should run it and wait until it completes.⏎
+[tool execute failed] node -e "console.log('interrupt fixture tool started'); setTimeout(() => {}, 30000)"
+    $ node -e "console.log('interrupt fixture tool started'); setTimeout(() => {}, 30000)"   (exit 1)
+    | interrupt fixture tool started
+    | Command aborted
+-- state: idle cancelled background=0
+-- title: Run this exact local command: node -e "console.log('interrupt fixture tool start

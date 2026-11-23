@@ -11,6 +11,7 @@ name = "bridge"
 path = "src/bin/bridge.rs"
 
 [dependencies]
+base64 = "0.23.1"
 bridge-core = { path = "../bridge-core" }
 bridge-schema = { path = "../bridge-schema" }
 bridge-transport = { path = "../bridge-transport" }

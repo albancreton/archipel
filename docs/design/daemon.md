@@ -1,6 +1,6 @@
 # Daemon design
 
-Draft 8, 2026-11-22: based on ACP v2; milestones 0 to 3 done (`docs/research/11` to `14`). The daemon runs, with scopes and with the harness's own sessions. "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
+Draft 9, 2026-11-22: based on ACP v2; milestones 0 to 4 done (`docs/research/11` to `15`). The daemon runs Claude and Pi side by side. "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
 
 ## 1. What the daemon is for
 
@@ -146,7 +146,7 @@ Each recorded transcript has a readable rendering of the resulting items in `tes
 
 ## 6. Adapter profiles
 
-One profile per adapter: how to start it, which protocol version and capabilities to use, and how to bring its output to the canonical form.
+One profile per adapter: whatever it takes for the adapter to look, to the daemon, like an ACP v2 adapter that hosts many sessions. The daemon itself has no code for any particular harness (done, `docs/research/15`).
 
 ### Claude (`claude-agent-acp`, v2)
 
@@ -160,7 +160,7 @@ Driven over v2, so little translation is needed.
 
 ### Pi (`pi-acp`, v1)
 
-Translated up to v2 by the daemon.
+Translated up to v2 by a translator that sits between the daemon and `pi-acp` (`crates/bridge-agents/src/pi.rs`). It also runs one `pi-acp` per session behind one connection (section 8). Tested on twelve recordings and live.
 
 | v1 behaviour | Canonical form |
 |---|---|
@@ -352,7 +352,7 @@ Two rules:
 1. **Schema and core.** Done; see `docs/research/12`.
 2. **Single-session daemon.** Done; see `docs/research/13`. Fan-out to several apps and "first answer wins" came with it.
 3. **Several apps.** Done except Windows; see `docs/research/14`. Scopes, harness sessions listed and adopted, session-list notifications, remembered setup, retention.
-4. **Adapter profiles for Claude and Pi.** Section 6, with a recorded transcript for each rule, and the full scenario set rerun on v2.
+4. **Adapter profiles for Claude and Pi.** Done; see `docs/research/15`.
 5. **Extensions.** Namespaced items and extension peers, proven with a toy checkpoint extension.
 6. **Client SDKs and UI kits.** TypeScript and Swift SDKs; a React and a SwiftUI chat view rendering the same session.
 7. **Remote.** Pairing, tokens, SSH stdio mode, Tailscale notes.

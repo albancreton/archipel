@@ -82,9 +82,14 @@ impl Fake {
             };
             let result = match got {
                 "session/list" => Some(json!({"sessions": self.recorded_session()})),
-                "session/resume" => {
-                    if message["params"].get("replayFrom").is_some() {
-                        for update in self.recorded_updates() {
+                // ACP v1's `session/load` always replays; v2's `session/resume` only when asked.
+                "session/resume" | "session/load" => {
+                    if got == "session/load" || message["params"].get("replayFrom").is_some() {
+                        let mut updates = self.recorded_updates();
+                        if got == "session/load" {
+                            updates.pop(); // v1 has no marker for the end of a replay
+                        }
+                        for update in updates {
                             self.link.tx.send(update).await.ok()?;
                         }
                     }

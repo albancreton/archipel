@@ -1,0 +1,11 @@
+# pi-v2/question
+# prompt: Use the AskUserQuestion tool to ask me one question: which colour I prefer, with options Red and Blue. Then reply with exactly the option I chose.
+
+[user] Use the AskUserQuestion tool to ask me one question: which colour I prefer, with options Red and Blue. Then reply with exactly the option I chose.
+[thought] The AskUserQuestion tool isn't in my list. Maybe it's not provided. Should I try tool_search to find it? It's probably an interactive tool that's supposed to display UI. Let me search.⏎
+[tool other completed] tool_search
+    = Loaded 1 tool. They are available from your next call:⏎- mcp__chrome_devtools__emulate: Emulates various features on the selected page.
+[thought] tool_search ended up loading an unrelated tool. The AskUserQuestion tool doesn't exist. I can't call a tool that isn't declared. So I should let the user know that the AskUserQuestion tool isn't avail… (+50 chars)
+[assistant] I don't have an AskUserQuestion tool available in this session — my tool search only turned up an unrelated browser tool. So I'll ask in plain text instead:⏎⏎**Which colour do you prefer?**⏎- Red⏎- Bl… (+67 chars)
+-- state: idle end_turn background=0
+-- title: Use the AskUserQuestion tool to ask me one question: which colour I prefer, with

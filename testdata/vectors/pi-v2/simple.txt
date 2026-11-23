@@ -1,0 +1,8 @@
+# pi-v2/simple
+# prompt: Respond with the following text: fixture simple ok
+
+[user] Respond with the following text: fixture simple ok
+[thought] The user wants to confirm that I'm working. I should reply with the specified text as-is.⏎
+[assistant] fixture simple ok
+-- state: idle end_turn background=0
+-- title: Respond with the following text: fixture simple ok

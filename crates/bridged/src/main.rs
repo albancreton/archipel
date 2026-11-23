@@ -1,6 +1,6 @@
 //! `bridged`: the daemon. One per user per machine.
 
-use bridge_agents::{AgentSpec, Fake, Process, claude};
+use bridge_agents::{AgentSpec, Fake, Process, claude, pi::Pi};
 use bridge_core::transcript::Transcript;
 use bridge_server::{Scope, Server, SqliteStore};
 use bridge_transport::{local::LocalServer, ws};
@@ -47,6 +47,8 @@ config.json:
                \"args\": [], \"env\": {}}],
    \"retentionDays\": 30}
 Without it, one agent `claude` is started as `claude-agent-acp` from PATH.
+Pi: {\"id\": \"pi\", \"profile\": \"pi\", \"command\": \"pi-acp\", \"model\": \"provider/model\",
+     \"idleSeconds\": 600}. One pi process runs per session and is stopped when idle.
 retentionDays: remove sessions from the log when unused for that long (default: never). The
 harness keeps its own copy; a removed session stays listed and is loaded again when opened.
 ";
@@ -148,8 +150,13 @@ struct AgentConfig {
     id: String,
     /// Shown to users. Defaults to the id.
     name: Option<String>,
-    /// `claude` applies the Claude Code settings. Absent: a plain ACP v2 adapter.
+    /// `claude` applies the Claude Code settings; `pi` puts the Pi translator in front of
+    /// `pi-acp`. Absent: a plain ACP v2 adapter.
     profile: Option<String>,
+    /// Pi only: the model to select in every new session.
+    model: Option<String>,
+    /// Pi only: stop a session's process after this many seconds without a turn (default 600).
+    idle_seconds: Option<u64>,
     command: String,
     #[serde(default)]
     args: Vec<String>,
@@ -193,6 +200,8 @@ fn agents(home: &Path, args: &mut Vec<String>) -> Result<(Vec<AgentSpec>, Option
                 id: "claude".into(),
                 name: None,
                 profile: Some("claude".into()),
+                model: None,
+                idle_seconds: None,
                 command: "claude-agent-acp".into(),
                 args: Vec::new(),
                 env: BTreeMap::new(),
@@ -213,6 +222,14 @@ fn agents(home: &Path, args: &mut Vec<String>) -> Result<(Vec<AgentSpec>, Option
             };
             let mut spec = match agent.profile.as_deref() {
                 Some("claude") => claude(process),
+                Some("pi") => {
+                    let mut pi = Pi::new(Arc::new(process));
+                    pi.model = agent.model;
+                    if let Some(seconds) = agent.idle_seconds {
+                        pi.idle = Duration::from_secs(seconds);
+                    }
+                    pi.spec()
+                }
                 None => AgentSpec {
                     id: String::new(),
                     name: agent.id.clone(),
