@@ -62,8 +62,33 @@ Cost: 12 short Haiku turns for Claude, and Pi on the local model.
 
 ## Not done, and limits
 
-- **An addon cannot yet see the adapter's answers, make requests of its own, or add items and methods.** Nothing needed them. A feature addon such as rewind will, and they are added then.
+- **An addon cannot yet see the adapter's answers, make requests of its own, or add items and methods.** Nothing needed them. A feature addon such as rewind will, and they are added then. _(Added the same evening at the user's request: see the section at the end.)_
 - **Addons are compiled in.** Somebody who uses the released `bridged` binary cannot add one without building their own daemon. `examples/own-daemon` shows that this is five lines, but it is a build.
 - **Problem 3 is solved only as far as the settings can be restored.** If a model is gone when the session wakes, the adapter skips it and the display changes at that moment, as before. The app is not told why.
 - **The plan-mode behaviour seen once in note 23** (Haiku selected, turns on Sonnet) is untouched and still has no scenario.
 - **The SDKs do not act on `_bridge/sessions/removed` yet**, as they do not on `_bridge/sessions/updated`. Both have the name as a constant only.
+
+## Later the same day: the full set of capabilities
+
+The user asked to "fully feature and test the addon capabilities, allowing to see and manipulate requests and responses". The first version had two hooks. It now covers every message in both directions; the table is in `docs/design/addons.md`.
+
+What was added:
+
+- Hooks for the answer to a request (`response`), an app's notification (`notification`), a request the adapter makes of the user (`agent_request`) and the user's answer to it (`answer`).
+- A request can be answered by an addon, not only refused, and it can be held and released later.
+- An addon can send requests of its own to the adapter and gets the answers (`reply`), can add updates to a session, and can serve methods under `_x/`.
+- `initialize` now passes the hooks like every other request, so an addon can change what the daemon declares to an adapter and what the adapter's capabilities look like to apps.
+- Every request has a number that the `request` and `response` hooks both receive, so an addon can pair them.
+
+Decisions taken on the way:
+
+- **Addons are layers.** With more than one addon the order has to mean something. The first added is nearest the app. A message passes the layers in one order going out and the reverse coming back, and an addon that answers a request is the adapter for the layers nearer the app. This is the usual middleware model; anything else made the "who sees what" question unanswerable.
+- **An addon's own messages start at its layer.** Its requests pass only the layers nearer the adapter, its updates only those nearer the app, and it never sees them itself. Otherwise an addon that reacts to a request by sending one would trigger itself.
+- **Actions happen when the hook returns, before the message moves on.** A hook cannot wait for anything, because the daemon handles one message at a time. So an addon asks for things and the daemon carries them out right after. Waiting for an answer is done by holding the request.
+- **A hold has no timeout.** The addon that holds is responsible for releasing. If the adapter stops, held requests fail like any open request.
+- **A request of the adapter answered by an addon stays in the history**, as the request and its resolution with `resolvedBy: "addon <id>"`. An approval given by a rule should be as visible afterwards as one given by a person.
+- **The log is read through the context**, by session id, not handed over with the request. Hooks that have no session at hand can still read one.
+
+Checked: twelve tests with a scripted adapter, one per capability and one for the layering with two addons, each reading what the adapter and the app actually received. They were run eight times in a row without a failure. Then the live conformance scenarios again, because the path every message takes had changed: Claude's free scenarios and `reopen.keeps_settings` (six Haiku turns), and Pi's two, all `same`.
+
+The four things still left out are listed in the design note.

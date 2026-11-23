@@ -23,30 +23,62 @@ The daemon already had extensions (`daemon.md`, section 11). The two do differen
 |---|---|---|
 | Runs | In its own process, any language | Inside the daemon, Rust |
 | Connects | Like an app, with the `extend` scope | Compiled in |
-| Can | Add its own items to a session and serve its own methods | See, change and stop the messages between the daemon and an adapter |
-| Cannot | Touch what the harness and the apps say to each other | Add items or methods of its own (not yet, see below) |
+| Can | Add its own items to a session and serve its own methods | The same, and see, change, stop and answer the messages between an app and an adapter |
+| Cannot | Touch what the harness and the apps say to each other | Run outside the daemon or be written in another language |
 | If it crashes | The daemon goes on | The daemon crashes |
 
 ## The interface
 
 An addon is a Rust type that implements the trait `Addon` from the crate `bridge-addon-api`. That crate depends only on `serde_json`, so an addon crate does not pull in the daemon.
 
-| Method | Called | The addon may |
+An addon sees every message between an app and an adapter, in both directions:
+
+| Message | Hook | The addon may |
 |---|---|---|
-| `info()` | When listing | Say its id, kind, what it does, what fault it stands in for, what has to happen upstream for it to go, and which conformance scenario checks that |
-| `applies(agent)` | For every message | Limit itself by harness (`claude`, `pi`), adapter name and version, advertised capabilities, operating system |
-| `request(request)` | Before the daemon sends a request to an adapter: an app's, or its own such as the `session/resume` that wakes a session | Change the params, or refuse (the asker gets a JSON-RPC error marked with the addon's id). It can read the session's log |
-| `update(update)` | When an adapter sends a `session/update`, before it is logged and passed to apps | Change it, or drop it |
+| A request to the adapter: an app's, or the daemon's own (`initialize`, the `session/resume` that wakes a session, `session/list`) | `request` | Change the params; refuse it; answer it itself; hold it |
+| The answer to such a request | `response` | Change it, also from an error to a result or back. It gets the request's method and params, and the same request number as `request` did |
+| A notification from an app, such as `session/cancel` | `notification` | Change it or drop it |
+| A `session/update` from the adapter | `update` | Change it or drop it, before it is logged and passed to apps |
+| A request the adapter makes of the user: an approval, a question | `agent_request` | Change it; refuse it; answer it in the user's place |
+| The user's answer to such a request | `answer` | Change it |
 
-Every method except `info` has a default that does nothing. Addons see a message in the order they were added.
+Besides reacting, an addon can act. It does so through the context every hook receives (`Cx`):
 
-Rules an addon lives by:
+| Action | What happens |
+|---|---|
+| `cx.call(method, params)` | Sends a request of the addon's own to the adapter. The answer arrives in the hook `reply`. If the adapter stops first, the reply is an error |
+| `cx.append(session, update)` | Adds an update to a session. It is logged, replayed and sent to apps like the adapter's, marked `_meta.bridge = {origin: "addon", addon: <id>}` |
+| `Verdict::Hold`, then `cx.release(…)` or `cx.release_with(params)` | Keeps a request until the addon lets it go on, changes it, refuses it or answers it, from any later hook. Other requests are not kept waiting |
+| `cx.last_update(session, kind)` | Reads the most recent update of a kind from the session's log |
 
-- The daemon handles one message at a time on one task and calls the hooks from there. A hook returns quickly and does not block.
+And it can serve methods of its own: an app's call to a method under `_x/` is offered to the addons in order (hook `method`) before it goes to an extension. An addon can hold such a call too, for example to ask the adapter something first.
+
+Two more methods describe the addon: `info()` (its id, kind, what it does, what fault it stands in for, what has to happen upstream for it to go, which conformance scenario checks that) and `applies(agent)` (limits it by harness, adapter name and version, advertised capabilities, operating system). Every hook has a default that does nothing.
+
+### Several addons are layers
+
+The first addon added is nearest the app, the last nearest the adapter. A message towards the adapter passes them first to last; a message towards the app last to first.
+
+- An addon that answers a request itself is the adapter as far as the layers nearer the app can tell: they see the response, the layers nearer the adapter see nothing. The same holds the other way round for a request of the adapter answered in the user's place.
+- What an addon sends itself starts at its own layer. Its request passes the layers nearer the adapter, there and back, and its update passes the layers nearer the app. It is never shown its own messages.
+
+### Rules an addon lives by
+
+- The daemon handles one message at a time on one task and calls the hooks from there. A hook returns quickly and does not block. An addon that has to wait holds the request and releases it from a later hook.
+- What an addon asks for through `Cx` happens when its hook returns, before the message it was looking at moves on. So a request it sends from the `request` hook reaches the adapter before the request it was looking at.
+- A held request that is never released is never answered, unless its adapter stops. There is no timeout.
 - An addon keeps no state that must survive a restart. What it needs to know about a session it reads from the log.
 - Ids are `<scope>.<name>`: `acp.` for any adapter, `claude.`, `pi.` for one harness, anything else for a consumer's own.
+- While `initialize` itself passes the hooks, the adapter's name, version and capabilities are not known yet, so an addon that limits itself by those does not see it.
 
-These four methods are what the first addons needed. More hooks are added when an addon needs them, not before. Known candidates: the adapter's answer to a request, an addon's own requests to the adapter, items and methods of its own (what an extension can do today from outside).
+What is still left out:
+
+- A request of the adapter cannot be held, only passed, changed, refused or answered.
+- A request of the adapter that an addon answers is still sent to the attached apps, followed at once by its resolution, because that is how the log records it. An app sees it appear and resolve.
+- Notifications from an adapter other than `session/update` are not shown to addons. The daemon drops them, except the login state.
+- An addon cannot send a request to an app, or a notification to an adapter.
+
+`crates/bridge-server/tests/addons.rs` has one test per capability and is the reference for exact behaviour.
 
 ## Where addons come from
 
