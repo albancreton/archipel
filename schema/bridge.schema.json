@@ -1,0 +1,336 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Bridge extensions to ACP v2 (draft)",
+  "description": "Root type used only to generate `schema/bridge.schema.json`.",
+  "type": "object",
+  "properties": {
+    "meta": {
+      "$ref": "#/$defs/BridgeMeta"
+    },
+    "listAgentsRequest": {
+      "$ref": "#/$defs/ListAgentsRequest"
+    },
+    "listAgentsResponse": {
+      "$ref": "#/$defs/ListAgentsResponse"
+    },
+    "listSessionsRequest": {
+      "$ref": "#/$defs/ListSessionsRequest"
+    },
+    "listSessionsResponse": {
+      "$ref": "#/$defs/ListSessionsResponse"
+    },
+    "attachSessionRequest": {
+      "$ref": "#/$defs/AttachSessionRequest"
+    },
+    "attachSessionResponse": {
+      "$ref": "#/$defs/AttachSessionResponse"
+    },
+    "detachSessionRequest": {
+      "$ref": "#/$defs/DetachSessionRequest"
+    },
+    "detachSessionResponse": {
+      "$ref": "#/$defs/DetachSessionResponse"
+    },
+    "requestResolvedNotification": {
+      "$ref": "#/$defs/RequestResolvedNotification"
+    }
+  },
+  "required": [
+    "meta",
+    "listAgentsRequest",
+    "listAgentsResponse",
+    "listSessionsRequest",
+    "listSessionsResponse",
+    "attachSessionRequest",
+    "attachSessionResponse",
+    "detachSessionRequest",
+    "detachSessionResponse",
+    "requestResolvedNotification"
+  ],
+  "$defs": {
+    "BridgeMeta": {
+      "description": "Added by the daemon under `_meta.bridge` on every `session/update` it sends.",
+      "type": "object",
+      "properties": {
+        "seq": {
+          "description": "Position of this update in the session's log. Starts at 1 and has no gaps.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "itemId": {
+          "description": "Set only when the update carries no usable id of its own.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "seq"
+      ]
+    },
+    "ListAgentsRequest": {
+      "description": "`_bridge/agents/list` request.",
+      "type": "object"
+    },
+    "ListAgentsResponse": {
+      "type": "object",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentInfo"
+          }
+        }
+      },
+      "required": [
+        "agents"
+      ]
+    },
+    "AgentInfo": {
+      "description": "One agent the daemon can start.",
+      "type": "object",
+      "properties": {
+        "agentId": {
+          "description": "Stable id used in other calls, such as `claude` or `pi`.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "description": "Version of the adapter, when known.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "readiness": {
+          "$ref": "#/$defs/AgentReadiness"
+        },
+        "detail": {
+          "description": "Human-readable explanation when the agent is not ready.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "agentId",
+        "name",
+        "readiness"
+      ]
+    },
+    "AgentReadiness": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "ready",
+            "not_installed",
+            "error"
+          ]
+        },
+        {
+          "description": "Installed, but the user has to log in with the harness itself.",
+          "type": "string",
+          "const": "needs_login"
+        }
+      ]
+    },
+    "ListSessionsRequest": {
+      "description": "`_bridge/sessions/list` request.",
+      "type": "object",
+      "properties": {
+        "agentId": {
+          "description": "Only sessions of this agent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cursor": {
+          "description": "From a previous response, to get the next page.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "ListSessionsResponse": {
+      "type": "object",
+      "properties": {
+        "sessions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionSummary"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "sessions"
+      ]
+    },
+    "SessionSummary": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "agentId": {
+          "type": "string"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "live": {
+          "description": "True when an adapter process currently holds the session.",
+          "type": "boolean"
+        },
+        "state": {
+          "description": "The last ACP `state_update` state, such as `idle` or `running`, when known.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "headSeq": {
+          "description": "Sequence number of the newest update in the log.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "updatedAt": {
+          "description": "RFC 3339 time of the newest update.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "sessionId",
+        "agentId",
+        "cwd",
+        "live",
+        "headSeq"
+      ]
+    },
+    "AttachSessionRequest": {
+      "description": "`_bridge/session/attach` request: start receiving a session's updates.",
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "afterSeq": {
+          "description": "The last sequence number the client has applied. Absent to get the whole session.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
+    "AttachSessionResponse": {
+      "type": "object",
+      "properties": {
+        "catchUp": {
+          "description": "How the client is brought up to date.",
+          "$ref": "#/$defs/CatchUp"
+        },
+        "headSeq": {
+          "description": "Sequence number of the newest update at the time of the response.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "catchUp",
+        "headSeq"
+      ]
+    },
+    "CatchUp": {
+      "oneOf": [
+        {
+          "description": "The updates after `afterSeq` follow. The client keeps its state.",
+          "type": "string",
+          "const": "delta"
+        },
+        {
+          "description": "A condensed replay of the whole session follows, ending with `replay_complete`.\nThe client discards its state for this session first.",
+          "type": "string",
+          "const": "replay"
+        }
+      ]
+    },
+    "DetachSessionRequest": {
+      "description": "`_bridge/session/detach` request: stop receiving updates. The session keeps running.",
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
+    "DetachSessionResponse": {
+      "type": "object"
+    },
+    "RequestResolvedNotification": {
+      "description": "`_bridge/request/resolved`: a pending approval or question was answered, possibly by another client.",
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "requestId": {
+          "description": "The id the daemon used for the request towards this client."
+        },
+        "method": {
+          "description": "The method of the request, such as `session/request_permission`.",
+          "type": "string"
+        },
+        "outcome": {
+          "description": "The answer that was given, in the shape of the method's response."
+        },
+        "resolvedBy": {
+          "description": "A label for the client that answered, when known.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "sessionId",
+        "requestId",
+        "method",
+        "outcome"
+      ]
+    }
+  }
+}

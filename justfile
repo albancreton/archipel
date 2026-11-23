@@ -3,9 +3,13 @@
 default:
     @just --list
 
-# Regenerate types from schema/ (nothing to generate yet).
+# Regenerate schema/state-rules.json and schema/bridge.schema.json.
 gen:
-    @echo "gen: no generators wired yet"
+    cargo run -q -p bridge-schema --bin gen
+
+# Rewrite the expected renderings in testdata/vectors after a deliberate change. Review the diff.
+vectors:
+    UPDATE_VECTORS=1 cargo test -q -p bridge-core --test transcripts
 
 # Format, lint and type-check everything.
 check:

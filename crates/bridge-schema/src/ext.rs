@@ -1,0 +1,176 @@
+//! The daemon's extensions to ACP v2. Draft: names and fields may change before the first release.
+//!
+//! ACP reserves method names starting with `_` and the `_meta` field for extensions.
+
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+/// The key under `_meta` that holds [`BridgeMeta`].
+pub const META_KEY: &str = "bridge";
+
+pub const METHOD_AGENTS_LIST: &str = "_bridge/agents/list";
+pub const METHOD_SESSIONS_LIST: &str = "_bridge/sessions/list";
+pub const METHOD_SESSION_ATTACH: &str = "_bridge/session/attach";
+pub const METHOD_SESSION_DETACH: &str = "_bridge/session/detach";
+pub const NOTIFICATION_REQUEST_RESOLVED: &str = "_bridge/request/resolved";
+
+/// Added by the daemon under `_meta.bridge` on every `session/update` it sends.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BridgeMeta {
+    /// Position of this update in the session's log. Starts at 1 and has no gaps.
+    pub seq: u64,
+    /// Set only when the update carries no usable id of its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub item_id: Option<String>,
+}
+
+/// `_bridge/agents/list` request.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ListAgentsRequest {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ListAgentsResponse {
+    pub agents: Vec<AgentInfo>,
+}
+
+/// One agent the daemon can start.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentInfo {
+    /// Stable id used in other calls, such as `claude` or `pi`.
+    pub agent_id: String,
+    pub name: String,
+    /// Version of the adapter, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    pub readiness: AgentReadiness,
+    /// Human-readable explanation when the agent is not ready.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentReadiness {
+    Ready,
+    /// Installed, but the user has to log in with the harness itself.
+    NeedsLogin,
+    NotInstalled,
+    Error,
+}
+
+/// `_bridge/sessions/list` request.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ListSessionsRequest {
+    /// Only sessions of this agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    /// From a previous response, to get the next page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ListSessionsResponse {
+    pub sessions: Vec<SessionSummary>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSummary {
+    pub session_id: String,
+    pub agent_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    pub cwd: String,
+    /// True when an adapter process currently holds the session.
+    pub live: bool,
+    /// The last ACP `state_update` state, such as `idle` or `running`, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<String>,
+    /// Sequence number of the newest update in the log.
+    pub head_seq: u64,
+    /// RFC 3339 time of the newest update.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
+/// `_bridge/session/attach` request: start receiving a session's updates.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachSessionRequest {
+    pub session_id: String,
+    /// The last sequence number the client has applied. Absent to get the whole session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_seq: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachSessionResponse {
+    /// How the client is brought up to date.
+    pub catch_up: CatchUp,
+    /// Sequence number of the newest update at the time of the response.
+    pub head_seq: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CatchUp {
+    /// The updates after `afterSeq` follow. The client keeps its state.
+    Delta,
+    /// A condensed replay of the whole session follows, ending with `replay_complete`.
+    /// The client discards its state for this session first.
+    Replay,
+}
+
+/// `_bridge/session/detach` request: stop receiving updates. The session keeps running.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DetachSessionRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DetachSessionResponse {}
+
+/// `_bridge/request/resolved`: a pending approval or question was answered, possibly by another client.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RequestResolvedNotification {
+    pub session_id: String,
+    /// The id the daemon used for the request towards this client.
+    pub request_id: Value,
+    /// The method of the request, such as `session/request_permission`.
+    pub method: String,
+    /// The answer that was given, in the shape of the method's response.
+    pub outcome: Value,
+    /// A label for the client that answered, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_by: Option<String>,
+}
+
+/// Root type used only to generate `schema/bridge.schema.json`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BridgeExtensions {
+    pub meta: BridgeMeta,
+    pub list_agents_request: ListAgentsRequest,
+    pub list_agents_response: ListAgentsResponse,
+    pub list_sessions_request: ListSessionsRequest,
+    pub list_sessions_response: ListSessionsResponse,
+    pub attach_session_request: AttachSessionRequest,
+    pub attach_session_response: AttachSessionResponse,
+    pub detach_session_request: DetachSessionRequest,
+    pub detach_session_response: DetachSessionResponse,
+    pub request_resolved_notification: RequestResolvedNotification,
+}
