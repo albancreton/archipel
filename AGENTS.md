@@ -23,7 +23,7 @@ Each of these is small. Copy the one that matches the task. The last column says
 | Change, stop or answer what the harness and the apps say to each other; fix a harness fault | `examples/own-daemon` (an addon) | Its own test |
 | Draw a session in a browser with React | `ui/react/demo/live.tsx` | Type-checked only. The components it uses are tested |
 | Draw a session in a macOS or iOS app with SwiftUI | `ui/swift/Demo/BridgeChatDemo.swift` | Compiled only. The views it uses are tested |
-| Run the daemon as a service (launchd, systemd) | `examples/service/` | The launchd file is linted. Neither was loaded into a service manager |
+| Run the daemon as a service (launchd, systemd) | `examples/service/` | The launchd file is linted, and was loaded and exercised by hand once. The systemd file was never loaded |
 
 How to run each is at the top of the file, or in the README next to it.
 

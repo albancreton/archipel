@@ -47,4 +47,8 @@ loginctl enable-linger "$USER"           # optional: keep it running when you ar
 - **Remote access** (`--ws ADDR`) is one more argument: see `docs/remote.md`.
 - **Windows** is not covered: the daemon does not run there yet.
 
-How far this was checked: the macOS file passes `plutil -lint` in the tests. Neither file was loaded into a service manager while writing this.
+How far this was checked:
+
+- **macOS: run by hand on 2026-11-23** (macOS 27, on a test home folder). Loaded with the commands above, the daemon started and a Claude session was made and deleted through it. Killed with `kill -9`, launchd started it again. `launchctl kickstart -k` restarted it. `bootout` stopped and removed it. With `PATH` set to `/usr/bin:/bin`, the agent failed with "could not start the agent: node: No such file or directory", as described above.
+- **Linux: not run.** The unit file was written from systemd's documentation and has not been loaded.
+- The tests only lint the macOS file (`plutil -lint`).

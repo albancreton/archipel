@@ -50,7 +50,8 @@ Decisions taken in the examples, on the questions that were open:
 
 - The three Node examples run in a test against the real daemon program with the fake agent. The Rust example has its own test, in-process and through its socket.
 - All of it: 96 Rust tests, 46 TypeScript, 33 React, 4 for the examples, the Swift suites; lint and type checks clean.
-- **Not checked:** the service files were not loaded into launchd or systemd; only the macOS file is linted. The React and SwiftUI demos are compiled or type-checked, not run by a test. Nothing here was run against a real harness, since none of it depends on one.
+- **The launchd file, by hand**, after the user agreed to have a service loaded on their machine: it starts the daemon, a Claude session was made and deleted through it, launchd restarts it after `kill -9`, `kickstart -k` restarts it, `bootout` removes it. With a bare `PATH` the agent fails to start with "node: No such file or directory", which confirms the trap. Everything was removed afterwards.
+- **Not checked:** the systemd file was never loaded. The React and SwiftUI demos are compiled or type-checked, not run by a test. Nothing here was run against a real harness, since none of it depends on one.
 
 ## Found on the way
 
