@@ -13,7 +13,9 @@ use std::{io::Write as _, process::ExitCode, time::Duration};
 const USAGE: &str = "\
 bridge: talk to the harness-bridge daemon
 
-  bridge agents                          the agents the daemon can start
+  bridge agents                          start every agent the daemon has and say whether each
+                                         works: `ready`, `needs_login`, or `error` with the
+                                         reason. Fails unless all are ready. Run this first
   bridge sessions [--logged]             all sessions, newest first. `+` marks those only the
                                          harness knows; opening one loads its history.
                                          --logged leaves those out and starts no agent
@@ -85,16 +87,29 @@ async fn run(mut args: Vec<String>) -> Result<(), Failure> {
     let (mut daemon, _) = Connection::open(&endpoint, "bridge-cli").await?;
     match command.as_str() {
         "agents" => {
+            // The daemon starts an agent when it is first needed, and only then knows
+            // whether it can. Asking each for its sessions starts it, and costs nothing.
+            let known = daemon.call(ext::METHOD_AGENTS_LIST, json!({})).await?;
+            for agent in known["agents"].as_array().into_iter().flatten() {
+                let only = json!({"agentId": text(agent, "agentId")});
+                let _ = daemon.call(ext::METHOD_SESSIONS_LIST, only).await;
+            }
             let listed = daemon.call(ext::METHOD_AGENTS_LIST, json!({})).await?;
+            let mut unusable = 0;
             for agent in listed["agents"].as_array().into_iter().flatten() {
+                let readiness = text(agent, "readiness");
                 println!(
-                    "{:<10} {:<14} {:<8} {} {}",
+                    "{:<10} {:<14} {:<11} {} {}",
                     text(agent, "agentId"),
                     text(agent, "name"),
-                    text(agent, "readiness"),
+                    readiness,
                     text(agent, "version"),
                     text(agent, "detail"),
                 );
+                unusable += usize::from(readiness != "ready");
+            }
+            if unusable > 0 {
+                return Err(format!("{unusable} agent(s) cannot be used as they are").into());
             }
         }
         "sessions" => {

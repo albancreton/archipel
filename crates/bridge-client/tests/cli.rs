@@ -1,6 +1,6 @@
 //! Runs the `bridge` program against a daemon on a local socket, with a fake adapter.
 
-use bridge_agents::{AgentSpec, Fake};
+use bridge_agents::{AgentSpec, Fake, Process};
 use bridge_core::transcript::Transcript;
 use bridge_server::Server;
 use bridge_transport::local::LocalServer;
@@ -138,6 +138,71 @@ async fn the_command_line_client_creates_prompts_watches_and_shows_a_session() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(String::from_utf8_lossy(&output.stdout), shown);
+    server.shutdown().await;
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+/// What somebody runs first: is every agent usable, and if not, why not?
+#[tokio::test(flavor = "multi_thread")]
+async fn agents_starts_each_agent_and_fails_with_the_reason_when_one_cannot_start() {
+    let testdata = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata");
+    let recorded =
+        fs::read_to_string(testdata.join("transcripts/claude-v2/simple.ndjson")).unwrap();
+    let dir = std::env::temp_dir().join(format!("bridge-cli-agents-{}", std::process::id()));
+    fs::create_dir_all(&dir).unwrap();
+    let socket = dir.join("daemon.sock");
+    let listener = LocalServer::bind(&socket).unwrap();
+    let working = AgentSpec {
+        id: "works".into(),
+        name: "Fake".into(),
+        harness: None,
+        launcher: Arc::new(Fake {
+            transcript: Transcript::parse(&recorded).unwrap(),
+            speed: 0.0,
+        }),
+    };
+    // Not the first agent, so nothing but this command would have started it.
+    let missing = AgentSpec {
+        id: "missing".into(),
+        name: "Not installed".into(),
+        harness: None,
+        launcher: Arc::new(Process {
+            command: "/no/such/adapter".into(),
+            ..Process::default()
+        }),
+    };
+    let server = Server::builder().agent(working).agent(missing).start();
+    let accepting = server.clone();
+    tokio::spawn(async move {
+        while let Ok(link) = listener.accept().await {
+            accepting.connect(link);
+        }
+    });
+
+    let output = Command::new(env!("CARGO_BIN_EXE_bridge"))
+        .arg("--socket")
+        .arg(&socket)
+        .arg("agents")
+        .output()
+        .await
+        .expect("bridge runs");
+    let (printed, said) = (
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let lines: Vec<&str> = printed.lines().collect();
+    assert!(
+        lines[0].starts_with("works") && lines[0].contains(" ready "),
+        "{printed}"
+    );
+    assert!(
+        lines[1].starts_with("missing")
+            && lines[1].contains(" error ")
+            && lines[1].contains("could not start the agent: /no/such/adapter"),
+        "{printed}"
+    );
+    assert!(!output.status.success());
+    assert!(said.contains("1 agent(s) cannot be used"), "{said}");
     server.shutdown().await;
     fs::remove_dir_all(&dir).unwrap();
 }

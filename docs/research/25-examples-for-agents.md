@@ -56,3 +56,26 @@ Decisions taken in the examples, on the questions that were open:
 ## Found on the way
 
 `examples/*` was a glob in the Cargo workspace, so a folder there without a `Cargo.toml` broke the build. The members are now listed by name.
+
+## Later the same day: do we need `bridged setup` and `service install`?
+
+Asked by the user. Answer given: no. Both are conveniences for a person installing by hand, and the reader is an agent with the example in front of it. A product will also want its own service label, binary and installer, which a built-in command would decide for it. What is left of "setup" that an agent cannot do from `--help` is diagnosis, and the daemon already has the data. So two things were done instead.
+
+**`bridge agents` now checks.** It existed, but it only printed what the daemon knew, and the daemon knows whether an agent can start only once it has tried: an agent that was never used read `ready`. The command now asks each agent for its sessions first, which starts it and costs nothing, then prints the state and the reason, and exits with an error unless every agent is ready. A test has a working agent and one whose program does not exist.
+
+**The fresh-install path was run.** This machine had no adapter on `PATH`; every test so far used a copy inside `spikes/`. What a new user does was done in a throwaway folder (`npm install -g --prefix …`, so the real global folder was not touched), with that folder's `bin` first on `PATH` and a daemon home with no `config.json`:
+
+| Step | Result |
+|---|---|
+| `npm install -g @agentclientprotocol/claude-agent-acp` | 108 packages, 420 MB, version 0.110.1 (needs Node 22 or later) |
+| `bridged --home <empty folder>` | Started with one agent, `claude` |
+| `bridge agents` | `claude  Claude Code  ready  0.110.1` |
+| `bridge new`, `bridge set … model haiku`, one prompt | The turn ran and answered; the session was deleted afterwards |
+
+So the claim in `AGENTS.md` holds: one npm command, no config file, and a real session works.
+
+**The install gave a newer adapter than the baselines were recorded with** (0.110.1 against 0.109.1). The whole Claude conformance suite was run against it, with the same Claude Code as before: all 13 scenarios `same`, the two "unaided" ones included, so neither shipped fix can be removed yet. The baselines were not rewritten.
+
+Worth knowing: a session made with no configuration runs on the account's default model. The check above switched to Haiku before prompting. `AGENTS.md` now says so.
+
+Cost of this section: one Haiku turn, plus the suite's dozen.
