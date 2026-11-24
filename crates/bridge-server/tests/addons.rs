@@ -37,6 +37,8 @@ struct Probe {
     held: Option<u64>,
     /// The timer that ends the hold with a refusal, if one runs.
     limit: Option<u64>,
+    /// Whether to call the adapter once more when told it has stopped.
+    ping_after_stop: bool,
     /// Its own calls that are not answered yet, and what each was for.
     calls: HashMap<u64, &'static str>,
     /// The ids of the requests it saw, to check that a response names its request.
@@ -50,6 +52,7 @@ impl Probe {
             trace: trace.clone(),
             held: None,
             limit: None,
+            ping_after_stop: false,
             calls: HashMap::new(),
             seen: HashMap::new(),
         }
@@ -139,7 +142,10 @@ impl Addon for Probe {
                     self.calls.insert(call, then);
                     return Verdict::Hold;
                 } else if self.told(&word, "hold-forever") {
+                    self.held = Some(request.id);
                     return Verdict::Hold;
+                } else if self.told(&word, "ping-after-stop") {
+                    self.ping_after_stop = true;
                 } else if self.told(&word, "hold-limit") {
                     self.held = Some(request.id);
                     self.limit = Some(cx.wake(Duration::from_millis(1)));
@@ -153,10 +159,15 @@ impl Addon for Probe {
                     cx.announce("_x/probe/hello", json!({"everybody": true}));
                 } else if self.told(&word, "ask") {
                     let about = request.params["about"].clone();
-                    let ask = cx.ask(
-                        "session/request_permission",
-                        json!({"sessionId": about["sessionId"], "title": about["title"], "options": []}),
-                    );
+                    let method = about["method"]
+                        .as_str()
+                        .unwrap_or("session/request_permission");
+                    let params = if about["nothing"] == json!(true) {
+                        Value::Null
+                    } else {
+                        json!({"sessionId": about["sessionId"], "title": about["title"], "options": []})
+                    };
+                    let ask = cx.ask(method, params);
                     self.calls.insert(ask, "ask");
                 } else if self.told(&word, "read") {
                     let kinds: Vec<Value> = cx
@@ -223,23 +234,31 @@ impl Addon for Probe {
     fn notification(&mut self, cx: &mut Cx<'_>, notification: &mut Notification<'_>) -> Keep {
         self.note(&format!("notification {}", notification.method));
         if notification.method == "_x/probe/release" {
-            if self.told(&notification.params["to"], "me")
-                && let Some(held) = self.held.take()
-            {
-                let content = notification.params["content"].clone();
-                match notification.params["how"].as_str() {
-                    Some("with") => cx.release_with(held, content),
-                    Some("discard") => cx.discard(held),
-                    Some("answer") => cx.release(held, Verdict::Answer(content)),
-                    Some("refuse") => cx.release(
-                        held,
-                        Verdict::Refuse {
-                            code: -32000,
-                            message: "released as refused".to_owned(),
-                        },
-                    ),
-                    _ => cx.release(held, Verdict::Pass),
+            if !self.told(&notification.params["to"], "me") {
+                return Keep::Yes;
+            }
+            // By default what it holds itself; a test may name any message instead.
+            let named = notification.params["id"].as_u64();
+            let Some(held) = named.or_else(|| self.held.take()) else {
+                return Keep::Yes;
+            };
+            let content = notification.params["content"].clone();
+            match notification.params["how"].as_str() {
+                Some("with") => cx.release_with(held, content),
+                Some("discard") => cx.discard(held),
+                Some("answer") => cx.release(held, Verdict::Answer(content)),
+                Some("refuse") => cx.release(
+                    held,
+                    Verdict::Refuse {
+                        code: -32000,
+                        message: "released as refused".to_owned(),
+                    },
+                ),
+                Some("hold") => {
+                    cx.release(held, Verdict::Hold); // changes nothing
+                    self.held = named.is_none().then_some(held);
                 }
+                _ => cx.release(held, Verdict::Pass),
             }
             return Keep::Yes;
         }
@@ -351,8 +370,12 @@ impl Addon for Probe {
         }
     }
 
-    fn stopped(&mut self, _cx: &mut Cx<'_>, agent: &Agent<'_>, why: &str) {
+    fn stopped(&mut self, cx: &mut Cx<'_>, agent: &Agent<'_>, why: &str) {
         self.note(&format!("stopped {}: {why}", agent.id));
+        if std::mem::take(&mut self.ping_after_stop) {
+            let call = cx.call("probe/ping", json!({}));
+            self.calls.insert(call, "after-stop");
+        }
     }
 
     fn reply(&mut self, cx: &mut Cx<'_>, call: u64, outcome: &Outcome) {
@@ -401,14 +424,36 @@ impl Addon for Probe {
                 self.calls.insert(own, "slow");
                 Verdict::Hold
             }
+            "_x/probe/later" if call.params["then"] == "echo" => {
+                Verdict::Answer(call.params.clone())
+            }
             "_x/probe/later" => {
                 self.held = Some(call.id);
                 Verdict::Hold
             }
+            "_x/probe/held" => Verdict::Answer(json!({"id": self.held})),
             _ => Verdict::Pass,
         }
     }
 }
+
+/// Implements nothing but what it must.
+struct Bare;
+
+impl Addon for Bare {
+    fn info(&self) -> Info {
+        Info {
+            id: "test.bare",
+            kind: Kind::Feature,
+            summary: "",
+            because: "",
+            until: "",
+            scenario: None,
+        }
+    }
+}
+
+const DROPPED: &str = "an addon dropped the message";
 
 /// A daemon with one `demo` agent, the given probes, an app, and a session `s1` on a started
 /// adapter.
@@ -428,7 +473,8 @@ impl Setup {
         for name in probes {
             builder = builder.addon(Probe::new(name, &trace));
         }
-        let server = builder.start();
+        // Nearest the adapter in every test: an addon that does nothing changes nothing.
+        let server = builder.addon(Bare).start();
         let (mut app, theirs) = Link::pair();
         server.connect(theirs);
         ask(&app, 1, "session/new", json!({"cwd": "/work"})).await;
@@ -455,11 +501,22 @@ impl Setup {
 
     /// Sends a prompt whose text is `word`, with something for the probe to ask the user.
     async fn prompt_about(&mut self, word: &str, session: &str, title: &str) -> u64 {
+        let about = json!({"sessionId": session, "title": title});
+        self.prompt_with(word, about).await
+    }
+
+    async fn prompt_with(&mut self, word: &str, about: Value) -> u64 {
         self.next_id += 1;
         let mut params = prompt(word);
-        params["about"] = json!({"sessionId": session, "title": title});
+        params["about"] = about;
         ask(&self.app, self.next_id, "session/prompt", params).await;
         self.next_id
+    }
+
+    /// An app tells a probe what to do with a message, held by it or named by `id`.
+    async fn tell(&self, params: Value) {
+        let message = json!({"jsonrpc": "2.0", "method": "_x/probe/release", "params": params});
+        self.app.tx.send(message).await.unwrap();
     }
 
     /// The adapter's process ends: the daemon finds its connection closed.
@@ -1009,6 +1066,22 @@ async fn addons_are_layers_with_the_first_added_nearest_the_app() {
             "a update agent_message_chunk",
             "b response session/prompt",
             "a response session/prompt",
+        ]
+    );
+
+    // A notification towards the adapter takes the same order as a request.
+    let cancel =
+        json!({"jsonrpc": "2.0", "method": "session/cancel", "params": {"sessionId": "s1"}});
+    t.app.tx.send(cancel).await.unwrap();
+    assert_eq!(
+        next(&mut t.adapter).await["params"],
+        json!({"sessionId": "s1", "a": true, "b": true})
+    );
+    assert_eq!(
+        t.traced(),
+        [
+            "a notification session/cancel",
+            "b notification session/cancel"
         ]
     );
 
@@ -1581,5 +1654,138 @@ async fn a_held_method_call_is_answered_passed_on_or_dropped() {
             assert_eq!(done[part], expected[part], "{how}");
         }
     }
+    t.server.shutdown().await;
+}
+
+#[tokio::test]
+async fn only_the_addon_that_holds_a_message_ends_the_hold() {
+    let mut t = Setup::with(&["a", "b"]).await;
+    let id = t.prompt("a:hold-forever").await;
+    ask(&t.app, 50, "_x/probe/held", json!({"to": "a:me"})).await;
+    let (held, _) = response(&mut t.app, 50).await;
+    let held = held["result"]["id"].as_u64().expect("a holds the request");
+
+    // Another addon cannot release it, releasing as "hold" changes nothing, and releasing
+    // what nobody holds does nothing.
+    t.tell(json!({"to": "b:me", "id": held, "how": "pass"}))
+        .await;
+    t.tell(json!({"to": "b:me", "id": held, "how": "discard"}))
+        .await;
+    t.tell(json!({"to": "a:me", "how": "hold"})).await;
+    t.tell(json!({"to": "a:me", "id": 999_999, "how": "pass"}))
+        .await;
+    let before = t.app_handled().await;
+    assert!(
+        before.iter().all(|message| message["id"] != json!(id)),
+        "not answered"
+    );
+    assert!(
+        t.adapter.rx.try_recv().is_err(),
+        "and not sent on: the adapter has nothing"
+    );
+    // Its holder can.
+    t.release("pass", Value::Null).await;
+    let asked = next(&mut t.adapter).await;
+    assert_eq!(asked["params"], prompt("a:hold-forever"));
+    answer(&t.adapter, &asked, json!({})).await;
+    response(&mut t.app, id).await;
+
+    // Dropped by its holder: whoever asked is told, since a request cannot just vanish.
+    let id = t.prompt("a:hold-forever").await;
+    t.release("discard", Value::Null).await;
+    let (dropped, _) = response(&mut t.app, id).await;
+    assert_eq!(dropped["error"]["message"], DROPPED);
+    assert_eq!(dropped["error"]["data"], json!({"addon": "test.a"}));
+    t.server.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_held_method_call_goes_on_with_other_params() {
+    let mut t = Setup::with(&["a", "b"]).await;
+    ask(&t.app, 60, "_x/probe/later", json!({"to": "a:me"})).await;
+    // Released with params that make it the next addon's.
+    let handed_on = json!({"to": "b:me", "then": "echo"});
+    t.release("with", handed_on.clone()).await;
+    let (done, _) = response(&mut t.app, 60).await;
+    assert_eq!(done["result"], handed_on);
+    t.server.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_held_request_of_the_user_is_changed_dropped_or_ends_with_the_adapter() {
+    let mut t = Setup::with(&["a", "b"]).await;
+
+    // Released with other params: that is what the app is asked.
+    approval(&t.adapter, "a:hold").await;
+    t.adapter_handled().await;
+    let other = json!({"sessionId": "s1", "title": "retitled", "options": []});
+    t.release("with", other).await;
+    let shown = until(&mut t.app, "session/request_permission").await;
+    assert_eq!(shown["params"]["title"], "retitled");
+    let reply = json!({"jsonrpc": "2.0", "id": shown["id"], "result": selected("yes")});
+    t.app.tx.send(reply).await.unwrap();
+    assert_eq!(
+        next(&mut t.adapter).await["result"]["outcome"]["optionId"],
+        "yes"
+    );
+
+    // Dropped: the adapter, which waits, gets an error.
+    approval(&t.adapter, "a:hold").await;
+    t.adapter_handled().await;
+    t.release("discard", Value::Null).await;
+    assert_eq!(next(&mut t.adapter).await["error"]["message"], DROPPED);
+
+    // Answered by an addon although it names no session the daemon knows: there is no log
+    // to write it to, and the adapter still gets its answer.
+    let stray = json!({"jsonrpc": "2.0", "id": 9, "method": "session/request_permission",
+        "params": {"sessionId": "no-such-session", "title": "a:allow", "options": []}});
+    t.adapter.tx.send(stray).await.unwrap();
+    assert_eq!(
+        next(&mut t.adapter).await["result"]["outcome"]["optionId"],
+        "allow"
+    );
+
+    // An addon's question without params names no session: it is told at once.
+    let id = t.prompt_with("b:ask", json!({"nothing": true})).await;
+    let asked = next(&mut t.adapter).await;
+    answer(&t.adapter, &asked, json!({})).await;
+    response(&mut t.app, id).await;
+    let traced = t.traced();
+    assert!(
+        traced.contains(
+            &"b reply ask error: the request names no session the daemon knows".to_owned()
+        ),
+        "{traced:?}"
+    );
+
+    // An addon's question, of a kind of its own, held by a layer nearer the app when the
+    // adapter stops: the addon that asked is told it was cancelled.
+    let about = json!({"sessionId": "s1", "title": "a:hold", "method": "x/custom"});
+    let id = t.prompt_with("b:ask", about).await;
+    next(&mut t.adapter).await;
+    t.adapter_dies();
+    response(&mut t.app, id).await;
+    t.app_handled().await;
+    let traced = t.traced();
+    assert!(
+        traced.contains(&"b reply ask error: the request was cancelled".to_owned()),
+        "{traced:?}"
+    );
+    t.server.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_request_to_an_adapter_that_is_not_running_fails_at_once() {
+    let mut t = Setup::with(&["a"]).await;
+    let id = t.prompt("a:ping-after-stop").await;
+    next(&mut t.adapter).await;
+    t.adapter_dies();
+    response(&mut t.app, id).await;
+    t.app_handled().await;
+    let traced = t.traced();
+    assert!(
+        traced.contains(&"a reply after-stop error: the agent is not running".to_owned()),
+        "{traced:?}"
+    );
     t.server.shutdown().await;
 }

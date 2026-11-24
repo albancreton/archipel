@@ -135,7 +135,18 @@ Three things are outside it:
 - **A request of the adapter that an addon answers is still sent to the attached apps**, followed at once by its resolution, because that is how the log records it.
 - **An addon acts on one adapter at a time**, the one of the message at hand. It cannot address another agent's adapter from the same hook.
 
-`crates/bridge-server/tests/addons.rs` has one test per capability and is the reference for exact behaviour.
+### How it is tested
+
+`crates/bridge-server/tests/addons.rs` (the adapter side) and `tests/app_side.rs` (the app side) have one test per capability and are the reference for exact behaviour. The adapter in them is scripted by the test, so each check reads what the adapter and the app actually received.
+
+Two scripts say whether those tests are enough:
+
+| Script | What it answers | Fails when |
+|---|---|---|
+| `scripts/addon-coverage.sh` | Which lines of the addon system does no test run? | A line is neither run nor marked `cov:` with the reason no test reaches it |
+| `scripts/addon-mutations.py` | Would a test fail if a rule were broken? It breaks one rule at a time in the daemon (layer order, who may release a hold, who sees whose messages, …) | A broken rule goes unnoticed |
+
+The second exists because the first is not enough: with every line run, two of twelve broken rules were still not noticed. A new rule of the addon system gets a line in the mutation list.
 
 ## Where addons come from
 

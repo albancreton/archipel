@@ -140,3 +140,25 @@ A side effect worth knowing: since any send can now run addon code, three places
 Checked: six tests in `crates/bridge-server/tests/app_side.rs` with the scripted adapter (84 Rust tests in all), the two addon test files run eight times in a row. Live again, since every message to an app now takes the new path when addons are present, which they are in `bridged`: Claude's six free scenarios plus `reopen.keeps_settings`, `turn.interrupt` and `shell.output_streams`, and Pi's ten: all `same`.
 
 Not covered by a test: a held app-side message when its app disconnects (it is dropped).
+
+## Is the addon system tested enough?
+
+Asked by the user: "can we assert the proper test coverage of the whole addon system?"
+
+Two measures, both now scripts in `scripts/` and commands in the justfile.
+
+**Lines run.** With the compiler's own coverage instrumentation (`-C instrument-coverage`, needs `rustup component add llvm-tools`, which I installed). First result: the interface crate at 87% of lines, the daemon file at 91%. The lines no test ran were mostly combinations: releasing each kind of held message in each way, an addon releasing what another holds, an addon's question held when the adapter stops, a call to an adapter that is not running, and the default of every hook. Eleven tests were added for them (four in the interface crate, one for the shipped list, four on the adapter side, two on the app side) and every test setup now has an addon that implements nothing as its innermost layer. Result: no line of the addon system is left unrun, except seven marked `cov:` with a reason (defensive returns that cannot be reached, and one core path that needs an adapter that stopped reading).
+
+"The addon system" in the daemon file is a list of function names in the script, since the file also holds the core. The daemon file as a whole is at 92%; the rest is core code outside this question.
+
+**Rules noticed.** A line that ran is not a line that is checked. So twelve rules were broken on purpose, one at a time: the order of layers, who may release a hold, an addon being shown its own request, the mark on an addon's updates, and so on. With every line run, ten were noticed and two were not: reversing the layer order for notifications, and letting any addon release another's hold. Both tests ran the code and asserted too little. They now assert it (the adapter has received nothing; the order of the two hooks), and all twelve are noticed.
+
+Also found on the way: a helper that only two of six callers used was removed, and the check "only the holder releases" was rewritten so that it has no unreachable branch.
+
+Limits of the claim:
+
+- Line coverage, not every path through a line. The mutation list covers the rules I could name, not all possible faults.
+- The scripted adapter does what the test says. What real adapters do is the job of the live conformance scenarios, which do not go through these scripts.
+- The app-disconnect test waits with a few scheduler yields, not on a message, because nothing is sent when an app leaves. It passes in either order.
+
+At the end: 95 Rust tests, the two addon test files run eight times in a row without a failure.

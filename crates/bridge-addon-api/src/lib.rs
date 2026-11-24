@@ -765,3 +765,266 @@ pub trait Addon: Send + 'static {
     /// for the agent starts a new adapter, beginning with `initialize`.
     fn stopped(&mut self, _cx: &mut Cx<'_>, _agent: &Agent<'_>, _why: &str) {}
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct NoLog;
+
+    impl Sessions for NoLog {
+        fn last_update(&self, _session_id: &str, _kind: &str) -> Option<Value> {
+            None
+        }
+    }
+
+    /// Implements nothing but what it must.
+    struct Bare;
+
+    impl Addon for Bare {
+        fn info(&self) -> Info {
+            Info {
+                id: "test.bare",
+                kind: Kind::Feature,
+                summary: "",
+                because: "",
+                until: "",
+                scenario: None,
+            }
+        }
+    }
+
+    #[test]
+    fn an_outcome_reads_and_writes_both_forms_of_a_response() {
+        let result = Outcome::of(&json!({"jsonrpc": "2.0", "id": 1, "result": {"ok": true}}));
+        assert_eq!(result, Outcome::Result(json!({"ok": true})));
+        assert_eq!(result.result(), Some(&json!({"ok": true})));
+        assert_eq!(result.to_json(), json!({"result": {"ok": true}}));
+
+        let with_data = json!({"error": {"code": -32000, "message": "no", "data": {"why": 1}}});
+        let error = Outcome::of(&with_data);
+        assert_eq!(error.result(), None);
+        assert_eq!(error.to_json(), with_data);
+        let plain = json!({"error": {"code": -32000, "message": "no"}});
+        assert_eq!(Outcome::of(&plain).to_json(), plain);
+
+        // Whatever is missing has a defined reading.
+        assert_eq!(Outcome::of(&json!({})), Outcome::Result(Value::Null));
+        assert_eq!(
+            Outcome::of(&json!({"error": {}})),
+            Outcome::Error {
+                code: -32603,
+                message: String::new(),
+                data: None
+            }
+        );
+    }
+
+    #[test]
+    fn the_context_records_what_an_addon_asked_for_in_order_with_ids_of_its_own() {
+        let mut cx = Cx::new(&NoLog, 7);
+        assert_eq!(cx.call("m", json!(1)), 7);
+        cx.notify("n", json!(2));
+        cx.append("s", json!(3));
+        cx.announce("a", json!(4));
+        assert_eq!(cx.ask("q", json!(5)), 8);
+        assert_eq!(cx.app_call("c", json!(6)), 9);
+        cx.tell(3, "t", json!(7));
+        assert_eq!(cx.wake(Duration::from_secs(1)), 10);
+        cx.release(1, Verdict::Pass);
+        cx.release_with(2, json!(8));
+        cx.discard(3);
+        let text = |value: &str| value.to_owned();
+        let expected = [
+            Effect::Call {
+                id: 7,
+                method: text("m"),
+                params: json!(1),
+            },
+            Effect::Notify {
+                method: text("n"),
+                params: json!(2),
+            },
+            Effect::Append {
+                session_id: text("s"),
+                update: json!(3),
+            },
+            Effect::Announce {
+                method: text("a"),
+                params: json!(4),
+            },
+            Effect::Ask {
+                id: 8,
+                method: text("q"),
+                params: json!(5),
+            },
+            Effect::AppCall {
+                id: 9,
+                method: text("c"),
+                params: json!(6),
+            },
+            Effect::Tell {
+                app: 3,
+                method: text("t"),
+                params: json!(7),
+            },
+            Effect::Wake {
+                id: 10,
+                after: Duration::from_secs(1),
+            },
+            Effect::Release {
+                id: 1,
+                verdict: Verdict::Pass,
+            },
+            Effect::ReleaseWith {
+                id: 2,
+                content: json!(8),
+            },
+            Effect::Discard { id: 3 },
+        ];
+        assert_eq!(cx.effects(), expected);
+        let (effects, next) = cx.finish();
+        assert_eq!((effects.len(), next), (11, 11));
+    }
+
+    #[test]
+    fn a_log_that_offers_only_the_last_update_reads_as_empty_otherwise() {
+        let cx = Cx::new(&NoLog, 1);
+        assert_eq!(cx.last_update("s", "k"), None);
+        assert_eq!(cx.updates("s"), Vec::<Value>::new());
+        assert_eq!(cx.session("s"), None);
+    }
+
+    #[test]
+    fn an_addon_that_implements_no_hook_lets_everything_through() {
+        let agent = Agent {
+            id: "a",
+            harness: None,
+            adapter: None,
+            version: None,
+            capabilities: None,
+            os: "macos",
+        };
+        let app = App {
+            id: 1,
+            name: None,
+            scope: "interact",
+        };
+        let from = Origin::Daemon;
+        let (mut value, mut outcome) = (json!({}), Outcome::Result(json!({})));
+        let (mut bare, mut cx) = (Bare, Cx::new(&NoLog, 1));
+        assert_eq!(bare.info().id, "test.bare");
+        assert!(bare.applies(&agent));
+        let request = &mut Request {
+            id: 1,
+            agent,
+            from,
+            method: "m",
+            params: &mut value,
+        };
+        assert_eq!(bare.request(&mut cx, request), Verdict::Pass);
+        let response = &mut Response {
+            id: 1,
+            agent,
+            from,
+            method: "m",
+            params: &json!({}),
+            outcome: &mut outcome,
+        };
+        assert_eq!(bare.response(&mut cx, response), Flow::Pass);
+        let notification = &mut Notification {
+            id: 1,
+            agent,
+            from,
+            method: "m",
+            params: &mut value,
+        };
+        assert_eq!(bare.notification(&mut cx, notification), Keep::Yes);
+        let update = &mut Update {
+            id: 1,
+            agent,
+            from,
+            session_id: "s",
+            update: &mut value,
+        };
+        assert_eq!(bare.update(&mut cx, update), Keep::Yes);
+        let notification = &mut AgentNotification {
+            id: 1,
+            agent,
+            from,
+            method: "m",
+            params: &mut value,
+        };
+        assert_eq!(bare.agent_notification(&mut cx, notification), Keep::Yes);
+        let request = &mut AgentRequest {
+            id: 1,
+            agent,
+            from,
+            method: "m",
+            params: &mut value,
+        };
+        assert_eq!(bare.agent_request(&mut cx, request), Verdict::Pass);
+        let answer = &mut Answer {
+            id: 1,
+            agent,
+            from,
+            method: "m",
+            params: &json!({}),
+            outcome: &mut outcome,
+        };
+        assert_eq!(bare.answer(&mut cx, answer), Flow::Pass);
+        let call = MethodCall {
+            id: 1,
+            from,
+            method: "_x/m",
+            params: &json!({}),
+        };
+        assert_eq!(bare.method(&mut cx, &call), Verdict::Pass);
+        let request = &mut AppRequest {
+            id: 1,
+            app,
+            agent: None,
+            method: "m",
+            params: &mut value,
+        };
+        assert_eq!(bare.app_request(&mut cx, request), Verdict::Pass);
+        let response = &mut AppResponse {
+            id: 1,
+            app,
+            agent: None,
+            method: "m",
+            params: &json!({}),
+            outcome: &mut outcome,
+        };
+        assert_eq!(bare.app_response(&mut cx, response), Flow::Pass);
+        let notification = &mut AppNotification {
+            id: 1,
+            app,
+            agent: None,
+            method: "m",
+            params: &mut value,
+        };
+        assert_eq!(bare.app_notification(&mut cx, notification), Keep::Yes);
+        let answer = &mut AppAnswer {
+            id: 1,
+            app,
+            request: &json!(1),
+            outcome: &mut outcome,
+        };
+        assert_eq!(bare.app_answer(&mut cx, answer), Keep::Yes);
+        let message = &mut ToApp {
+            id: 1,
+            app,
+            agent: None,
+            request: None,
+            method: "m",
+            params: &mut value,
+        };
+        assert_eq!(bare.to_app(&mut cx, message), Keep::Yes);
+        bare.reply(&mut cx, 1, &Outcome::Result(json!({})));
+        bare.timer(&mut cx, 1);
+        bare.stopped(&mut cx, &agent, "why");
+        assert_eq!(cx.effects(), [], "and asks for nothing");
+        assert_eq!(value, json!({}), "and changes nothing");
+    }
+}

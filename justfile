@@ -45,3 +45,11 @@ ci: gen
 # Live checks against a real harness, compared with conformance/baseline. Costs a few cents for Claude.
 conformance agent *args:
     cd conformance && node run.ts {{agent}} {{args}}
+
+# Which lines of the addon system do the tests run? Fails if one is neither run nor accepted with a reason.
+addon-coverage:
+    scripts/addon-coverage.sh
+
+# Break the addon system's rules one at a time and check that the tests notice. Takes a minute.
+addon-mutations:
+    scripts/addon-mutations.py

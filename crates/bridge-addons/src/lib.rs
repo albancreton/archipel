@@ -64,4 +64,19 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn the_recommended_addons_are_the_fixes() {
+        let fixes = all()
+            .iter()
+            .filter(|addon| addon.info().kind == Kind::Fix)
+            .count();
+        let recommended = recommended();
+        assert_eq!(recommended.len(), fixes);
+        assert!(
+            recommended
+                .iter()
+                .all(|addon| addon.info().kind == Kind::Fix)
+        );
+    }
 }

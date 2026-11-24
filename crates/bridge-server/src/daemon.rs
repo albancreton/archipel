@@ -618,6 +618,7 @@ impl Daemon {
         }
         let Some((id, agent)) = id.and_then(|id| Some((id, self.app_calls.remove(&(client, id))?)))
         else {
+            // cov: the daemon answers each request once, so there is no answer without a call.
             return;
         };
         let outcome = addon::Outcome::of(message);
@@ -631,6 +632,7 @@ impl Daemon {
     /// the daemon handles it.
     fn client_message(&mut self, client: u64, message: Value) {
         if !self.clients.contains_key(&client) {
+            // cov: a message still queued from an app the daemon has already dropped.
             return;
         }
         if self.addons.is_empty() {
@@ -656,7 +658,9 @@ impl Daemon {
     /// One from the app starts at layer `next`; one to the app starts below layer `next`.
     fn edge(&mut self, next: usize, mut edge: Edge) {
         let Some(entry) = self.clients.get(&edge.client) else {
-            return; // the app is gone
+            // What was open for an app is dropped when it leaves, so this is a second defence.
+            // cov: the app is gone; see above.
+            return;
         };
         let (name, scope) = (entry.name.clone(), scope_name(entry.scope));
         let method = text(&edge.message, "/method")
@@ -2441,12 +2445,14 @@ impl Daemon {
     /// Ends a hold: the message goes on from the layer that held it. Only the addon that
     /// holds a message can release it.
     fn release(&mut self, index: usize, id: u64, how: Release) {
-        if self.held.get(&id).is_none_or(|held| held.addon != index) {
-            return;
-        }
-        let Some(Held { addon, agent, what }) = self.held.remove(&id) else {
+        let Some(held) = self.held.remove(&id) else {
             return;
         };
+        if held.addon != index {
+            self.held.insert(id, held);
+            return;
+        }
+        let Held { addon, agent, what } = held;
         // Somebody waits for a request, a response or an answer, so it cannot just vanish.
         let dropped = addon::Outcome::Error {
             code: wire::INTERNAL_ERROR,
@@ -2570,8 +2576,8 @@ impl Daemon {
             match verdict {
                 None | Some(addon::Verdict::Pass) => {}
                 Some(addon::Verdict::Hold) => {
-                    let what = HeldWhat::Request(sent.into());
-                    return self.hold(index, agent_id, what_id(&what), what);
+                    let id = sent.request;
+                    return self.hold(index, agent_id, id, HeldWhat::Request(sent.into()));
                 }
                 Some(addon::Verdict::Answer(result)) => {
                     return self.settle(agent_id, index, sent, addon::Outcome::Result(result));
@@ -2598,7 +2604,9 @@ impl Daemon {
         let message = wire::request(id, &sent.method, sent.params.clone());
         adapter.calls.insert(id, sent);
         if adapter.tx.try_send(message).is_err() {
+            // cov: needs an adapter that stopped reading; part of the core, not of addons.
             let generation = adapter.generation;
+            // cov: as above.
             self.agent_stopped(agent_id, generation, "the agent stopped responding");
         }
     }
@@ -2611,7 +2619,7 @@ impl Daemon {
             Call::Addon { addon, .. } => addon + 1,
             _ => 0,
         };
-        let source = self.source(&sent.call);
+        let (source, id) = (self.source(&sent.call), sent.request);
         for index in (lowest..upto.min(self.addons.len())).rev() {
             let origin = self.origin(&source);
             let flow = self.hook(index, agent_id, true, |addon, cx, agent| {
@@ -2629,7 +2637,7 @@ impl Daemon {
             });
             if flow == Some(addon::Flow::Hold) {
                 let what = HeldWhat::Response(sent.into(), outcome);
-                return self.hold(index, agent_id, what_id(&what), what);
+                return self.hold(index, agent_id, id, what);
             }
         }
         let generation = self
@@ -3244,18 +3252,6 @@ impl Release {
             Self::Outcome(outcome) => outcome,
             Self::Discard => dropped,
         }
-    }
-}
-
-/// The number addons know a held request by.
-fn what_id(what: &HeldWhat) -> u64 {
-    match what {
-        HeldWhat::Request(sent) | HeldWhat::Response(sent, _) => sent.request,
-        HeldWhat::Method(call) => call.request,
-        HeldWhat::OneWay(message) => message.id,
-        HeldWhat::Edge(edge) => edge.id,
-        HeldWhat::Ask(ask) => ask.request,
-        HeldWhat::Answer(answered) => answered.ask.request,
     }
 }
 

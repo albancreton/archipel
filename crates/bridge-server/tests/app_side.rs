@@ -146,6 +146,9 @@ impl Addon for Door {
         }
         if self.told(&notification.params["word"], "block") {
             return Keep::No;
+        } else if self.told(&notification.params["word"], "hold") {
+            self.held = Some(notification.id);
+            return Keep::Hold;
         }
         Keep::Yes
     }
@@ -156,6 +159,9 @@ impl Addon for Door {
             let option = result["outcome"]["optionId"].clone();
             if self.told(&option, "veto") {
                 return Keep::No;
+            } else if self.told(&option, "hold") {
+                self.held = Some(answer.id);
+                return Keep::Hold;
             } else if self.told(&option, "swap") {
                 result["outcome"]["optionId"] = json!("swapped");
             }
@@ -544,6 +550,24 @@ async fn an_addon_asks_the_daemon_what_an_app_would() {
         .collect();
     assert!(ids.contains(&&json!("s2")), "{ids:?}");
 
+    // As far as the daemon can tell the addon is attached to the session it made. What
+    // would be sent to it is dropped; the session is logged as usual.
+    update(&t.adapter, "s2", chunk("in s2")).await;
+    update(&t.adapter, "s1", json!({"sessionUpdate": "marker"})).await;
+    until_update(&mut t.app, "marker").await;
+    let (mut reader, theirs) = Link::pair();
+    t.server.connect(theirs);
+    ask(
+        &reader,
+        1,
+        "_bridge/session/attach",
+        json!({"sessionId": "s2"}),
+    )
+    .await;
+    response(&mut reader, 1).await;
+    let replayed = until_update(&mut reader, "replay_complete").await;
+    assert_eq!(updates(&replayed)[0]["content"]["text"], "in s2~d1");
+
     // Its request did not pass the app-side hooks, and the adapter-side ones saw it as the
     // addon's.
     let traced = t.traced();
@@ -600,5 +624,96 @@ async fn the_app_side_has_the_same_layers_and_comes_before_the_adapter_side() {
         .map(|message| &message["params"])
         .collect();
     assert_eq!(psst, [&json!({"d1": true, "d2": true})]);
+    t.server.shutdown().await;
+}
+
+#[tokio::test]
+async fn held_messages_on_the_app_side_are_released_changed_or_dropped() {
+    let mut t = Setup::with(&["d1"]).await;
+
+    // A request released with other params: the daemon handles those.
+    let held = json!({"to": "d1:hold", "loggedOnly": true});
+    ask(&t.app, 11, "_bridge/sessions/list", held).await;
+    t.release("with", json!({"loggedOnly": true, "agentId": "nope"}))
+        .await;
+    let (listed, _) = response(&mut t.app, 11).await;
+    assert_eq!(listed["result"]["sessions"], json!([]));
+
+    // A notification: held while a later one goes on, then released; or dropped, which an
+    // outcome also does since nobody waits for one.
+    let cancel = |word: &str| json!({"jsonrpc": "2.0", "method": "session/cancel", "params": {"sessionId": "s1", "word": word}});
+    t.app.tx.send(cancel("d1:hold")).await.unwrap();
+    t.app.tx.send(cancel("go")).await.unwrap();
+    assert_eq!(next(&mut t.adapter).await["params"]["word"], "go");
+    t.release("pass", Value::Null).await;
+    assert_eq!(next(&mut t.adapter).await["params"]["word"], "d1:hold");
+    for how in ["discard", "answer"] {
+        t.app.tx.send(cancel("d1:hold")).await.unwrap();
+        t.release(how, json!({})).await;
+    }
+    t.app.tx.send(cancel("last")).await.unwrap();
+    assert_eq!(next(&mut t.adapter).await["params"]["word"], "last");
+
+    // An app's answer: released as it is, released as another, or dropped, which leaves the
+    // request open.
+    let approval = json!({"jsonrpc": "2.0", "id": 9, "method": "session/request_permission",
+        "params": {"sessionId": "s1", "title": "rm", "options": []}});
+    for (how, then, expected) in [
+        ("pass", None, "d1:hold"),
+        ("answer", None, "other"),
+        ("discard", Some("yes"), "yes"),
+    ] {
+        t.adapter.tx.send(approval.clone()).await.unwrap();
+        let shown = until(&mut t.app, "session/request_permission").await;
+        let reply =
+            |option: &str| json!({"jsonrpc": "2.0", "id": shown["id"], "result": selected(option)});
+        t.app.tx.send(reply("d1:hold")).await.unwrap();
+        t.release(how, selected("other")).await;
+        if let Some(option) = then {
+            t.app.tx.send(reply(option)).await.unwrap();
+        }
+        assert_eq!(
+            next(&mut t.adapter).await["result"],
+            selected(expected),
+            "{how}"
+        );
+    }
+    t.server.shutdown().await;
+}
+
+#[tokio::test]
+async fn an_addon_knows_each_apps_scope_and_an_app_that_leaves_is_forgotten() {
+    let mut t = Setup::with(&["d1"]).await;
+    for (scope, name) in [(Scope::Interact, "interact"), (Scope::Extend, "extend")] {
+        let (mut app, theirs) = Link::pair();
+        t.server.connect_as(theirs, scope);
+        ask(&app, 1, "door/echo", json!({"to": "d1:answer"})).await;
+        let (answered, _) = response(&mut app, 1).await;
+        assert_eq!(answered["result"]["scope"], name);
+    }
+
+    // Something that is no JSON-RPC message at all is ignored.
+    t.app.tx.send(json!({"jsonrpc": "2.0"})).await.unwrap();
+
+    // An app leaves with one request held for it and one at the adapter. Neither the
+    // release nor the adapter's answer has anywhere to go, and nothing else is disturbed.
+    let (leaving, _) = t.attached(Scope::Interact).await;
+    ask(&leaving, 5, "session/prompt", prompt("plain")).await;
+    let asked = next(&mut t.adapter).await;
+    ask(&leaving, 6, "_bridge/agents/list", json!({"to": "d1:hold"})).await;
+    // Wait for the daemon to have both, then for it to notice the app is gone.
+    ask(&t.app, 20, "_bridge/agents/list", json!({})).await;
+    response(&mut t.app, 20).await;
+    drop(leaving);
+    for _ in 0..10 {
+        tokio::task::yield_now().await;
+    }
+    t.release("pass", Value::Null).await;
+    answer(&t.adapter, &asked, json!({})).await;
+    ask(&t.app, 21, "session/prompt", prompt("plain")).await;
+    let asked = next(&mut t.adapter).await;
+    answer(&t.adapter, &asked, json!({"stopReason": "end_turn"})).await;
+    let (done, _) = response(&mut t.app, 21).await;
+    assert_eq!(done["result"], json!({"stopReason": "end_turn"}));
     t.server.shutdown().await;
 }
