@@ -215,7 +215,7 @@ All three carry the same JSON-RPC messages (one per line, or one per WebSocket t
 Implemented in milestone 2: the Unix socket (owner-only file in an owner-only directory) and the WebSocket. The WebSocket requires `Authorization: Bearer <token>`, with the token in a file only the owner can read, and refuses any request that has an `Origin` header: any web page may try to open a WebSocket to a local port, so binding to loopback is not a protection by itself. Browser clients therefore cannot connect yet.
 
 - **Pairing:** `bridged pair` prints a one-time code; the app exchanges it for a long-lived token of its own, to keep in the platform keychain. Tokens are listed and revocable while the daemon runs, and only their hashes are stored. `bridged token add` makes one by hand. Done.
-- **Scopes:** `observe` (list and read), `interact` (also create, prompt, answer, cancel, adopt), `admin` (pair, configure; nothing needs it yet). A wall display gets `observe`. The local socket always has every right: whoever can open it is the user. Done.
+- **Scopes:** `observe` (list and read), `interact` (also create, prompt, answer, cancel, adopt), `admin` (also delete a session, which cannot be undone; later pair and configure). A wall display gets `observe`. The local socket always has every right: whoever can open it is the user. Done.
 - **Browser clients:** origin allow-list on the WebSocket (`--ws-origin`); the token travels as a WebSocket subprotocol because a page cannot set headers; no cookies. Done.
 - **Logs:** account details and environment values are stripped before storage.
 - **Not built:** an own relay or end-to-end encryption. Tailscale and SSH cover remote access with maintained code. Revisit only if a hosted relay becomes a goal.

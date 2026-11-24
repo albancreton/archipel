@@ -65,7 +65,8 @@ bridged: the harness-bridge daemon
 
 Tokens: a WebSocket client presents a token. `ws-token` is the owner's and may do everything.
 Other tokens may do what their scope says: observe (list and read), interact (also prompt,
-answer, create), extend (also act as an extension), admin. Only their hashes are stored.
+answer, create), extend (also act as an extension), admin (also delete sessions). Only their
+hashes are stored.
   pair         prints a one-time code. The app exchanges it for its own token (`bridge pair`).
   token add    prints a token to copy by hand.
   token remove revokes one. All of these work while the daemon runs.

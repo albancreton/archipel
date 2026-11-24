@@ -513,7 +513,7 @@
           "const": "extend"
         },
         {
-          "description": "Also manage the daemon. Nothing needs this yet.",
+          "description": "Also delete sessions and manage the daemon.",
           "type": "string",
           "const": "admin"
         }

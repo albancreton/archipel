@@ -3,7 +3,7 @@
 mod common;
 
 use bridge_schema::ext;
-use bridge_server::Server;
+use bridge_server::{Scope, Server};
 use bridge_transport::Link;
 use common::{agent, answer, ask, next, response, started};
 use serde_json::{Value, json};
@@ -47,6 +47,19 @@ async fn a_deleted_session_leaves_the_log_once_the_harness_agrees_and_every_app_
         next(&mut other).await["method"],
         ext::NOTIFICATION_SESSIONS_UPDATED
     );
+
+    // Deleting cannot be undone, so it needs the admin scope. An app that may prompt, or an
+    // extension, is refused and the harness is not asked.
+    for scope in [Scope::Interact, Scope::Extend] {
+        let (mut lesser, theirs) = Link::pair();
+        server.connect_as(theirs, scope);
+        ask(&lesser, 1, "session/delete", json!({"sessionId": "s1"})).await;
+        let (refused, _) = response(&mut lesser, 1).await;
+        assert_eq!(refused["error"]["code"], -32003, "{scope:?}");
+        assert_eq!(refused["error"]["message"], "this needs the admin scope");
+    }
+    assert!(adapter.rx.try_recv().is_err(), "the harness was not asked");
+    assert_eq!(logged(&mut app, 9).await, [json!("s1")]);
 
     // The harness refuses: nothing changes.
     ask(&app, 3, "session/delete", json!({"sessionId": "s1"})).await;

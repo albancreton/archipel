@@ -867,12 +867,12 @@ impl Daemon {
     fn allowed(&mut self, client: u64, id: &Value, needed: Scope) -> bool {
         let allowed = self.scope(client) >= needed;
         if !allowed {
-            self.refuse(
-                client,
-                id,
-                wire::FORBIDDEN,
-                "this connection may only observe",
-            );
+            let why = match needed {
+                Scope::Admin => "this needs the admin scope",
+                Scope::Extend => "this needs the extend scope",
+                _ => "this connection may only observe",
+            };
+            self.refuse(client, id, wire::FORBIDDEN, why);
         }
         allowed
     }
@@ -1532,8 +1532,12 @@ impl Daemon {
     }
 
     /// Deletes a session at its harness. Once the harness agrees, the daemon drops its own
-    /// copy too. The session need not be loaded or live for this.
+    /// copy too. The session need not be loaded or live for this. It cannot be undone, so it
+    /// needs the admin scope: an app that may prompt in a session may not remove it.
     fn delete(&mut self, client: u64, id: Value, message: &Value) {
+        if !self.allowed(client, &id, Scope::Admin) {
+            return;
+        }
         let session = text(message, "/params/sessionId")
             .unwrap_or_default()
             .to_owned();

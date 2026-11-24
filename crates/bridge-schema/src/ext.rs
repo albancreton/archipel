@@ -100,7 +100,7 @@ pub enum Scope {
     Interact,
     /// Also act as an extension: register a namespace, add items to sessions, serve methods.
     Extend,
-    /// Also manage the daemon. Nothing needs this yet.
+    /// Also delete sessions and manage the daemon.
     Admin,
 }
 
