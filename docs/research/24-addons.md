@@ -118,3 +118,25 @@ Decisions taken on the way:
 What stays outside is in the design note under "Where the interface ends". The one that is a real choice: the daemon's own conversation with apps (attach, replay, session list, the answer to an app's `initialize`) is not hookable. Addons are defined as sitting between the daemon and the adapters; hooking the app side would be a second seam.
 
 Checked: ten more tests with the scripted adapter (22 in all), one per new capability, each waiting on what the adapter or the app receives and not on time, run eight times in a row. One deliberate break (a hold treated as a pass) made three of them fail. All 78 Rust tests pass. Live, because the path of updates, approvals and notifications changed: Claude's six free scenarios, `reopen.keeps_settings`, `turn.interrupt` and `shell.output_streams` (cancel and approval paths, a few Haiku turns), and all ten of Pi's on the local model: every one `same`.
+
+## The app side
+
+The one real choice left was whether addons should also hook the daemon's own conversation with apps. The user: "yes, let's hook the app side too".
+
+So an addon now has a second set of hooks, between an app and the daemon: `app_request`, `app_response`, `app_notification`, `app_answer` and `to_app`. The table is in `docs/design/addons.md`. With them an addon can filter the session list, change what apps are told at `initialize`, hide or rewrite what a particular app is sent (live and on replay), and answer or refuse any request before the daemon sees it.
+
+Decisions taken on the way:
+
+- **Two seams, passed one after the other.** A request from an app passes every addon's app-side hook, then the daemon, then every addon's adapter-side hook. I considered one seam per addon (app side and adapter side of the same layer adjacent), but the daemon's core sits between the two sides, so that order cannot exist.
+- **The hooks are per app.** Each is told the connection, its name and its scope. This is the reason to have the seam at all: the adapter side cannot tell apps apart once a message is in the log.
+- **`to_app` does not change the log.** It runs each time a message is sent to an app, also on replay, so its change is made on the way out. Storing is the job of `update`.
+- **`applies` is not asked on the app side.** Many app messages belong to no agent (the session list, `initialize`). The hook gets the session's agent when there is one.
+- **An addon can call the daemon as an app would (`cx.app_call`).** Without it, an addon that made a session with `cx.call("session/new")` would have one the daemon knows nothing about. Its request skips the app-side hooks and is marked as the addon's on the adapter side.
+- **An addon sees its own messages in `to_app`.** Everything sent to an app passes every layer there. Keeping "never shown its own" would need the origin to survive the log and the replay, and the mark in `_meta.bridge` already tells an addon which updates are its own.
+- **No cost without addons.** With none, the daemon sends and receives exactly as before; with some, every message to every app costs one call per addon.
+
+A side effect worth knowing: since any send can now run addon code, three places in the daemon that assumed a session still exists after sending were made to check instead.
+
+Checked: six tests in `crates/bridge-server/tests/app_side.rs` with the scripted adapter (84 Rust tests in all), the two addon test files run eight times in a row. Live again, since every message to an app now takes the new path when addons are present, which they are in `bridged`: Claude's six free scenarios plus `reopen.keeps_settings`, `turn.interrupt` and `shell.output_streams`, and Pi's ten: all `same`.
+
+Not covered by a test: a held app-side message when its app disconnects (it is dropped).

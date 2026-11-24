@@ -4,7 +4,7 @@ _2026-11-23. Asked by the user: keep the daemon's core a clean interface to the 
 
 ## What an addon is
 
-An addon is a piece of code that sits between the daemon and an adapter. It sees the messages that pass and may change or stop them. The core knows nothing about what any addon does.
+An addon is a piece of code inside the daemon that sits on both of its sides: between the daemon and an adapter, and between an app and the daemon. It sees the messages that pass and may change or stop them. The core knows nothing about what any addon does.
 
 There are two kinds:
 
@@ -59,6 +59,28 @@ Every message carries a number (`id`) and who it is from (`from`: an app with it
 
 Nothing else waits behind a held message. A held approval is neither logged nor shown to apps until it goes on. A held update is logged when it is released, so after the ones that overtook it.
 
+### The app side
+
+The hooks above sit between the daemon and an adapter. A second set sits between an app and the daemon. It sees what never reaches an adapter or does not come from one: attaching to a session and its replay, the session list, the daemon's answer to an app's `initialize`, and every message on its way to one particular app.
+
+| Message | Hook | The addon may |
+|---|---|---|
+| Any request from an app, before the daemon handles it | `app_request` | Change the params; refuse it; answer it itself; hold it |
+| The answer to it, on its way to that app: the daemon's own, or an adapter's as the other hooks left it | `app_response` | Change it; hold it |
+| A notification from an app, before the daemon handles it | `app_notification` | Change it; drop it; hold it |
+| An app's answer to a request it was sent | `app_answer` | Change it; drop it, which leaves the request open for another answer; hold it |
+| A notification or a request on its way to one app: a session update (live or replayed), a pending approval, the daemon's own notifications, an addon's | `to_app` | Change it; drop it for that app; hold it |
+
+Each of these hooks is told which app it is about: its connection number, the name it gave, and its scope. So what an app is told can depend on the app.
+
+The two sides are passed one after the other. An app's `session/prompt` passes `app_request` of every addon, then the daemon, then `request` of every addon, then reaches the adapter. The answer comes back through `response` of every addon, the daemon, then `app_response`.
+
+Three things differ from the adapter side:
+
+- **`applies` is not asked.** These hooks are called for every app and every agent. The hook is given the agent of the session the message names, when it names one.
+- **A change made in `to_app` is not stored.** The log holds the update as the adapter-side hooks left it; `to_app` changes what one app receives, each time it is sent, including on replay. To change what is stored, use `update`.
+- **Everything sent to an app passes `to_app` of every addon**, also what an addon added or sent itself.
+
 ### Acting: standing in for either side
 
 Through the context every hook receives (`Cx`), an addon sends what an app or an adapter could send:
@@ -70,6 +92,9 @@ Through the context every hook receives (`Cx`), an addon sends what an app or an
 | The adapter | `cx.append(session, update)` | An update added to a session: logged, replayed and sent to apps like the adapter's, marked `_meta.bridge = {origin: "addon", addon: <id>}` |
 | The adapter | `cx.announce(method, params)` | A notification to apps that is not a session update. Not logged. With a `sessionId` it goes to the apps attached to that session, otherwise to every app |
 | The adapter | `cx.ask(method, params)` | A request for the user to answer, handled exactly like an adapter's approval: logged in the session its `sessionId` names, marked as the addon's, shown to every attached app, first answer wins. The answer arrives in `reply`. If the session's adapter stops first, the reply is a cancellation |
+
+| An app, towards the daemon | `cx.app_call(method, params)` | A request the daemon handles as if an app had made it: `session/new`, `session/prompt`, `_bridge/sessions/list`. Unlike `cx.call`, the daemon does its part: it records a new session, wakes one that is not live. The answer arrives in `reply`. It does not pass the app-side hooks; what the daemon sends an adapter for it passes every addon's `request`, marked as from this addon |
+| The daemon, towards one app | `cx.tell(app, method, params)` | A notification to that app alone. Not logged |
 
 In the other direction, an app reaches an addon with a call of a method under `_x/` (hook `method`) or a notification under `_x/` (hook `notification`). Neither ever reaches an adapter.
 
@@ -104,9 +129,8 @@ The first addon added is nearest the app, the last nearest the adapter. A messag
 
 ### Where the interface ends
 
-Addons sit between the daemon and the adapters. Four things are outside that:
+Three things are outside it:
 
-- **What an app and the daemon say to each other without an adapter**: attaching to a session and replaying it, the session list, the agent list, the daemon's answer to an app's `initialize`. An addon sees the requests these cause at an adapter (`session/list`, `session/resume`, `initialize`), not the app's own call or the daemon's answer to it.
 - **The adapter's other notifications are not passed to apps by the daemon**, with or without addons. Some carry private data (Claude's `auth/status_update` has the account's email address). An addon that wants apps to have one sends its own with `cx.announce`.
 - **A request of the adapter that an addon answers is still sent to the attached apps**, followed at once by its resolution, because that is how the log records it.
 - **An addon acts on one adapter at a time**, the one of the message at hand. It cannot address another agent's adapter from the same hook.
