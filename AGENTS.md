@@ -1,0 +1,106 @@
+# harness-bridge, for coding agents
+
+Read this first if you were asked to build something with this library, or to change it.
+
+## What it is
+
+A library for apps that show and drive the agent loop of terminal coding harnesses (Claude Code, Pi): messages, reasoning, tool calls, approvals, questions, plans, subagents.
+
+- A **daemon** (`bridged`, Rust) runs the harnesses, logs everything they say, and keeps sessions alive while apps come and go.
+- **Apps** connect to it with a client SDK (TypeScript or Swift) and may draw sessions with a component kit (React or SwiftUI).
+- The messages are **ACP v2** plus a few additions under `_bridge/`.
+
+## Start from an example
+
+Each of these is small. Copy the one that matches the task. The last column says how far the repository's own tests check it.
+
+| To do this | Start from | Checked by |
+|---|---|---|
+| Follow and drive a session from Node, Electron or React Native | `examples/node/chat.ts` | A test runs it against the fake agent |
+| Start the daemon from the app when none is running | `examples/node/daemon.ts` | A test starts a daemon with it, then finds that one |
+| Add an item kind or a method from a separate program, in any language | `examples/node/extension.ts` | A test runs it and reads its item in an app |
+| Host the daemon inside a Rust program | `examples/embedded-daemon` | Its own test, in-process and through the socket |
+| Change, stop or answer what the harness and the apps say to each other; fix a harness fault | `examples/own-daemon` (an addon) | Its own test |
+| Draw a session in a browser with React | `ui/react/demo/live.tsx` | Type-checked only. The components it uses are tested |
+| Draw a session in a macOS or iOS app with SwiftUI | `ui/swift/Demo/BridgeChatDemo.swift` | Compiled only. The views it uses are tested |
+| Run the daemon as a service (launchd, systemd) | `examples/service/` | The launchd file is linted. Neither was loaded into a service manager |
+
+How to run each is at the top of the file, or in the README next to it.
+
+The three ways to run the daemon, and when each fits:
+
+| Way | Sessions live as long as | Choose it when |
+|---|---|---|
+| A service | The machine is on | Sessions must outlive every app, or the machine is reached remotely |
+| Started by the app | The app runs (or longer, if asked) | The app should work without an install step |
+| Inside a Rust program | That program runs | You want one binary and are writing Rust |
+
+## Check your work without spending money
+
+A **fake agent** replays a recorded session, so an integration can be run end to end with no model and no account:
+
+```sh
+cargo build
+target/debug/bridged --home /tmp/try --fake testdata/transcripts/claude-v2/approval_command.ndjson --fake-speed 0 &
+node examples/node/chat.ts --home /tmp/try --mode default --approve allow-once "anything"
+```
+
+- The recordings are in `testdata/transcripts/claude-v2/` (17 of them: `simple`, `approval_command`, `question`, `plan`, `subagent`, `interrupt`, …).
+- The fake agent follows its recording: it waits for the kinds of messages the recording has, in that order, and answers with what was recorded. What you send does not matter; the order of the steps does. `approval_command` is: new session, set the mode, one prompt, one approval. If your program hangs against the fake, it sent a step the recording does not have or skipped one.
+- Use a real harness only when the task depends on its behaviour, and then its cheapest model. `conformance/` holds the live checks.
+
+## Build and test
+
+| Language | Check | Test |
+|---|---|---|
+| Rust | `cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings` | `cargo test --workspace` |
+| TypeScript | `pnpm -r check` | `pnpm -r test` (run `cargo build` first: several tests start `target/debug/bridged`) |
+| Swift | | `swift test` (also after `cargo build`) |
+
+Node 22.18 or later runs the TypeScript sources directly; there is no build step. `just` lists the same commands if it is installed.
+
+## What the types do not tell you
+
+**Sessions and items**
+- A session's content is a list of **items** in order (`session.items()`), each with a kind (`userMessage`, `agentMessage`, `agentThought`, `toolCall`, `terminal`, `plan`, `subagent`, …) and an id. Items change while they stream. Draw from the current state after each change; do not append per update.
+- Draw a kind you do not know as a generic item, do not drop it. Extensions and addons add kinds named `x.<namespace>.<name>`.
+- `prompt` resolves when the agent has taken the message, not when the turn is over. The turn is over when `turnState` is `idle`.
+- Text is the agent's Markdown source. The kits show it as written; they do not render Markdown.
+
+**Approvals and questions**
+- They arrive as requests (`session.pendingRequests()`), and the turn waits in `requires_action`. Every attached app gets them; the first answer counts and the others are told.
+- A request stays open while no app is attached. An app that attaches later gets it.
+
+**Connections**
+- The local socket (`~/.harness-bridge/daemon.sock`) gives full control and is readable only by its owner. A WebSocket connection is as limited as its token: `observe` reads, `interact` also acts, `extend` also acts as an extension.
+- After a disconnect the SDKs reconnect and continue from the last item they had. An app does not replay by hand.
+- A browser page needs the daemon started with `--ws-origin` for its origin, and sends its token as a subprotocol (`docs/remote.md`).
+
+**Harnesses**
+- Claude Code is driven through an adapter that is an npm package and needs Node: `npm install -g @agentclientprotocol/claude-agent-acp`. With no `config.json`, the daemon starts `claude-agent-acp` from `PATH`. `bridged --help` documents `config.json`.
+- A daemon started by a service manager does not have your shell's `PATH`. If every agent fails to start, that is why (`examples/service/README.md`).
+- A session that another process of the harness has open (its own terminal UI, say) is refused with error `-32004`. Offer a fork (`session.fork()`); the kits already do.
+- A session started in the harness's own UI shows up in the session list and is loaded the first time it is opened.
+- Pi runs one process per session and is stopped when idle.
+- When the daemon or an adapter stops, running turns end as interrupted. Sessions and their history stay, and the next message starts the adapter again.
+
+## If you change the library itself
+
+- **A fix for something a harness, an adapter or ACP gets wrong is an addon, never a change to the daemon's core.** So is an optional feature. Only bugs of this library are fixed in the core. `docs/design/addons.md` has the interface; `crates/bridge-addons` has the shipped ones, one file each.
+- The Rust core, the TypeScript SDK and the Swift SDK hold the same state for the same messages. `testdata/states` is the reference all three are tested against. After changing the schema run `just gen` (or the two commands under `gen` in the `justfile`).
+- An example that no test runs goes stale without anyone noticing. Add the test with the example, and say in the table above how far it is checked.
+- Decisions and their reasons are written down in `docs/research/NN-*.md`, and commits say why. Start with `docs/research/19-where-things-stand.md`, then `docs/design/daemon.md`.
+- Two scripts say whether the addon system's tests are enough: `scripts/addon-coverage.sh` and `scripts/addon-mutations.py`.
+
+## Where things are
+
+| Path | What |
+|---|---|
+| `crates/` | The Rust workspace. `bridged` is the daemon program, `bridge` a command-line client (both have `--help`), `bridge-server` the daemon as a library |
+| `clients/ts`, `clients/swift` | The client SDKs. Their READMEs have a ten-line example and a file table |
+| `ui/react`, `ui/swift` | The component kits |
+| `examples/` | What the table above points to |
+| `testdata/` | Recorded sessions, and the state each must produce |
+| `conformance/` | Live checks of the real harnesses against a recorded baseline |
+| `docs/design/` | The daemon's design, and the addon interface |
+| `docs/research/` | How each decision was reached, in order |

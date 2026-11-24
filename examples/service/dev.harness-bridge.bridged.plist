@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- A per-user launchd agent that keeps the daemon running. See README.md next to this file. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.harness-bridge.bridged</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__BRIDGED__</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- launchd starts programs with a bare PATH. The daemon starts the adapters, and
+             they start the harnesses: every one of them has to be found from here. -->
+        <key>PATH</key>
+        <string>__PATH__</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/Library/Logs/harness-bridge.log</string>
+</dict>
+</plist>

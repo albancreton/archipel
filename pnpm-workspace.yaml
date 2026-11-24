@@ -2,3 +2,4 @@ packages:
   - "clients/ts"
   - "ui/react"
   - "conformance"
+  - "examples/node"

@@ -31,6 +31,19 @@ importers:
         specifier: ^5.9.0
         version: 5.9.3
 
+  examples/node:
+    dependencies:
+      '@harness-bridge/client':
+        specifier: workspace:*
+        version: link:../../clients/ts
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+
   ui/react:
     dependencies:
       '@harness-bridge/client':

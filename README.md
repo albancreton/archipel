@@ -15,6 +15,8 @@ Status: all seven milestones of the first plan are done; `docs/research/19` list
 
 Tested against 29 recorded sessions in three languages, and live with both harnesses.
 
+Building something with it, or directing a coding agent to? Start at [`AGENTS.md`](AGENTS.md): it says which example to copy for which task, how to check an integration at no cost, and what the types do not tell you.
+
 ## Try it
 
 No cost: a fake agent replays a recorded session.
@@ -71,6 +73,11 @@ With the real Claude adapter: put a `config.json` in the daemon's home (see `bri
 | `docs/research/22` | What Claude Code offers in its terminal and what comes through the adapter |
 | `docs/research/23` | The live conformance tests: the first run and what it found |
 | `docs/research/24` | Addons: the mechanism, the first two, and which fixes went into the core instead |
+| `docs/research/25` | Who reads the docs: examples and `AGENTS.md` for coding agents, and what that settles of "running as a service" |
+| `AGENTS.md` | The entry point for whoever builds on the library: which example for which task, the free test path, the traps |
+| `examples/node` | A chat, starting the daemon from an app, and an extension, in TypeScript |
+| `examples/embedded-daemon` | A Rust program that hosts the daemon in its own process |
+| `examples/service` | The daemon as a launchd or systemd service |
 | `examples/own-daemon` | A daemon with an addon of one's own, without forking |
 | `conformance/` | Live checks of the real harnesses against a recorded baseline |
 | `docs/remote.md` | How to reach a daemon from another machine or a browser |
