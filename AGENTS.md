@@ -57,6 +57,8 @@ node examples/node/chat.ts --home /tmp/try --mode default --approve allow-once "
 | TypeScript | `pnpm -r check` | `pnpm -r test` (run `cargo build` first: several tests start `target/debug/bridged`) |
 | Swift | | `swift test` (also after `cargo build`) |
 
+On Linux the build needs the OpenSSL headers and `pkg-config` (`apt install libssl-dev pkg-config` on Debian and Ubuntu); the Rust client uses the system's TLS for `wss://` addresses. macOS needs nothing extra.
+
 Node 22.18 or later runs the TypeScript sources directly; there is no build step. `just` lists the same commands if it is installed.
 
 ## What the types do not tell you
