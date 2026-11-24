@@ -536,6 +536,7 @@ impl Daemon {
     }
 
     pub(crate) async fn run(mut self, mut inbox: mpsc::Receiver<Event>) {
+        self.close_interrupted();
         while let Some(event) = inbox.recv().await {
             match event {
                 Event::ClientOpened { client, scope, tx } => {
@@ -2049,6 +2050,23 @@ impl Daemon {
         }
         self.end_turn(session_id, "the daemon was restarted");
         Some(session_id.to_owned())
+    }
+
+    /// Closes the turns that were under way when the last daemon stopped, at start rather
+    /// than when somebody opens the session: until then the list would show a session as
+    /// running, or as waiting for an answer nobody can give any more.
+    fn close_interrupted(&mut self) {
+        let unfinished: Vec<String> = self
+            .store
+            .sessions()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|record| record.state.as_deref().is_some_and(|state| state != "idle"))
+            .map(|record| record.session_id)
+            .collect();
+        for session in unfinished {
+            self.load(&session);
+        }
     }
 
     /// Numbers a record, stores it, and sends it to every attached app.

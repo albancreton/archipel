@@ -538,7 +538,15 @@ async fn run(mut args: Vec<String>, addons: Vec<Box<dyn Addon>>) -> Result<(), F
 
     let socket = home.join("daemon.sock");
     let local = LocalServer::bind(&socket)?;
-    let mut builder = Server::builder().store(SqliteStore::open(&home.join("log.sqlite"))?);
+    let log = home.join("log.sqlite");
+    // The file is left as it is: it may be all there is of the user's sessions.
+    let store = SqliteStore::open(&log).map_err(|error| {
+        format!(
+            "cannot read the session log {}: {error}. Move the file away to start with an empty log",
+            log.display()
+        )
+    })?;
+    let mut builder = Server::builder().store(store);
     builder = builder.act_on_sessions_open_elsewhere(settings.share);
     if let Some(days) = settings.retention_days {
         builder = builder.retention(Duration::from_secs(days * 86_400));
