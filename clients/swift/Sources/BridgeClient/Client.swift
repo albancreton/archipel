@@ -215,6 +215,41 @@ public final class BridgeClient {
         return try await session(copy)
     }
 
+    /// The agents the daemon can start. `capabilities` is what an agent said it can do, and is
+    /// there once the agent has been started.
+    public func agents() async throws -> [JSON] {
+        try await call(Bridge.agentsList)["agents"]?.array ?? []
+    }
+
+    /// The settings a session would start with (`configOptions`) and its commands, without
+    /// making one: for a settings bar shown before the first message. With `sessionId`, those
+    /// of an existing session, which is not woken for it. Only where the agent's capabilities
+    /// have `session.options`; otherwise the call fails with code -32601.
+    public func sessionOptions(cwd: String, agentId: String? = nil, sessionId: String? = nil) async throws -> JSON {
+        var params: JSON = ["cwd": .string(cwd)]
+        if let sessionId { params.set("sessionId", to: .string(sessionId)) }
+        if let agentId { params.set("_meta.bridge.agentId", to: .string(agentId)) }
+        return try await call("session/options", params)
+    }
+
+    /// Renames a session and returns the title the harness stored, which may differ from the
+    /// one sent. Every app following the session or the list hears of it. Only where the
+    /// agent's capabilities have `session.title`.
+    @discardableResult
+    public func setTitle(_ id: String, to title: String) async throws -> String {
+        let result = try await call("session/set_title", ["sessionId": .string(id), "title": .string(title)])
+        return result["title"]?.string ?? title
+    }
+
+    /// Deletes a session at its harness and in the daemon. It cannot be undone, and needs the
+    /// `admin` scope (the local socket has it). Only where the agent's capabilities have
+    /// `session.delete`.
+    public func deleteSession(_ id: String) async throws {
+        _ = try await call("session/delete", ["sessionId": .string(id)])
+        followed.removeValue(forKey: id)
+        sessions.removeAll { $0.id == id }
+    }
+
     /// Attaches to a session and returns once the app holds all of it.
     public func session(_ id: String) async throws -> BridgeSession {
         if let known = followed[id] { return known }

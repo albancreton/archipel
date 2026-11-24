@@ -223,7 +223,9 @@ export const scenarios: Scenario[] = [
         }
       }
       // What the daemon does with the call today.
-      t.fact("throughTheDaemon", await attempt((await t.app()).call("session/options", { cwd: t.work })));
+      const app = await t.app();
+      t.fact("throughTheDaemon", await attempt(app.sessionOptions({ cwd: t.work, agentId: t.id })));
+      if (reopened) t.fact("throughTheDaemonForAnExistingSession", await attempt(app.sessionOptions({ cwd: t.work, sessionId: reopened.sessionId })));
     },
   },
   {
@@ -247,6 +249,50 @@ export const scenarios: Scenario[] = [
       t.fact("deleteThroughTheDaemon", await attempt(app.call("session/delete", { sessionId: session.id })));
       const still = (await app.listSessions({ loggedOnly: true })).some((other) => other.sessionId === session.id);
       t.fact("stillInTheDaemonsListAfterDelete", still);
+    },
+  },
+  {
+    name: "session.rename_used",
+    about: "Renaming a session that has a turn: who learns the new title, and does it last?",
+    agents: ["claude", "pi"],
+    cost: "turn",
+    async run(t) {
+      const adapter = await t.adapter();
+      const advertised = (adapter.welcome as { capabilities?: { session?: JsonObject } } | null)?.capabilities?.session?.["title"] !== undefined;
+      t.fact("advertised", advertised);
+      const app = await t.app();
+      const session = await t.session(app);
+      // The agent has started by now, so the daemon knows what it can do.
+      const known = (await app.agents()).find((agent) => agent.agentId === t.id)?.capabilities as { session?: JsonObject } | undefined;
+      t.fact("theDaemonSaysTheSame", (known?.session?.["title"] !== undefined) === advertised);
+      await turn(session, OK);
+      const title = (): Json => (session.state.values.get("sessionInfo") as JsonObject | undefined)?.["title"] ?? null;
+      const listed = async (): Promise<Json> => (await app.listSessions({ loggedOnly: true })).find((other) => other.sessionId === session.id)?.title ?? null;
+      const atTheHarness = async (): Promise<Json> =>
+        (((await adapter.call("session/list", { cwd: t.work })) as { sessions?: { sessionId: string; title?: string }[] }).sessions ?? [])
+          .find((other) => other.sessionId === session.id)?.title ?? null;
+      t.info("titleBefore", title());
+
+      const first = "conformance renamed";
+      const stored = await app.setTitle(session.id, first).then((now) => (now === first ? "ok, title as sent" : `ok, other: ${now}`), failure);
+      t.fact("rename", stored);
+      await within(5_000, "the title in the session", session.until(() => title() === first)).catch(() => {});
+      t.fact("theSessionSaysSo", title() === first);
+      t.fact("theDaemonsListSaysSo", (await listed()) === first);
+      t.fact("theHarnessListSaysSo", (await atTheHarness()) === first);
+
+      await turn(session, OK);
+      t.fact("keptAfterAnotherTurn", title() === first && (await atTheHarness()) === first);
+
+      // Renamed while no process holds the session.
+      await t.restartDaemon();
+      const later = await t.app();
+      const second = "conformance renamed again";
+      t.fact("renameWhileAsleep", await attempt(later.setTitle(session.id, second)));
+      t.fact("theDaemonsListSaysSoAsleep", (await later.listSessions({ loggedOnly: true })).find((other) => other.sessionId === session.id)?.title === second);
+      t.fact("theHarnessListSaysSoAsleep", (await atTheHarness()) === second);
+      const reopened = await later.session(session.id);
+      t.fact("theReopenedSessionSaysSo", ((reopened.state.values.get("sessionInfo") as JsonObject | undefined)?.["title"] ?? null) === second);
     },
   },
   {

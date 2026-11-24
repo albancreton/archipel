@@ -135,5 +135,18 @@
   },
   "memory.project_file": {
     "knowsTheMarker": true
+  },
+  "session.rename_used": {
+    "advertised": false,
+    "theDaemonSaysTheSame": true,
+    "rename": "error -32601",
+    "theSessionSaysSo": false,
+    "theDaemonsListSaysSo": false,
+    "theHarnessListSaysSo": false,
+    "keptAfterAnotherTurn": false,
+    "renameWhileAsleep": "error -32601",
+    "theDaemonsListSaysSoAsleep": false,
+    "theHarnessListSaysSoAsleep": false,
+    "theReopenedSessionSaysSo": false
   }
 }

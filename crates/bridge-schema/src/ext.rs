@@ -161,6 +161,12 @@ pub struct AgentInfo {
     /// Human-readable explanation when the agent is not ready.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
+    /// What the agent said it can do in its `initialize` answer, once it has been started.
+    /// `session.title`, `session.delete` and `session.options` say whether a session can be
+    /// renamed, deleted, and its settings read before it exists. Absent until the agent has
+    /// started: `_bridge/sessions/list` with its id starts it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

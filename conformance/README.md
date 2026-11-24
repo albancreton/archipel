@@ -34,4 +34,4 @@ How it is built:
 
 Addons (`docs/design/addons.md`) run as shipped. A scenario that checks a fix also notes what the harness does with that addon switched off (`t.restartDaemon({ "<id>": false })`): `reopen.keeps_settings.unaided`, and the fact `unknownEffortUnaided`. When one of those shows `CHANGED` towards the right behaviour, upstream has repaired the fault and the addon can be deleted.
 
-Scenarios that talk to the adapter directly (`session.empty`, `session.options`, `session.rename_delete`) cover what the daemon does not pass on yet, and note what the daemon does with the same call today.
+Some scenarios also talk to the adapter directly (`session.empty`, `session.options`, `session.rename_delete`, `session.rename_used`), to compare what the harness does with what arrives through the daemon.

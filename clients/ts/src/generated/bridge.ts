@@ -122,6 +122,15 @@ export interface AgentInfo {
    * Human-readable explanation when the agent is not ready.
    */
   detail?: string | null;
+  /**
+   * What the agent said it can do in its `initialize` answer, once it has been started.
+   * `session.title`, `session.delete` and `session.options` say whether a session can be
+   * renamed, deleted, and its settings read before it exists. Absent until the agent has
+   * started: `_bridge/sessions/list` with its id starts it.
+   */
+  capabilities?: {
+    [k: string]: unknown;
+  };
 }
 /**
  * `_bridge/sessions/list` request.

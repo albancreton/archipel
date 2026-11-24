@@ -184,6 +184,9 @@
             "string",
             "null"
           ]
+        },
+        "capabilities": {
+          "description": "What the agent said it can do in its `initialize` answer, once it has been started.\n`session.title`, `session.delete` and `session.options` say whether a session can be\nrenamed, deleted, and its settings read before it exists. Absent until the agent has\nstarted: `_bridge/sessions/list` with its id starts it."
         }
       },
       "required": [

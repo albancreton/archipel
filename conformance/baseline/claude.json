@@ -243,7 +243,8 @@
       "effort": "other: default",
       "mode": "the user's choice"
     },
-    "throughTheDaemon": "ok"
+    "throughTheDaemon": "ok",
+    "throughTheDaemonForAnExistingSession": "ok"
   },
   "session.rename_delete": {
     "rename": "ok",
@@ -274,5 +275,18 @@
   },
   "memory.project_file": {
     "knowsTheMarker": true
+  },
+  "session.rename_used": {
+    "advertised": true,
+    "theDaemonSaysTheSame": true,
+    "rename": "ok, title as sent",
+    "theSessionSaysSo": true,
+    "theDaemonsListSaysSo": true,
+    "theHarnessListSaysSo": true,
+    "keptAfterAnotherTurn": true,
+    "renameWhileAsleep": "ok",
+    "theDaemonsListSaysSoAsleep": true,
+    "theHarnessListSaysSoAsleep": true,
+    "theReopenedSessionSaysSo": true
   }
 }

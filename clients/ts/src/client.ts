@@ -1,7 +1,7 @@
 // The client an app uses: sessions that stay in step with the daemon, across reconnects.
 
 import { ClosedError, Connection, RpcError, type Transport } from "./connection.ts";
-import type { OpenElsewhere } from "./generated/bridge.ts";
+import type { AgentInfo, OpenElsewhere } from "./generated/bridge.ts";
 import { get, isObject, type Json, type JsonObject } from "./json.ts";
 import { Mirror, rootOf, SESSIONS_UPDATED } from "./mirror.ts";
 import type { Conversation, ItemRef, Request, SessionState } from "./state.ts";
@@ -115,10 +115,13 @@ export class BridgeClient {
     return this.connection.call(method, params);
   }
 
-  /** The agents the daemon can start. */
-  async agents(): Promise<Json[]> {
+  /**
+   * The agents the daemon can start. `capabilities` is what an agent said it can do, and is
+   * there once the agent has been started (`listSessions({ agentId })` starts it).
+   */
+  async agents(): Promise<AgentInfo[]> {
     const result = await this.call("_bridge/agents/list");
-    return (get(result, "agents") as Json[] | undefined) ?? [];
+    return (get(result, "agents") as unknown as AgentInfo[] | undefined) ?? [];
   }
 
   /**
@@ -149,6 +152,40 @@ export class BridgeClient {
     const id = get(forked, "sessionId");
     if (typeof id !== "string") throw new Error("the agent did not return a session id");
     return this.session(id);
+  }
+
+  /**
+   * The settings a session would start with (`configOptions`) and its commands, without making
+   * one: for a settings bar shown before the first message. With `sessionId`, those of an
+   * existing session, which is not woken for it. Only where the agent's capabilities have
+   * `session.options` (see `agents()`); otherwise the call fails with code -32601.
+   */
+  async sessionOptions(options: { cwd: string; agentId?: string; sessionId?: string }): Promise<JsonObject> {
+    const params: JsonObject = { cwd: options.cwd };
+    if (options.sessionId) params["sessionId"] = options.sessionId;
+    if (options.agentId) params["_meta"] = { bridge: { agentId: options.agentId } };
+    const result = await this.call("session/options", params);
+    return isObject(result) ? result : {};
+  }
+
+  /**
+   * Renames a session and returns the title the harness stored, which may differ from the one
+   * sent. Every app following the session or the list hears of it. Only where the agent's
+   * capabilities have `session.title`.
+   */
+  async setTitle(sessionId: string, title: string): Promise<string> {
+    const stored = get(await this.call("session/set_title", { sessionId, title }), "title");
+    return typeof stored === "string" ? stored : title;
+  }
+
+  /**
+   * Deletes a session at its harness and in the daemon. It cannot be undone, and needs the
+   * `admin` scope (the local socket has it). Only where the agent's capabilities have
+   * `session.delete`.
+   */
+  async deleteSession(sessionId: string): Promise<void> {
+    await this.call("session/delete", { sessionId });
+    this.sessions.delete(sessionId);
   }
 
   /** Attaches to a session and resolves once the app holds all of it. */

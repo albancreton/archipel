@@ -11,6 +11,7 @@
 //! | app | `_bridge/sessions/list` | the daemon's sessions, plus those each harness reports |
 //! | app | `session/new` | pass to the adapter, record the session, attach the app |
 //! | app | `session/delete` | pass to the adapter; once it agrees, drop the session and its log and tell every app |
+//! | app | `session/options` | pass to the agent it is about; no session is woken for it |
 //! | app | any other request for a session | pass to the adapter, waking the session first if needed |
 //!
 //! A session is *live* while an adapter process holds it. A session that is not live can still be
@@ -930,6 +931,7 @@ impl Daemon {
             "session/new" => self.new_session(client, id, &message),
             "session/fork" => self.fork(client, id, &message),
             "session/delete" => self.delete(client, id, &message),
+            "session/options" => self.options(client, id, &message),
             _ => match text(&params, "/sessionId").map(str::to_owned) {
                 Some(session_id) => self.forward(client, id, &session_id, message),
                 None => self.forward_to_default_agent(client, id, &message),
@@ -994,6 +996,7 @@ impl Daemon {
                         ext::AgentReadiness::Ready
                     },
                     detail: agent.last_error.clone().filter(|_| failed),
+                    capabilities: info.and_then(|result| result.get("capabilities")).cloned(),
                 }
             })
             .collect()
@@ -1529,6 +1532,49 @@ impl Daemon {
             wire::error_with(id, ext::ERROR_OPEN_ELSEWHERE, &message, json!(held)),
         );
         true
+    }
+
+    /// Passes `session/options` (the settings a session would start with) to the agent it is
+    /// about: the session's own when one is named, else the one under `_meta.bridge.agentId`,
+    /// else the first. The protocol says the call resumes nothing, so a session is not woken
+    /// for it, and one that is open elsewhere can still be asked about.
+    fn options(&mut self, client: u64, id: Value, message: &Value) {
+        let agent = match text(message, "/params/sessionId").map(str::to_owned) {
+            Some(session) => match self.whose(&session) {
+                Some((_, agent)) => agent,
+                None => {
+                    return self.refuse(
+                        client,
+                        &id,
+                        wire::INVALID_PARAMS,
+                        "unknown session; list the sessions first",
+                    );
+                }
+            },
+            None => {
+                let named = text(message, "/params/_meta/bridge/agentId")
+                    .map(str::to_owned)
+                    .or_else(|| self.agents.keys().next().cloned())
+                    .filter(|agent| self.agents.contains_key(agent));
+                match named {
+                    Some(agent) => agent,
+                    None => return self.refuse(client, &id, wire::INVALID_PARAMS, "no such agent"),
+                }
+            }
+        };
+        match self.ensure_ready(&agent, client, message) {
+            Ready::Later => {}
+            Ready::No(why) => self.refuse(client, &id, wire::INTERNAL_ERROR, &why),
+            Ready::Yes => {
+                let params = message.get("params").cloned().unwrap_or(Value::Null);
+                self.call(
+                    &agent,
+                    Call::Forward { client, id },
+                    "session/options",
+                    params,
+                );
+            }
+        }
     }
 
     /// Deletes a session at its harness. Once the harness agrees, the daemon drops its own

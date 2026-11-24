@@ -74,13 +74,14 @@ Node 22.18 or later runs the TypeScript sources directly; there is no build step
 - A request stays open while no app is attached. An app that attaches later gets it.
 
 **Connections**
-- The local socket (`~/.harness-bridge/daemon.sock`) gives full control and is readable only by its owner. A WebSocket connection is as limited as its token: `observe` reads, `interact` also acts, `extend` also acts as an extension.
+- The local socket (`~/.harness-bridge/daemon.sock`) gives full control and is readable only by its owner. A WebSocket connection is as limited as its token: `observe` reads, `interact` also acts, `extend` also acts as an extension, `admin` also deletes sessions.
 - After a disconnect the SDKs reconnect and continue from the last item they had. An app does not replay by hand.
 - A browser page needs the daemon started with `--ws-origin` for its origin, and sends its token as a subprotocol (`docs/remote.md`).
 
 **Harnesses**
 - Claude Code is driven through an adapter that is an npm package and needs Node 22 or later: `npm install -g @agentclientprotocol/claude-agent-acp`. With no `config.json`, the daemon starts `claude-agent-acp` from `PATH`, so after that one command a real session works. `bridged --help` documents `config.json`.
 - **`bridge agents` is the first thing to run against a real daemon.** It starts every agent and prints `ready`, `needs_login`, or `error` with the reason, and fails unless all are ready. The daemon only learns whether an agent can start when it first needs it, so without this a missing adapter shows up as a failed first message.
+- **Not every harness can do everything.** `client.agents()` gives each agent's `capabilities` once it has started: `session.title` (rename, `client.setTitle`), `session.delete` (`client.deleteSession`), `session.options` (settings before a session exists, `client.sessionOptions`). Claude Code has all three; Pi can neither rename nor delete. A call the harness lacks fails with code -32601, so check before showing the button.
 - A new session uses the account's default model, which may be an expensive one. Set the model before the first message when cost matters: `session.setConfigOption("model", "haiku")`.
 - A daemon started by a service manager does not have your shell's `PATH`. If every agent fails to start, that is why (`examples/service/README.md`).
 - A session that another process of the harness has open (its own terminal UI, say) is refused with error `-32004`. Offer a fork (`session.fork()`); the kits already do.
