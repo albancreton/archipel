@@ -35,6 +35,26 @@
 //!
 //! Each of these can be let through, changed, stopped, or held and released later.
 //!
+//! # The app side
+//!
+//! The hooks above sit between the daemon and an adapter. A second set sits between an app
+//! and the daemon, and sees what the daemon handles or says itself: attaching to a session
+//! and its replay, the session list, the daemon's answer to an app's `initialize`, and every
+//! message on its way to one app.
+//!
+//! ```text
+//! app ── request ──────▶ [app_request]      ──▶ daemon ──▶ [request] ──▶ adapter
+//! app ◀─ its response ── [app_response]     ◀── daemon
+//! app ── notification ─▶ [app_notification] ──▶ daemon
+//! app ── an answer ────▶ [app_answer]       ──▶ daemon
+//! app ◀─ anything else ─ [to_app]           ◀── daemon     updates, replay, requests
+//! ```
+//!
+//! So an app's `session/prompt` passes `app_request` of every addon, then the daemon, then
+//! `request` of every addon. These hooks are called for every app and every agent:
+//! [`Addon::applies`] is not asked. On its way to an app everything passes `to_app`, also
+//! what an addon added itself.
+//!
 //! # What an addon sends
 //!
 //! An addon can stand in for either side. Like the app, it sends the adapter requests
@@ -317,6 +337,77 @@ pub struct MethodCall<'a> {
     pub params: &'a Value,
 }
 
+/// A connected app.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct App<'a> {
+    /// The number of its connection. Stays the same until it disconnects.
+    pub id: u64,
+    /// The name it gave in its `initialize`.
+    pub name: Option<&'a str>,
+    /// What it may do: `observe`, `interact`, `extend` or `admin`.
+    pub scope: &'static str,
+}
+
+/// A request from an app, before the daemon handles it. That is every request an app
+/// makes: the daemon's own methods (`initialize`, `_bridge/…`) and the ones it will pass to
+/// an adapter.
+pub struct AppRequest<'a> {
+    /// Comes back in [`AppResponse::id`].
+    pub id: u64,
+    pub app: App<'a>,
+    /// The agent of the session the params name, if they name one the daemon knows.
+    pub agent: Option<Agent<'a>>,
+    pub method: &'a str,
+    /// May be changed.
+    pub params: &'a mut Value,
+}
+
+/// The answer to an app's request, on its way to that app.
+pub struct AppResponse<'a> {
+    /// The [`AppRequest::id`] of the request this answers.
+    pub id: u64,
+    pub app: App<'a>,
+    pub agent: Option<Agent<'a>>,
+    pub method: &'a str,
+    /// The request's params, as the daemon got them.
+    pub params: &'a Value,
+    /// May be changed.
+    pub outcome: &'a mut Outcome,
+}
+
+/// A notification from an app, before the daemon handles it.
+pub struct AppNotification<'a> {
+    pub id: u64,
+    pub app: App<'a>,
+    pub agent: Option<Agent<'a>>,
+    pub method: &'a str,
+    /// May be changed.
+    pub params: &'a mut Value,
+}
+
+/// An app's answer to a request it was sent, before the daemon handles it.
+pub struct AppAnswer<'a> {
+    pub id: u64,
+    pub app: App<'a>,
+    /// The JSON-RPC id of the request it answers, as [`ToApp::request`] showed it.
+    pub request: &'a Value,
+    /// May be changed.
+    pub outcome: &'a mut Outcome,
+}
+
+/// A notification or a request on its way to one app: a session update (live or replayed),
+/// a pending approval, the daemon's own notifications, an addon's.
+pub struct ToApp<'a> {
+    pub id: u64,
+    pub app: App<'a>,
+    pub agent: Option<Agent<'a>>,
+    /// For a request, its JSON-RPC id. `None` for a notification.
+    pub request: Option<&'a Value>,
+    pub method: &'a str,
+    /// May be changed.
+    pub params: &'a mut Value,
+}
+
 /// A session, as the daemon's log knows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionInfo {
@@ -369,6 +460,16 @@ pub enum Effect {
     },
     Ask {
         id: u64,
+        method: String,
+        params: Value,
+    },
+    AppCall {
+        id: u64,
+        method: String,
+        params: Value,
+    },
+    Tell {
+        app: u64,
         method: String,
         params: Value,
     },
@@ -489,6 +590,31 @@ impl<'a> Cx<'a> {
         id
     }
 
+    /// Makes a request of the daemon the way an app would: `session/new`, `session/prompt`,
+    /// `_bridge/sessions/list` and so on. Unlike [`Cx::call`], which goes straight to the
+    /// adapter, this has the daemon do its part: record a new session, wake one that is not
+    /// live. The answer arrives in [`Addon::reply`] with the id returned here. The request
+    /// does not pass the app-side hooks; what the daemon sends an adapter for it passes
+    /// every addon's [`Addon::request`], marked as from this addon.
+    pub fn app_call(&mut self, method: &str, params: Value) -> u64 {
+        let id = self.next();
+        self.effects.push(Effect::AppCall {
+            id,
+            method: method.to_owned(),
+            params,
+        });
+        id
+    }
+
+    /// Sends one app a notification. Not logged. Dropped if the app is gone.
+    pub fn tell(&mut self, app: u64, method: &str, params: Value) {
+        self.effects.push(Effect::Tell {
+            app,
+            method: method.to_owned(),
+            params,
+        });
+    }
+
     /// Asks to be called back: [`Addon::timer`] runs with the id returned here once `after`
     /// has passed. This is how an addon puts a time limit on something it holds.
     pub fn wake(&mut self, after: Duration) -> u64 {
@@ -503,7 +629,8 @@ impl<'a> Cx<'a> {
     /// - `Answer` and `Refuse` give a held request its outcome here, and replace the outcome
     ///   of a held response or answer, which then goes on.
     ///
-    /// For a held notification or update, anything but `Pass` discards it.
+    /// For a held notification, update or message to an app, anything but `Pass` discards
+    /// it.
     pub fn release(&mut self, id: u64, verdict: Verdict) {
         self.effects.push(Effect::Release { id, verdict });
     }
@@ -540,8 +667,8 @@ pub trait Addon: Send + 'static {
 
     /// Whether the addon wants the messages of this agent. This is where an addon limits
     /// itself to a harness, an adapter version or an operating system. Asked for every
-    /// message, so it has to be cheap. Not asked for [`Addon::reply`], [`Addon::method`]
-    /// and [`Addon::timer`].
+    /// message to or from an adapter, so it has to be cheap. Not asked for the app-side
+    /// hooks, [`Addon::reply`], [`Addon::method`] and [`Addon::timer`].
     fn applies(&self, _agent: &Agent<'_>) -> bool {
         true
     }
@@ -588,7 +715,40 @@ pub trait Addon: Send + 'static {
         Flow::Pass
     }
 
-    /// The answer to a request this addon made with [`Cx::call`] or [`Cx::ask`].
+    /// A request from an app, before the daemon handles it.
+    fn app_request(&mut self, _cx: &mut Cx<'_>, _request: &mut AppRequest<'_>) -> Verdict {
+        Verdict::Pass
+    }
+
+    /// The answer to an app's request, on its way to that app: the daemon's own, an
+    /// adapter's as the other hooks left it, or the one an addon nearer the daemon gave.
+    fn app_response(&mut self, _cx: &mut Cx<'_>, _response: &mut AppResponse<'_>) -> Flow {
+        Flow::Pass
+    }
+
+    /// A notification from an app, before the daemon handles it.
+    fn app_notification(
+        &mut self,
+        _cx: &mut Cx<'_>,
+        _notification: &mut AppNotification<'_>,
+    ) -> Keep {
+        Keep::Yes
+    }
+
+    /// An app's answer to a request it was sent, before the daemon handles it. Dropping it
+    /// leaves the request open for another answer.
+    fn app_answer(&mut self, _cx: &mut Cx<'_>, _answer: &mut AppAnswer<'_>) -> Keep {
+        Keep::Yes
+    }
+
+    /// A notification or a request on its way to one app. Dropping it keeps it from that
+    /// app only.
+    fn to_app(&mut self, _cx: &mut Cx<'_>, _message: &mut ToApp<'_>) -> Keep {
+        Keep::Yes
+    }
+
+    /// The answer to a request this addon made with [`Cx::call`], [`Cx::ask`] or
+    /// [`Cx::app_call`].
     fn reply(&mut self, _cx: &mut Cx<'_>, _id: u64, _outcome: &Outcome) {}
 
     /// An app calls a method under `_x/`. Addons are asked in order; `Pass` means "not

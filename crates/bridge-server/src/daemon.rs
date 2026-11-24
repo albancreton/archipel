@@ -33,6 +33,11 @@
 //! | a request made of the user | [`Daemon::ask`] | [`Daemon::answered`] takes the answer back |
 //! | a notification or an update, either way | [`Daemon::pass`] | |
 //! | an app's call of a method under `_x/` | [`Daemon::serve`] | |
+//! | anything between an app and the daemon | [`Daemon::edge`] | |
+//!
+//! The last one is the app side: [`Daemon::client_message`] and [`Daemon::send`] are the only
+//! ways in from and out to an app, and both go through it. Since a send can run addon code,
+//! nothing after a send may assume a session is still there.
 //!
 //! A message an addon holds waits in `held` until [`Daemon::release`] sends it on from the
 //! layer that held it.
@@ -137,6 +142,68 @@ pub(crate) struct Daemon {
     ids: u64,
     /// Messages an addon holds, by the number the daemon gave them.
     held: HashMap<u64, Held>,
+    /// App requests the daemon has not answered yet, by connection and JSON-RPC id: the
+    /// number addons know each by, its method and its params. Only kept when there are addons.
+    asked: HashMap<(u64, String), (u64, String, Value)>,
+    /// Requests addons made of the daemon as an app would, by the connection number that
+    /// stands for the addon and the id it was given: the agent the addon was looking at.
+    app_calls: HashMap<(u64, u64), String>,
+}
+
+/// Connection numbers from here on stand for addons that act as an app
+/// ([`addon::Cx::app_call`]): this plus the addon's layer.
+const ADDON_CLIENTS: u64 = 1 << 62;
+
+/// A message between an app and the daemon, on its way through the addons.
+struct Edge {
+    /// The number addons know it by.
+    id: u64,
+    client: u64,
+    kind: EdgeKind,
+    /// The whole JSON-RPC message.
+    message: Value,
+}
+
+enum EdgeKind {
+    /// From the app.
+    Request,
+    Notification,
+    Answer,
+    /// To the app: the answer to its request, with that request's method and params.
+    Response(String, Value),
+    /// To the app: a notification or a request.
+    Push,
+}
+
+impl EdgeKind {
+    fn inward(&self) -> bool {
+        matches!(self, Self::Request | Self::Notification | Self::Answer)
+    }
+}
+
+fn scope_name(scope: Scope) -> &'static str {
+    match scope {
+        Scope::Observe => "observe",
+        Scope::Interact => "interact",
+        Scope::Extend => "extend",
+        Scope::Admin => "admin",
+    }
+}
+
+fn step_of_flow(flow: addon::Flow) -> addon::Verdict {
+    match flow {
+        addon::Flow::Pass => addon::Verdict::Pass,
+        addon::Flow::Hold => addon::Verdict::Hold,
+    }
+}
+
+/// A dropped message is told apart from a passed one by any verdict that ends it.
+fn step_of_keep(keep: addon::Keep) -> addon::Verdict {
+    match keep {
+        addon::Keep::Yes => addon::Verdict::Pass,
+        addon::Keep::Hold => addon::Verdict::Hold,
+        addon::Keep::No => addon::Verdict::Answer(Value::Null),
+    }
 }
 
 /// A request to an adapter: why it was made, and what was sent, for the addons that see
@@ -228,6 +295,7 @@ enum HeldWhat {
     Response(Box<Sent>, addon::Outcome),
     Method(Box<OwnCall>),
     OneWay(Box<OneWay>),
+    Edge(Box<Edge>),
     Ask(Box<Ask>),
     Answer(Box<Answered>),
 }
@@ -461,6 +529,8 @@ impl Daemon {
             addons: addons.into_iter().map(Some).collect(),
             ids: 0,
             held: HashMap::new(),
+            asked: HashMap::new(),
+            app_calls: HashMap::new(),
         }
     }
 
@@ -500,14 +570,235 @@ impl Daemon {
 
     // ---- sending to apps -------------------------------------------------------------------
 
+    /// Sends a message to an app, through the addons' app-side hooks.
+    fn send(&mut self, client: u64, message: Value) {
+        if client >= ADDON_CLIENTS {
+            return self.answer_addon(client, &message);
+        }
+        if self.addons.is_empty() {
+            return self.queue(client, message);
+        }
+        let (kind, id) = if message.get("method").is_some() {
+            self.ids += 1;
+            (EdgeKind::Push, self.ids)
+        } else {
+            let asked = message
+                .get("id")
+                .and_then(|id| self.asked.remove(&(client, id.to_string())));
+            match asked {
+                Some((number, method, params)) => (EdgeKind::Response(method, params), number),
+                None => return self.queue(client, message),
+            }
+        };
+        let edge = Edge {
+            id,
+            client,
+            kind,
+            message,
+        };
+        self.edge(self.addons.len(), edge);
+    }
+
     /// Queues a message for an app. An app whose queue is full is disconnected: it can attach
     /// again and catch up from the log, which is cheaper than holding everything for it.
-    fn send(&mut self, client: u64, message: Value) {
+    fn queue(&mut self, client: u64, message: Value) {
         if let Some(entry) = self.clients.get(&client)
             && entry.tx.try_send(message).is_err()
         {
             self.drop_client(client);
         }
+    }
+
+    /// The answer to a request an addon made of the daemon as an app would. Whatever else
+    /// the daemon would send such an app is dropped.
+    fn answer_addon(&mut self, client: u64, message: &Value) {
+        let id = message.get("id").and_then(Value::as_u64);
+        if message.get("method").is_some() {
+            return;
+        }
+        let Some((id, agent)) = id.and_then(|id| Some((id, self.app_calls.remove(&(client, id))?)))
+        else {
+            return;
+        };
+        let outcome = addon::Outcome::of(message);
+        let index = (client - ADDON_CLIENTS) as usize;
+        self.hook(index, &agent, false, |addon, cx, _| {
+            addon.reply(cx, id, &outcome);
+        });
+    }
+
+    /// A message from an app, as it arrives: it passes the addons' app-side hooks before
+    /// the daemon handles it.
+    fn client_message(&mut self, client: u64, message: Value) {
+        if !self.clients.contains_key(&client) {
+            return;
+        }
+        if self.addons.is_empty() {
+            return self.handle(client, message);
+        }
+        let kind = match (message.get("method").is_some(), message.get("id").is_some()) {
+            (true, true) => EdgeKind::Request,
+            (true, false) => EdgeKind::Notification,
+            (false, true) => EdgeKind::Answer,
+            (false, false) => return,
+        };
+        self.ids += 1;
+        let edge = Edge {
+            id: self.ids,
+            client,
+            kind,
+            message,
+        };
+        self.edge(0, edge);
+    }
+
+    /// Passes a message between an app and the daemon through the addons, then acts on it.
+    /// One from the app starts at layer `next`; one to the app starts below layer `next`.
+    fn edge(&mut self, next: usize, mut edge: Edge) {
+        let Some(entry) = self.clients.get(&edge.client) else {
+            return; // the app is gone
+        };
+        let (name, scope) = (entry.name.clone(), scope_name(entry.scope));
+        let method = text(&edge.message, "/method")
+            .unwrap_or_default()
+            .to_owned();
+        let layers = self.addons.len();
+        let order: Vec<usize> = if edge.kind.inward() {
+            (next..layers).collect()
+        } else {
+            (0..next.min(layers)).rev().collect()
+        };
+        for index in order {
+            let about = match &edge.kind {
+                EdgeKind::Response(_, params) => params,
+                _ => &edge.message["params"],
+            };
+            let named = text(about, "/sessionId").is_some_and(|id| self.roots.contains_key(id));
+            let agent_id = self.agent_for(about);
+            let app = addon::App {
+                id: edge.client,
+                name: name.as_deref(),
+                scope,
+            };
+            let id = edge.id;
+            let step = self.hook(index, &agent_id, false, |addon, cx, agent| {
+                let agent = named.then_some(agent);
+                let message = &mut edge.message;
+                match &edge.kind {
+                    EdgeKind::Request => {
+                        let mut params = message["params"].take();
+                        let shown = &mut addon::AppRequest {
+                            id,
+                            app,
+                            agent,
+                            method: &method,
+                            params: &mut params,
+                        };
+                        let verdict = addon.app_request(cx, shown);
+                        message["params"] = params;
+                        verdict
+                    }
+                    EdgeKind::Response(method, params) => {
+                        let mut outcome = addon::Outcome::of(message);
+                        let shown = &mut addon::AppResponse {
+                            id,
+                            app,
+                            agent,
+                            method,
+                            params,
+                            outcome: &mut outcome,
+                        };
+                        let flow = addon.app_response(cx, shown);
+                        *message = wire::relay(&message["id"].clone(), &outcome.to_json());
+                        step_of_flow(flow)
+                    }
+                    EdgeKind::Notification => {
+                        let mut params = message["params"].take();
+                        let shown = &mut addon::AppNotification {
+                            id,
+                            app,
+                            agent,
+                            method: &method,
+                            params: &mut params,
+                        };
+                        let keep = addon.app_notification(cx, shown);
+                        message["params"] = params;
+                        step_of_keep(keep)
+                    }
+                    EdgeKind::Answer => {
+                        let request = message["id"].clone();
+                        let mut outcome = addon::Outcome::of(message);
+                        let shown = &mut addon::AppAnswer {
+                            id,
+                            app,
+                            request: &request,
+                            outcome: &mut outcome,
+                        };
+                        let keep = addon.app_answer(cx, shown);
+                        *message = wire::relay(&request, &outcome.to_json());
+                        step_of_keep(keep)
+                    }
+                    EdgeKind::Push => {
+                        let request = message.get("id").cloned();
+                        let mut params = message["params"].take();
+                        let shown = &mut addon::ToApp {
+                            id,
+                            app,
+                            agent,
+                            request: request.as_ref(),
+                            method: &method,
+                            params: &mut params,
+                        };
+                        let keep = addon.to_app(cx, shown);
+                        message["params"] = params;
+                        step_of_keep(keep)
+                    }
+                }
+            });
+            let outcome = match step {
+                None | Some(addon::Verdict::Pass) => continue,
+                Some(addon::Verdict::Hold) => {
+                    return self.hold(index, &agent_id, id, HeldWhat::Edge(edge.into()));
+                }
+                Some(addon::Verdict::Answer(result)) => addon::Outcome::Result(result),
+                Some(addon::Verdict::Refuse { code, message }) => addon::Outcome::Error {
+                    code,
+                    message,
+                    data: Some(json!({"addon": self.addon_id(index)})),
+                },
+            };
+            // Only a request is answered. Anything else an addon stops is dropped.
+            if matches!(edge.kind, EdgeKind::Request) {
+                self.edge_answer(index, edge, &outcome);
+            }
+            return;
+        }
+        match edge.kind {
+            EdgeKind::Request => {
+                let key = (edge.client, edge.message["id"].to_string());
+                let params = edge.message["params"].clone();
+                self.asked.insert(key, (edge.id, method, params));
+                self.handle(edge.client, edge.message);
+            }
+            EdgeKind::Notification | EdgeKind::Answer => self.handle(edge.client, edge.message),
+            EdgeKind::Response(..) | EdgeKind::Push => self.queue(edge.client, edge.message),
+        }
+    }
+
+    /// The addon at layer `index` answers an app's request itself. The layers nearer the app
+    /// see that answer as they would the daemon's.
+    fn edge_answer(&mut self, index: usize, mut request: Edge, outcome: &addon::Outcome) {
+        let method = text(&request.message, "/method")
+            .unwrap_or_default()
+            .to_owned();
+        let params = request.message["params"].take();
+        let response = Edge {
+            id: request.id,
+            client: request.client,
+            kind: EdgeKind::Response(method, params),
+            message: wire::relay(&request.message["id"], &outcome.to_json()),
+        };
+        self.edge(index, response);
     }
 
     fn reply(&mut self, client: u64, id: &Value, result: Value) {
@@ -523,6 +814,9 @@ impl Daemon {
         for session in self.sessions.values_mut() {
             session.subscribers.remove(&client);
         }
+        self.asked.retain(|(asker, _), _| *asker != client);
+        self.held
+            .retain(|_, held| !matches!(&held.what, HeldWhat::Edge(edge) if edge.client == client));
         // If it was an extension, its namespace is free again and what waited on it fails.
         self.extensions.retain(|_, serving| *serving != client);
         let orphaned: Vec<String> = self
@@ -540,8 +834,9 @@ impl Daemon {
 
     // ---- messages from apps ----------------------------------------------------------------
 
-    fn client_message(&mut self, client: u64, message: Value) {
-        if !self.clients.contains_key(&client) {
+    /// Handles a message from an app, or from an addon acting as one.
+    fn handle(&mut self, client: u64, message: Value) {
+        if client < ADDON_CLIENTS && !self.clients.contains_key(&client) {
             return;
         }
         let may_act = self.scope(client) >= Scope::Interact;
@@ -556,6 +851,9 @@ impl Daemon {
     }
 
     fn scope(&self, client: u64) -> Scope {
+        if client >= ADDON_CLIENTS {
+            return Scope::Extend;
+        }
         self.clients
             .get(&client)
             .map_or(Scope::Observe, |entry| entry.scope)
@@ -1001,8 +1299,12 @@ impl Daemon {
         let Some(root) = self.open(client, id, &request.session_id, message) else {
             return;
         };
-        let head = self.sessions[&root].record.head_seq;
-        let agent = self.sessions[&root].record.agent_id.clone();
+        // A hook may have run since: the session can be gone.
+        let Some(session) = self.sessions.get(&root) else {
+            return;
+        };
+        let head = session.record.head_seq;
+        let agent = session.record.agent_id.clone();
         // A position beyond the log's end is from another log: start over.
         let after = request.after_seq.filter(|&seq| seq <= head);
         let catch_up = if after.is_some() {
@@ -1103,8 +1405,11 @@ impl Daemon {
             if let Some(entry) = state {
                 self.send(client, wire::entry(&root, entry));
             }
-            let head = self.sessions[&root].record.head_seq;
-            self.catch_up(client, &root, Some(head));
+            let head = self
+                .sessions
+                .get(&root)
+                .map(|session| session.record.head_seq);
+            self.catch_up(client, &root, head);
         }
         if let Some(session) = self.sessions.get_mut(&root) {
             session.subscribers.insert(client);
@@ -1154,7 +1459,9 @@ impl Daemon {
         let Some(root) = self.open(client, &id, session_id, &message) else {
             return;
         };
-        let session = &self.sessions[&root];
+        let Some(session) = self.sessions.get(&root) else {
+            return;
+        };
         let agent = session.record.agent_id.clone();
         if session.live {
             let method = text(&message, "/method").unwrap_or_default().to_owned();
@@ -1419,6 +1726,9 @@ impl Daemon {
     }
 
     fn app(&self, client: u64) -> Source {
+        if client >= ADDON_CLIENTS {
+            return Source::Addon((client - ADDON_CLIENTS) as usize);
+        }
         Source::App(
             self.clients
                 .get(&client)
@@ -2072,6 +2382,16 @@ impl Daemon {
                 };
                 self.ask(agent_id, index, ask);
             }
+            addon::Effect::AppCall { id, method, params } => {
+                let client = ADDON_CLIENTS + index as u64;
+                self.app_calls.insert((client, id), agent_id.to_owned());
+                self.handle(client, wire::request(id, &method, params));
+            }
+            addon::Effect::Tell {
+                app,
+                method,
+                params,
+            } => self.send(app, wire::notification(&method, params)),
             addon::Effect::Wake { id, after } => {
                 let (events, agent) = (self.events.clone(), agent_id.to_owned());
                 tokio::spawn(async move {
@@ -2174,6 +2494,31 @@ impl Daemon {
                     What::Update(_) | What::AgentNotification(_) => addon,
                 };
                 self.pass(&agent, next, *message);
+            }
+            HeldWhat::Edge(mut edge) => {
+                let next = if edge.kind.inward() { addon + 1 } else { addon };
+                let waited_for = matches!(edge.kind, EdgeKind::Request | EdgeKind::Response(..));
+                let outcome = match how {
+                    Release::Pass(None) => return self.edge(next, *edge),
+                    Release::Pass(Some(content)) if edge.message.get("method").is_some() => {
+                        edge.message["params"] = content;
+                        return self.edge(next, *edge);
+                    }
+                    Release::Pass(Some(result)) => addon::Outcome::Result(result),
+                    Release::Outcome(outcome) => outcome,
+                    Release::Discard if waited_for => dropped,
+                    Release::Discard => return,
+                };
+                match edge.kind {
+                    EdgeKind::Request => self.edge_answer(addon, *edge, &outcome),
+                    EdgeKind::Response(..) | EdgeKind::Answer => {
+                        let id = edge.message["id"].clone();
+                        edge.message = wire::relay(&id, &outcome.to_json());
+                        self.edge(next, *edge);
+                    }
+                    // An outcome for a message nobody answers: it is dropped.
+                    EdgeKind::Notification | EdgeKind::Push => {}
+                }
             }
             HeldWhat::Ask(mut ask) => match how {
                 Release::Pass(params) => {
@@ -2630,7 +2975,7 @@ impl Daemon {
                 };
                 adapter.initialized = Some(result.clone());
                 for (client, message) in std::mem::take(&mut adapter.waiting) {
-                    self.client_message(client, message);
+                    self.handle(client, message);
                 }
             }
             Call::List { job, agent } => self.sessions_listed(job, &agent, response),
@@ -2744,7 +3089,7 @@ impl Daemon {
                     self.log_setup(&root, result);
                     self.announce(&root);
                     for (client, message) in queued {
-                        self.client_message(client, message);
+                        self.handle(client, message);
                     }
                 } else {
                     if adopting {
@@ -2827,7 +3172,10 @@ impl Daemon {
         let held: Vec<u64> = self
             .held
             .iter()
-            .filter(|(_, held)| held.agent == agent_id && !matches!(held.what, HeldWhat::Method(_)))
+            .filter(|(_, held)| {
+                held.agent == agent_id
+                    && !matches!(held.what, HeldWhat::Method(_) | HeldWhat::Edge(_))
+            })
             .map(|(id, _)| *id)
             .collect();
         let mut unanswered: Vec<Sent> = adapter.calls.into_values().collect();
@@ -2905,6 +3253,7 @@ fn what_id(what: &HeldWhat) -> u64 {
         HeldWhat::Request(sent) | HeldWhat::Response(sent, _) => sent.request,
         HeldWhat::Method(call) => call.request,
         HeldWhat::OneWay(message) => message.id,
+        HeldWhat::Edge(edge) => edge.id,
         HeldWhat::Ask(ask) => ask.request,
         HeldWhat::Answer(answered) => answered.ask.request,
     }
