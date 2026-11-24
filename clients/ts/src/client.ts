@@ -3,8 +3,11 @@
 import { ClosedError, Connection, RpcError, type Transport } from "./connection.ts";
 import type { AgentInfo, OpenElsewhere } from "./generated/bridge.ts";
 import { get, isObject, type Json, type JsonObject } from "./json.ts";
-import { Mirror, rootOf, SESSIONS_UPDATED } from "./mirror.ts";
+import { Mirror, rootOf, SESSIONS_REMOVED, SESSIONS_UPDATED } from "./mirror.ts";
 import type { Conversation, ItemRef, Request, SessionState } from "./state.ts";
+
+/** What the daemon answers about a session it does not know (JSON-RPC "invalid params"). */
+const UNKNOWN_SESSION = -32602;
 
 /** One line of the session list. */
 export interface SessionSummary {
@@ -35,6 +38,11 @@ export interface ClientOptions {
   version?: string;
   /** Called when a session appears or its summary changes. */
   onSessionUpdated?: (session: SessionSummary) => void;
+  /**
+   * Called when a session was deleted, by this app or another. A `Session` the app holds for it
+   * has `removed` set by then and is no longer followed.
+   */
+  onSessionRemoved?: (sessionId: string) => void;
   /** Called when the connection is lost (`false`) and when it is back (`true`). */
   onConnection?: (connected: boolean) => void;
   /** Milliseconds between attempts to reconnect. 0 disables reconnecting. Default 1000. */
@@ -85,8 +93,16 @@ export class BridgeClient {
       await new Promise((done) => setTimeout(done, retry));
       try {
         await this.open();
-        // Every session continues from the last sequence number it applied.
-        await Promise.all([...this.sessions.values()].map((session) => session.attach()));
+        // Every session continues from the last sequence number it applied. One the daemon no
+        // longer knows was deleted while the connection was down.
+        await Promise.all(
+          [...this.sessions.values()].map((session) =>
+            session.attach().catch((error: unknown) => {
+              if (!(error instanceof RpcError) || error.code !== UNKNOWN_SESSION) throw error;
+              this.removed(session.id);
+            }),
+          ),
+        );
         this.options.onConnection?.(true);
         return;
       } catch {
@@ -95,7 +111,19 @@ export class BridgeClient {
     }
   }
 
+  private removed(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    this.sessions.delete(sessionId);
+    session?.markRemoved();
+    this.options.onSessionRemoved?.(sessionId);
+  }
+
   private receive(message: Json): void {
+    if (get(message, "method") === SESSIONS_REMOVED) {
+      const sessionId = get(message, "params.sessionId");
+      if (typeof sessionId === "string") this.removed(sessionId);
+      return;
+    }
     if (get(message, "method") === SESSIONS_UPDATED) {
       const summary = get(message, "params.session");
       if (isObject(summary)) this.options.onSessionUpdated?.(summary as unknown as SessionSummary);
@@ -185,7 +213,8 @@ export class BridgeClient {
    */
   async deleteSession(sessionId: string): Promise<void> {
     await this.call("session/delete", { sessionId });
-    this.sessions.delete(sessionId);
+    // The daemon tells every app, this one included; this covers a caller that goes on at once.
+    if (this.sessions.has(sessionId)) this.removed(sessionId);
   }
 
   /** Attaches to a session and resolves once the app holds all of it. */
@@ -227,6 +256,11 @@ export class Session {
    * attached and after every prompt, so it can be out of date in between.
    */
   openElsewhere: OpenElsewhere | null = null;
+  /**
+   * The session was deleted, by this app or another. What it held stays readable; it gets no
+   * more changes, and acting on it fails. Listeners are called once when this becomes true.
+   */
+  removed = false;
 
   constructor(id: string, connection: () => Connection, fork: () => Promise<Session>) {
     this.id = id;
@@ -313,12 +347,15 @@ export class Session {
     return () => this.listeners.delete(listener);
   }
 
-  /** Resolves when `done()` is true, checking after every change. */
+  /**
+   * Resolves when `done()` is true, checking after every change. Also resolves when the session
+   * is deleted, since nothing will change after that: check `removed`.
+   */
   until(done: () => boolean): Promise<void> {
-    if (done()) return Promise.resolve();
+    if (done() || this.removed) return Promise.resolve();
     return new Promise((resolve) => {
       const stop = this.subscribe(() => {
-        if (done()) {
+        if (done() || this.removed) {
           stop();
           resolve();
         }
@@ -350,6 +387,13 @@ export class Session {
   /** Changes a setting, such as `mode` or `model`. */
   async setConfigOption(configId: string, value: string): Promise<void> {
     await this.act("session/set_config_option", { sessionId: this.id, configId, type: "id", value });
+  }
+
+  /** Internal: the daemon said the session was deleted. */
+  markRemoved(): void {
+    if (this.removed) return;
+    this.removed = true;
+    for (const listener of this.listeners) listener();
   }
 
   /** Internal: (re)attaches from the last sequence number applied. */

@@ -10,6 +10,8 @@ public struct RPCError: Error, CustomStringConvertible, Equatable {
     public var description: String { "\(message) (\(code))" }
     /// The session is open in another process of the harness. Fork it to continue.
     public var openElsewhere: Bool { code == -32004 }
+    /// What the daemon answers about a session it does not know (JSON-RPC "invalid params").
+    static let unknownSession = -32602
 }
 
 /// Another process of the harness that has a session open, as the daemon reports it.
@@ -122,8 +124,15 @@ public final class BridgeClient {
             try? await Task.sleep(nanoseconds: UInt64(retryAfter * 1_000_000_000))
             do {
                 try await connect()
-                // Every session continues from the last sequence number it applied.
-                for session in followed.values { try await session.attach() }
+                // Every session continues from the last sequence number it applied. One the
+                // daemon no longer knows was deleted while the connection was down.
+                for session in Array(followed.values) {
+                    do {
+                        try await session.attach()
+                    } catch let error as RPCError where error.code == RPCError.unknownSession {
+                        removed(session.id)
+                    }
+                }
                 return
             } catch {
                 continue  // not back yet
@@ -148,6 +157,10 @@ public final class BridgeClient {
             } else {
                 continuation?.resume(returning: message["result"] ?? .null)
             }
+            return
+        }
+        if message["method"]?.string == Bridge.sessionsRemoved {
+            if let id = message.at("params.sessionId")?.string { removed(id) }
             return
         }
         if message["method"]?.string == Bridge.sessionsUpdated {
@@ -246,8 +259,14 @@ public final class BridgeClient {
     /// `session.delete`.
     public func deleteSession(_ id: String) async throws {
         _ = try await call("session/delete", ["sessionId": .string(id)])
-        followed.removeValue(forKey: id)
+        // The daemon tells every app, this one included; this covers a caller that goes on at once.
+        removed(id)
+    }
+
+    /// A session was deleted, by this app or another: it leaves the list and is no longer followed.
+    private func removed(_ id: String) {
         sessions.removeAll { $0.id == id }
+        followed.removeValue(forKey: id)?.markRemoved()
     }
 
     /// Attaches to a session and returns once the app holds all of it.
@@ -291,6 +310,9 @@ public final class BridgeSession: Identifiable {
     /// setting changes (error -32004); `fork()` makes a copy to continue with. Known when the
     /// session is attached and after every prompt, so it can be out of date in between.
     public private(set) var openElsewhere: OpenElsewhere?
+    /// The session was deleted, by this app or another. What it held stays readable; it gets
+    /// no more changes, and acting on it fails.
+    public private(set) var removed = false
 
     init(id: String, client: BridgeClient) {
         self.id = id
@@ -356,9 +378,10 @@ public final class BridgeSession: Identifiable {
             ["sessionId": .string(id), "configId": .string(configId), "type": "id", "value": .string(value)])
     }
 
-    /// Returns when `done()` is true, checking after every change.
+    /// Returns when `done()` is true, checking after every change. Also returns when the
+    /// session is deleted, since nothing will change after that: check `removed`.
     public func until(_ done: @escaping () -> Bool) async {
-        if done() { return }
+        if done() || removed { return }
         await withCheckedContinuation { waiters.append((done, $0)) }
     }
 
@@ -375,6 +398,13 @@ public final class BridgeSession: Identifiable {
             let head = attached["headSeq"]?.number.map(Int.init) ?? 0
             await until { self.mirror.seq >= head }
         }
+    }
+
+    func markRemoved() {
+        removed = true
+        let waiting = waiters
+        waiters.removeAll()
+        for waiter in waiting { waiter.continuation.resume() }
     }
 
     func reset() {

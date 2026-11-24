@@ -20,6 +20,9 @@ let package = Package(
         ),
         .target(name: "BridgeUI", dependencies: ["BridgeClient"], path: "ui/swift/Sources/BridgeUI"),
         .executableTarget(name: "BridgeChatDemo", dependencies: ["BridgeClient", "BridgeUI"], path: "ui/swift/Demo"),
+        // An example to copy, kept compiling and tested: start the daemon from a macOS app.
+        .target(name: "DaemonExample", dependencies: ["BridgeClient"], path: "examples/swift", exclude: ["Tests"]),
+        .testTarget(name: "ExamplesTests", dependencies: ["DaemonExample", "BridgeClient"], path: "examples/swift/Tests"),
         .testTarget(name: "BridgeClientTests", dependencies: ["BridgeClient"], path: "clients/swift/Tests/BridgeClientTests"),
         .testTarget(name: "BridgeUITests", dependencies: ["BridgeUI"], path: "ui/swift/Tests/BridgeUITests"),
     ],

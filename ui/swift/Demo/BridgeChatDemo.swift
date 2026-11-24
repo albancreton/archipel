@@ -35,7 +35,7 @@ struct BridgeChatDemo: App {
                 }
                 .overlay { if !client.connected { ContentUnavailableView("Not connected", systemImage: "bolt.slash", description: Text(failure ?? "Waiting for the daemon…")) } }
             } detail: {
-                if let session {
+                if let session, !session.removed {
                     LiveChatView(session: session) { self.session = $0 }.id(session.id)
                 } else {
                     Text("Choose a session").foregroundStyle(.secondary)

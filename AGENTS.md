@@ -18,6 +18,7 @@ Each of these is small. Copy the one that matches the task. The last column says
 |---|---|---|
 | Follow and drive a session from Node, Electron or React Native | `examples/node/chat.ts` | A test runs it against the fake agent |
 | Start the daemon from the app when none is running | `examples/node/daemon.ts` | A test starts a daemon with it, then finds that one |
+| The same from a macOS app in Swift | `examples/swift/Daemon.swift` | A test starts a daemon with it, then finds that one |
 | Add an item kind or a method from a separate program, in any language | `examples/node/extension.ts` | A test runs it and reads its item in an app |
 | Host the daemon inside a Rust program | `examples/embedded-daemon` | Its own test, in-process and through the socket |
 | Change, stop or answer what the harness and the apps say to each other; fix a harness fault | `examples/own-daemon` (an addon) | Its own test |
@@ -75,6 +76,7 @@ Node 22.18 or later runs the TypeScript sources directly; there is no build step
 
 **Connections**
 - The local socket (`~/.harness-bridge/daemon.sock`) gives full control and is readable only by its owner. A WebSocket connection is as limited as its token: `observe` reads, `interact` also acts, `extend` also acts as an extension, `admin` also deletes sessions.
+- A session can be deleted by another app at any time. The SDKs then set `removed` on it, end any `until` wait, and stop following it (`onSessionRemoved` in TypeScript; in Swift it also leaves `client.sessions`). What it held stays readable; acting on it fails.
 - After a disconnect the SDKs reconnect and continue from the last item they had. An app does not replay by hand.
 - A browser page needs the daemon started with `--ws-origin` for its origin, and sends its token as a subprotocol (`docs/remote.md`).
 

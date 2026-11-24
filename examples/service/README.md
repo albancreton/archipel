@@ -43,7 +43,7 @@ loginctl enable-linger "$USER"           # optional: keep it running when you ar
 
 - **After replacing the program, restart the service.** It keeps running the old one until then: `launchctl kickstart -k gui/$(id -u)/dev.harness-bridge.bridged`, or `systemctl --user restart bridged`. A restart interrupts running turns; the sessions and their history stay.
 - **The daemon's files** are in `~/.harness-bridge` (`bridged --help` lists them). Add `--home DIR` to the program arguments for another place.
-- **One daemon per home folder.** An app that starts the daemon itself (`examples/node/daemon.ts`) first checks whether one answers, and then uses the service.
+- **One daemon per home folder.** An app that starts the daemon itself (`examples/node/daemon.ts`, `examples/swift/Daemon.swift`) first checks whether one answers, and then uses the service.
 - **Remote access** (`--ws ADDR`) is one more argument: see `docs/remote.md`.
 - **systemd stops trying** after five failed starts within ten seconds (its default, not something this unit sets). `systemctl --user reset-failed bridged` clears that.
 - **The adapters and harnesses stop with the service** on Linux: systemd ends every process the daemon started.

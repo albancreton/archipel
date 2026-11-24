@@ -59,3 +59,80 @@ test("settings without a session, rename and delete", async () => {
   assert.equal(attaches(), 2);
   app.close();
 });
+
+/** A daemon that knows the sessions in `known`, can say one was deleted, and can drop the connection. */
+function daemonWith(known: Set<string>) {
+  let current: Transport | null = null;
+  const open = async (): Promise<Transport> => {
+    const transport: Transport = {
+      onMessage: null,
+      onClose: null,
+      close: () => {},
+      send(message) {
+        const { id, method, params } = message as { id?: number; method: string; params: JsonObject };
+        if (id === undefined) return;
+        const say = (frame: JsonObject) => queueMicrotask(() => transport.onMessage?.({ jsonrpc: "2.0", ...frame }));
+        const sessionId = params["sessionId"] as string;
+        if (method !== "_bridge/session/attach") return say({ id, result: {} });
+        if (!known.has(sessionId)) return say({ id, error: { code: -32602, message: "unknown session; list the sessions first" } });
+        say({ id, result: { catchUp: "replay", headSeq: 0 } });
+        const update: Json = { sessionUpdate: "replay_complete" };
+        say({ method: "session/update", params: { sessionId, update } });
+      },
+    };
+    current = transport;
+    return transport;
+  };
+  return {
+    open,
+    say: (frame: JsonObject) => current?.onMessage?.({ jsonrpc: "2.0", ...frame }),
+    drop: () => current?.onClose?.(),
+  };
+}
+
+test("a session another app deleted is marked, stops waiting and is no longer followed", async () => {
+  const daemon = daemonWith(new Set(["s1", "s2"]));
+  const gone: string[] = [];
+  const app = await BridgeClient.connect({ open: daemon.open, name: "test", retryMs: 0, onSessionRemoved: (id) => gone.push(id) });
+  const session = await app.session("s1");
+  const other = await app.session("s2");
+  let heard = 0;
+  session.subscribe(() => (heard += 1));
+  const waiting = session.until(() => session.turnState === "running");
+
+  daemon.say({ method: "_bridge/sessions/removed", params: { sessionId: "s1" } });
+  await waiting; // nothing will change any more, so the wait ends
+  assert.equal(session.removed, true);
+  assert.equal(heard, 1, "listeners are told once");
+  assert.deepEqual(gone, ["s1"]);
+  assert.equal(other.removed, false);
+  // A session nobody here follows: the app is still told, for its list.
+  daemon.say({ method: "_bridge/sessions/removed", params: { sessionId: "elsewhere" } });
+  assert.deepEqual(gone, ["s1", "elsewhere"]);
+  app.close();
+});
+
+test("a session deleted while the connection was down does not stop the client coming back", async () => {
+  const known = new Set(["s1", "s2"]);
+  const daemon = daemonWith(known);
+  const gone: string[] = [];
+  let back: () => void = () => {};
+  const returned = new Promise<void>((resolve) => (back = resolve));
+  const app = await BridgeClient.connect({
+    open: daemon.open,
+    name: "test",
+    retryMs: 1,
+    onSessionRemoved: (id) => gone.push(id),
+    onConnection: (connected) => connected && back(),
+  });
+  const deleted = await app.session("s1");
+  const kept = await app.session("s2");
+
+  known.delete("s1");
+  daemon.drop();
+  await returned;
+  assert.equal(deleted.removed, true);
+  assert.equal(kept.removed, false);
+  assert.deepEqual(gone, ["s1"]);
+  app.close();
+});

@@ -32,6 +32,10 @@ function App() {
       name: "react-demo",
       onSessionUpdated: (changed) =>
         setSessions((all) => [changed, ...all.filter((other) => other.sessionId !== changed.sessionId)]),
+      onSessionRemoved: (gone) => {
+        setSessions((all) => all.filter((other) => other.sessionId !== gone));
+        setSession((open) => (open?.id === gone ? null : open));
+      },
     })
       .then(async (connected) => {
         setClient(connected);
