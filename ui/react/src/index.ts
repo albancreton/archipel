@@ -12,6 +12,8 @@ export {
   SessionList, SessionRow, ago, byFolder, withSession, withoutSession, type SessionListProps, type SessionRowProps,
 } from "./sessions.tsx";
 export {
-  Approval, AssistantMessage, Compaction, Diff, Fallback, Plan, Question, SessionMessage, Subagent, Terminal, Thought, ToolCall, UserMessage,
+  AnsiText, Approval, AssistantMessage, Compaction, Diff, Fallback, Plan, Question, SessionMessage, Subagent, Terminal, Thought, ToolCall, UserMessage,
   contentText,
 } from "./items.tsx";
+export { ansiPieces, type AnsiPiece, type AnsiStyle } from "./ansi.ts";
+export { foldContext, parsePatch, type DiffFile, type DiffRow } from "./diff.ts";

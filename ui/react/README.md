@@ -62,6 +62,8 @@ With any of these, `actions.prompt` receives content blocks instead of a string;
 
 ## The rest
 
+- **Diffs** (`Diff`) are drawn per file with line numbers, the count of added and removed lines, and long unchanged parts folded behind "Show N unchanged lines". There is no syntax highlighting. `parsePatch` and `foldContext` are exported.
+- **Terminal output** (`Terminal`, `AnsiText`) shows the colours and styles a command prints; other control codes are dropped, and a progress line shows its last state. It is not a terminal emulator. The 16 terminal colours are CSS variables (`--hb-ansi-0` to `--hb-ansi-15`).
 - Each component takes an item and, where the user can act, a callback. Nothing else.
 - `components={{ "x.acme.checkpoint": Checkpoint }}` draws an extension's kind with your component. Without it the item gets a generic fallback.
 - Styles are one CSS file with `hb-` classes and a few variables.

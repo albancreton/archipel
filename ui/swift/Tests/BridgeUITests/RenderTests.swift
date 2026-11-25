@@ -226,6 +226,52 @@ final class RenderTests: XCTestCase {
         XCTAssertGreaterThan(try draw(view, as: "attachments"), 8000, "something was drawn")
     }
 
+    func testColourCodesBecomeStylesAndOtherControlCodesAreDropped() throws {
+        let esc = "\u{1B}"
+        let pieces = ansiPieces("plain \(esc)[1;31mred bold\(esc)[0m \(esc)[92mbright\(esc)[39m \(esc)[38;5;208morange\(esc)[48;2;1;2;3m on rgb\(esc)[m end")
+        XCTAssertEqual(pieces.map(\.text), ["plain ", "red bold", " ", "bright", " ", "orange", " on rgb", " end"])
+        XCTAssertEqual(pieces[1].style, AnsiStyle(fg: .palette(1), bold: true))
+        XCTAssertEqual(pieces[3].style, AnsiStyle(fg: .palette(10)))
+        XCTAssertEqual(pieces[6].style, AnsiStyle(fg: .rgb(255, 135, 0), bg: .rgb(1, 2, 3)))
+        XCTAssertEqual(pieces[7].style, AnsiStyle())
+        // Cursor moves, the window title, a bell: gone, and the text around them stays.
+        XCTAssertEqual(ansiPieces("a\(esc)[2K\(esc)[1Gb\(esc)]0;title\u{07}c\u{07}\(esc)[?25ld").map(\.text).joined(), "abcd")
+        XCTAssertEqual(ansiPieces("10%\r50%\r100%\ndone\r\n").map(\.text).joined(), "100%\ndone\n", "a progress line shows its last state")
+        XCTAssertEqual(ansiPieces(""), [])
+        let view = CodeBlock(text: "ok \(esc)[32mgreen\(esc)[0m \(esc)[1;31mred bold\(esc)[0m \(esc)[44m on blue \(esc)[0m\n\(esc)[2mdim\(esc)[0m \(esc)[4munderlined\(esc)[0m", terminal: true)
+            .padding(12).frame(width: 420)
+        XCTAssertGreaterThan(try draw(view, as: "terminal-colours"), 4000)
+    }
+
+    func testAPatchIsReadFoldedAndDrawn() throws {
+        let patch = [
+            "diff --git a/src/a.ts b/src/a.ts", "index 1..2 100644", "--- a/src/a.ts", "+++ b/src/a.ts", "@@ -1,12 +1,12 @@",
+            " one", " two", " three", " four", " five", " six", " seven", " eight", "-nine", "+NINE", " ten", " eleven",
+            "\\ No newline at end of file",
+            "--- /dev/null", "+++ b/new.txt", "@@ -0,0 +1,2 @@", "+hello", "+--- not a header",
+        ].joined(separator: "\n")
+        let files = parsePatch(patch)
+        XCTAssertEqual(files.map { "\($0.path) +\($0.added) -\($0.removed)" }, ["src/a.ts +1 -1", "new.txt +2 -0"])
+        XCTAssertEqual(Array(files[0].rows[8...10]), [.context("eight", old: 8, new: 8), .remove("nine", old: 9), .add("NINE", new: 9)])
+        XCTAssertEqual(files[1].rows[2], .add("--- not a header", new: 2))
+        XCTAssertEqual(parsePatch("not a patch\nat all"), [])
+        XCTAssertEqual(parsePatch("--- a/x\n+++ /dev/null\n@@ -1 +0,0 @@\n-gone\n").map(\.path), ["x"], "a deleted file keeps its name")
+
+        let folded = foldContext(files[0].rows).map { row -> String in
+            switch row {
+            case .fold(let inner): "fold \(inner.count)"
+            case .hunk: "hunk"
+            case .add: "add"
+            case .remove: "remove"
+            case .context: "context"
+            }
+        }
+        XCTAssertEqual(folded, ["hunk", "fold 5", "context", "context", "context", "remove", "add", "context", "context"])
+        let view = DiffView(block: ["changes": [["operation": "modify", "path": "src/a.ts"]], "patch": ["text": .string(patch)]])
+            .padding(12).frame(width: 520)
+        XCTAssertGreaterThan(try draw(view, as: "diff"), 10_000)
+    }
+
     func testTextOfContent() {
         XCTAssertEqual(contentText([["type": "text", "text": "a"], ["type": "text", "text": "b"]]), "ab")
         XCTAssertEqual(contentText(["type": "content", "content": ["type": "text", "text": "inner"]]), "inner")

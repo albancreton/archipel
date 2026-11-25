@@ -3,6 +3,8 @@
 
 import { base64Text, type Json, type JsonObject, type Request } from "@harness-bridge/client";
 import { useContext, useState, type ReactNode } from "react";
+import { ansiPieces, type AnsiStyle } from "./ansi.ts";
+import { foldContext, parsePatch, type DiffRow } from "./diff.ts";
 import { RenderText } from "./markdown.tsx";
 
 const isObject = (value: Json | undefined): value is JsonObject =>
@@ -71,6 +73,29 @@ export function Thought({ item }: { item: Json }) {
   );
 }
 
+function ansiProps(style: AnsiStyle): { className?: string; style?: { color?: string; backgroundColor?: string } } {
+  // Inverse swaps the two colours; without colours it is the terminal's own pair, swapped.
+  const [fg, bg] = style.inverse ? [style.bg ?? "bg", style.fg ?? "fg"] : [style.fg, style.bg];
+  const classes = [
+    typeof fg === "number" ? `hb-ansi-fg-${fg}` : fg === "bg" ? "hb-ansi-fg-bg" : "",
+    typeof bg === "number" ? `hb-ansi-bg-${bg}` : bg === "fg" ? "hb-ansi-bg-fg" : "",
+    style.bold ? "hb-ansi-bold" : "", style.dim ? "hb-ansi-dim" : "", style.italic ? "hb-ansi-italic" : "", style.underline ? "hb-ansi-underline" : "",
+  ].filter(Boolean).join(" ");
+  const css = {
+    ...(typeof fg === "string" && fg !== "bg" ? { color: fg } : {}),
+    ...(typeof bg === "string" && bg !== "fg" ? { backgroundColor: bg } : {}),
+  };
+  return { ...(classes ? { className: classes } : {}), ...(Object.keys(css).length ? { style: css } : {}) };
+}
+
+/** Terminal output with its colours. */
+export function AnsiText({ text: output }: { text: string }) {
+  return <>{ansiPieces(output).map((piece, at) => {
+    const props = ansiProps(piece.style);
+    return props.className || props.style ? <span key={at} {...props}>{piece.text}</span> : piece.text;
+  })}</>;
+}
+
 /** The output of a command, with the command line and how it ended. */
 export function Terminal({ item }: { item: Json }) {
   const output = isObject(item) && isObject(item["output"]) ? base64Text(text(item["output"], "data")) : "";
@@ -84,30 +109,57 @@ export function Terminal({ item }: { item: Json }) {
         <code>$ {text(item, "command")}</code>
         <span className={`hb-badge hb-${ended === "running" ? "running" : ended === "exit 0" ? "ok" : "failed"}`}>{ended}</span>
       </div>
-      {output && <pre>{output}</pre>}
+      {output && <pre className="hb-terminal-output"><AnsiText text={output} /></pre>}
     </div>
   );
 }
 
-/** A diff: which files changed, and the patch. */
+/** One line of a diff, or a fold of unchanged lines that opens when clicked. */
+function DiffLine({ row }: { row: DiffRow }) {
+  const [open, setOpen] = useState(false);
+  if (row.kind === "fold") {
+    if (open) return <>{row.rows.map((inner, at) => <DiffLine key={at} row={inner} />)}</>;
+    return (
+      <tr className="hb-diff-fold">
+        <td colSpan={3}><button type="button" onClick={() => setOpen(true)}>Show {row.rows.length} unchanged lines</button></td>
+      </tr>
+    );
+  }
+  if (row.kind === "hunk") return <tr className="hb-diff-hunk"><td colSpan={3}>{row.text}</td></tr>;
+  return (
+    <tr className={row.kind === "add" ? "hb-diff-add" : row.kind === "remove" ? "hb-diff-remove" : undefined}>
+      <td className="hb-diff-number">{row.old ?? ""}</td>
+      <td className="hb-diff-number">{row.new ?? ""}</td>
+      <td className="hb-diff-text"><span className="hb-diff-sign">{row.kind === "add" ? "+" : row.kind === "remove" ? "-" : " "}</span>{row.text}</td>
+    </tr>
+  );
+}
+
+/**
+ * A diff: per file, how much changed and the changed lines with their numbers. Long unchanged
+ * parts are folded. A patch this cannot read is shown as it is.
+ */
 export function Diff({ block }: { block: Json }) {
   const patch = isObject(block) && isObject(block["patch"]) ? text(block["patch"], "text") : "";
+  const files = parsePatch(patch);
+  const operations = new Map(list(block, "changes").map((change) => [text(change, "path"), text(change, "operation")]));
   return (
     <div className="hb-diff">
-      {list(block, "changes").map((change, at) => (
-        <div key={at} className="hb-diff-file">
-          {text(change, "operation")} <code>{text(change, "path")}</code>
+      {files.length === 0 && list(block, "changes").map((change, at) => (
+        <div key={at} className="hb-diff-file">{text(change, "operation")} <code>{text(change, "path")}</code></div>
+      ))}
+      {files.length === 0 && patch && <pre>{patch}</pre>}
+      {files.map((file, at) => (
+        <div key={at} className="hb-diff-one">
+          <div className="hb-diff-file">
+            {operations.get(file.path) ?? ""} <code>{file.path}</code>
+            <span className="hb-added"> +{file.added}</span> <span className="hb-removed">−{file.removed}</span>
+          </div>
+          <div className="hb-diff-rows">
+            <table><tbody>{foldContext(file.rows).map((row, line) => <DiffLine key={line} row={row} />)}</tbody></table>
+          </div>
         </div>
       ))}
-      {patch && (
-        <pre>
-          {patch.split("\n").map((line, at) => (
-            <span key={at} className={line.startsWith("+") ? "hb-added" : line.startsWith("-") ? "hb-removed" : undefined}>
-              {line + "\n"}
-            </span>
-          ))}
-        </pre>
-      )}
     </div>
   );
 }

@@ -58,8 +58,10 @@ struct Label2: View {
 
 struct CodeBlock: View {
     let text: String
+    /// Terminal output, whose colour codes are drawn as colours.
+    var terminal = false
     var body: some View {
-        Text(text)
+        Text(terminal ? AnsiText(text).attributed : AttributedString(text))
             .font(.system(.caption, design: .monospaced))
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(8)
@@ -138,32 +140,7 @@ public struct TerminalView: View {
                 Spacer()
                 Badge(text: ended)
             }
-            if !output.isEmpty { CodeBlock(text: output.trimmingCharacters(in: .newlines)) }
-        }
-    }
-}
-
-/// A diff: which files changed, and the patch.
-public struct DiffView: View {
-    let block: JSON
-    public init(block: JSON) { self.block = block }
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(Array((block["changes"]?.array ?? []).enumerated()), id: \.offset) { _, change in
-                Text("\(change["operation"]?.string ?? "") \(change["path"]?.string ?? "")").font(.caption).foregroundStyle(.secondary)
-            }
-            if let patch = block.at("patch.text")?.string {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(patch.split(separator: "\n", omittingEmptySubsequences: false).enumerated()), id: \.offset) { _, line in
-                        Text(String(line))
-                            .foregroundStyle(line.hasPrefix("+") ? Color.green : line.hasPrefix("-") ? Color.red : Color.primary)
-                    }
-                }
-                .font(.system(.caption, design: .monospaced))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(.background, in: RoundedRectangle(cornerRadius: 6))
-            }
+            if !output.isEmpty { CodeBlock(text: output.trimmingCharacters(in: .newlines), terminal: true) }
         }
     }
 }
