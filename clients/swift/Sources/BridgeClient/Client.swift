@@ -10,6 +10,9 @@ public struct RPCError: Error, CustomStringConvertible, Equatable {
     public var description: String { "\(message) (\(code))" }
     /// The session is open in another process of the harness. Fork it to continue.
     public var openElsewhere: Bool { code == -32004 }
+    /// The daemon could not write its session log, for example because the disk is full. A
+    /// prompt refused with it did not reach the agent. The message says what the storage reported.
+    public var storage: Bool { code == -32005 }
     /// What the daemon answers about a session it does not know (JSON-RPC "invalid params").
     static let unknownSession = -32602
 }
@@ -163,6 +166,13 @@ public final class BridgeClient {
             if let id = message.at("params.sessionId")?.string { removed(id) }
             return
         }
+        if message["method"]?.string == Bridge.sessionError {
+            if let id = message.at("params.sessionId")?.string, let code = message.at("params.code")?.number,
+               let text = message.at("params.message")?.string {
+                followed[id]?.failed(RPCError(code: Int(code), message: text))
+            }
+            return
+        }
         if message["method"]?.string == Bridge.sessionsUpdated {
             if let summary = message.at("params.session").flatMap(SessionSummary.init) {
                 if let index = sessions.firstIndex(where: { $0.id == summary.id }) {
@@ -209,6 +219,17 @@ public final class BridgeClient {
         let result = try await call(Bridge.sessionsList, ["loggedOnly": .bool(loggedOnly)])
         sessions = (result["sessions"]?.array ?? []).compactMap(SessionSummary.init)
         return sessions
+    }
+
+    /// Reads at most `limit` sessions, newest first, without touching `sessions`. `nextCursor`
+    /// is there when more follow: pass it as `cursor` to get them. A session that changes
+    /// between two pages moves to the front, where `sessions` already has it.
+    public func sessionsPage(limit: Int, cursor: String? = nil, loggedOnly: Bool = false) async throws
+        -> (sessions: [SessionSummary], nextCursor: String?) {
+        var params: JSON = ["limit": .number(Double(limit)), "loggedOnly": .bool(loggedOnly)]
+        if let cursor { params.set("cursor", to: .string(cursor)) }
+        let result = try await call(Bridge.sessionsList, params)
+        return ((result["sessions"]?.array ?? []).compactMap(SessionSummary.init), result["nextCursor"]?.string)
     }
 
     /// Creates a session and attaches to it.
@@ -313,6 +334,10 @@ public final class BridgeSession: Identifiable {
     /// The session was deleted, by this app or another. What it held stays readable; it gets
     /// no more changes, and acting on it fails.
     public private(set) var removed = false
+    /// Something went wrong in the session outside any request, as far as the daemon last said.
+    /// With `error.storage`: the daemon cannot write its log, so what happens now is not kept
+    /// and not shown. It is cleared by the next change that arrives.
+    public private(set) var error: RPCError?
 
     init(id: String, client: BridgeClient) {
         self.id = id
@@ -400,6 +425,18 @@ public final class BridgeSession: Identifiable {
         }
     }
 
+    func failed(_ error: RPCError) {
+        self.error = error
+        wake()
+    }
+
+    /// Lets the waits whose condition now holds go on.
+    private func wake() {
+        let ready = waiters.filter { $0.done() }
+        waiters.removeAll { $0.done() }
+        for waiter in ready { waiter.continuation.resume() }
+    }
+
     func markRemoved() {
         removed = true
         let waiting = waiters
@@ -416,10 +453,10 @@ public final class BridgeSession: Identifiable {
     }
 
     func received(_ message: JSON) {
+        let before = mirror.seq
         try? mirror.received(message)
+        if mirror.seq > before, error != nil { error = nil }
         if message.at("params.update.sessionUpdate")?.string == "replay_complete" { replayEnded = true }
-        let ready = waiters.filter { $0.done() }
-        waiters.removeAll { $0.done() }
-        for waiter in ready { waiter.continuation.resume() }
+        wake()
     }
 }

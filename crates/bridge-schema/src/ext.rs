@@ -37,6 +37,27 @@ pub struct OpenElsewhere {
 }
 pub const METHOD_SESSION_APPEND: &str = "_bridge/session/append";
 
+/// Error code: the daemon could not write to its session log, for example because the disk is
+/// full. A `session/prompt` refused with it was not passed to the agent. The message says what
+/// the storage reported.
+pub const ERROR_STORAGE: i64 = -32005;
+pub const NOTIFICATION_SESSION_ERROR: &str = "_bridge/session/error";
+
+/// `_bridge/session/error`: something went wrong in a session outside any request, so there
+/// is no response to carry the error. `code` and `message` mean what they mean in a JSON-RPC
+/// error. Sent to the attached apps and not stored.
+///
+/// With [`ERROR_STORAGE`]: updates of the session are being lost, because the log cannot be
+/// written. It is sent once, when the first write fails, not for every lost update. What is
+/// lost is not sent to any app, so no app holds more than the log does.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionErrorNotification {
+    pub session_id: String,
+    pub code: i64,
+    pub message: String,
+}
+
 /// `_bridge/extension/register` request: this connection is the extension `namespace`.
 ///
 /// From then on it may add updates whose kind starts with `x.<namespace>.` to sessions, and
@@ -192,7 +213,12 @@ pub struct ListSessionsRequest {
     /// Leave out sessions that only the harness knows. This never starts an adapter.
     #[serde(default)]
     pub logged_only: bool,
-    /// From a previous response, to get the next page.
+    /// At most this many sessions, newest first. Absent for all of them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+    /// `nextCursor` of a previous response, to get the sessions after that page. A session
+    /// that changes between two pages moves to the front, where `_bridge/sessions/updated`
+    /// has already reported it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
 }
@@ -216,6 +242,7 @@ pub struct SessionsRemovedNotification {
 #[serde(rename_all = "camelCase")]
 pub struct ListSessionsResponse {
     pub sessions: Vec<SessionSummary>,
+    /// Present when `limit` left sessions out: pass it as `cursor` for the next page.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<String>,
 }
@@ -332,6 +359,7 @@ pub struct BridgeExtensions {
     pub request_resolved_notification: RequestResolvedNotification,
     pub sessions_updated_notification: SessionsUpdatedNotification,
     pub sessions_removed_notification: SessionsRemovedNotification,
+    pub session_error_notification: SessionErrorNotification,
     pub scope: Scope,
     pub register_extension_request: RegisterExtensionRequest,
     pub append_request: AppendRequest,

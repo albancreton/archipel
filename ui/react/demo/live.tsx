@@ -12,8 +12,8 @@ import { createRoot } from "react-dom/client";
 import { ChatView, useSession } from "../src/index.ts";
 
 function Chat({ session, onFork }: { session: Session; onFork: (copy: Session) => void }) {
-  const { conversation, actions, openElsewhere } = useSession(session, { onFork });
-  return <ChatView conversation={conversation} sessionId={session.id} actions={actions} openElsewhere={openElsewhere} />;
+  const { conversation, actions, openElsewhere, error } = useSession(session, { onFork });
+  return <ChatView conversation={conversation} sessionId={session.id} actions={actions} openElsewhere={openElsewhere} error={error} />;
 }
 
 function App() {

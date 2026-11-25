@@ -46,6 +46,9 @@
     "sessionsRemovedNotification": {
       "$ref": "#/$defs/SessionsRemovedNotification"
     },
+    "sessionErrorNotification": {
+      "$ref": "#/$defs/SessionErrorNotification"
+    },
     "scope": {
       "$ref": "#/$defs/Scope"
     },
@@ -77,6 +80,7 @@
     "requestResolvedNotification",
     "sessionsUpdatedNotification",
     "sessionsRemovedNotification",
+    "sessionErrorNotification",
     "scope",
     "registerExtensionRequest",
     "appendRequest",
@@ -235,8 +239,17 @@
           "type": "boolean",
           "default": false
         },
+        "limit": {
+          "description": "At most this many sessions, newest first. Absent for all of them.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
         "cursor": {
-          "description": "From a previous response, to get the next page.",
+          "description": "`nextCursor` of a previous response, to get the sessions after that page. A session\nthat changes between two pages moves to the front, where `_bridge/sessions/updated`\nhas already reported it.",
           "type": [
             "string",
             "null"
@@ -254,6 +267,7 @@
           }
         },
         "nextCursor": {
+          "description": "Present when `limit` left sessions out: pass it as `cursor` for the next page.",
           "type": [
             "string",
             "null"
@@ -495,6 +509,27 @@
       },
       "required": [
         "sessionId"
+      ]
+    },
+    "SessionErrorNotification": {
+      "description": "`_bridge/session/error`: something went wrong in a session outside any request, so there\nis no response to carry the error. `code` and `message` mean what they mean in a JSON-RPC\nerror. Sent to the attached apps and not stored.\n\nWith [`ERROR_STORAGE`]: updates of the session are being lost, because the log cannot be\nwritten. It is sent once, when the first write fails, not for every lost update. What is\nlost is not sent to any app, so no app holds more than the log does.",
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "code": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "code",
+        "message"
       ]
     },
     "Scope": {

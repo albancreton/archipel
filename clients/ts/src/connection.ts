@@ -28,6 +28,14 @@ export class RpcError extends Error {
   get openElsewhere(): boolean {
     return this.code === -32004;
   }
+
+  /**
+   * The daemon could not write its session log, for example because the disk is full. A prompt
+   * refused with it did not reach the agent. The message says what the storage reported.
+   */
+  get storage(): boolean {
+    return this.code === -32005;
+  }
 }
 
 /** The connection closed before a request was answered. */

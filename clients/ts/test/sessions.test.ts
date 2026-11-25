@@ -136,3 +136,24 @@ test("a session deleted while the connection was down does not stop the client c
   assert.deepEqual(gone, ["s1"]);
   app.close();
 });
+
+test("an error outside any request is kept on its session until the next change arrives", async () => {
+  const daemon = daemonWith(new Set(["s1", "s2"]));
+  const app = await BridgeClient.connect({ open: daemon.open, name: "test", retryMs: 0 });
+  const session = await app.session("s1");
+  const other = await app.session("s2");
+  let heard = 0;
+  session.subscribe(() => (heard += 1));
+
+  daemon.say({ method: "_bridge/session/error", params: { sessionId: "s1", code: -32005, message: "the disk is full" } });
+  assert.equal(session.error?.storage, true);
+  assert.equal(session.error?.message, "the disk is full");
+  assert.equal(heard, 1);
+  assert.equal(other.error, null);
+  // The log is written again: the first update that arrives clears it.
+  const update: Json = { sessionUpdate: "state_update", state: "running" };
+  daemon.say({ method: "session/update", params: { sessionId: "s1", update, _meta: { bridge: { seq: 1 } } } });
+  assert.equal(session.turnState, "running");
+  assert.equal(session.error, null);
+  app.close();
+});

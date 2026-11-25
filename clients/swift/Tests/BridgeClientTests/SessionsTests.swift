@@ -139,6 +139,28 @@ final class RemovedTests: XCTestCase {
         app.close()
     }
 
+    func testAnErrorOutsideAnyRequestIsKeptOnItsSessionUntilTheNextChangeArrives() async throws {
+        let daemon = Known(["s1", "s2"])
+        let app = BridgeClient(name: "test") { daemon.open() }
+        try await app.connect()
+        let session = try await app.session("s1")
+        let other = try await app.session("s2")
+
+        daemon.say(["jsonrpc": "2.0", "method": "_bridge/session/error",
+                    "params": ["sessionId": "s1", "code": -32005, "message": "the disk is full"]])
+        await session.until { session.error != nil }
+        XCTAssertEqual(session.error?.storage, true)
+        XCTAssertEqual(session.error?.message, "the disk is full")
+        XCTAssertNil(other.error)
+        // The log is written again: the first update that arrives clears it.
+        daemon.say(["jsonrpc": "2.0", "method": "session/update", "params": [
+            "sessionId": "s1", "update": ["sessionUpdate": "state_update", "state": "running"],
+            "_meta": ["bridge": ["seq": 1]]]])
+        await session.until { session.turnState == "running" }
+        XCTAssertNil(session.error)
+        app.close()
+    }
+
     func testASessionDeletedWhileTheConnectionWasDownDoesNotStopTheClientComingBack() async throws {
         let daemon = Known(["s1", "s2"])
         let app = BridgeClient(name: "test") { daemon.open() }

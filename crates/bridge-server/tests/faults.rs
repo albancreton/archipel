@@ -387,7 +387,7 @@ impl Store for Unreliable {
 }
 
 #[tokio::test]
-async fn a_store_that_fails_loses_those_events_only_and_the_daemon_carries_on() {
+async fn a_store_that_fails_is_reported_to_the_apps_and_the_daemon_carries_on() {
     let (launched, mut adapters) = mpsc::unbounded_channel();
     let broken = Arc::new(AtomicBool::new(false));
     let store = Unreliable {
@@ -413,30 +413,53 @@ async fn a_store_that_fails_loses_those_events_only_and_the_daemon_carries_on() 
         }
     };
 
-    // While the store fails: requests are still passed on and answered.
+    // While the store fails, the attached app is told once, however many updates are lost,
+    // and what could not be stored is not shown: no app ever holds more than the log.
     broken.store(true, Ordering::SeqCst);
     update(&adapter, "s1", chunk("lost")).await;
+    update(&adapter, "s1", chunk("lost too")).await;
+    let told = next(&mut app).await;
+    assert_eq!(told["method"], ext::NOTIFICATION_SESSION_ERROR);
+    assert_eq!(told["params"]["sessionId"], "s1");
+    assert_eq!(told["params"]["code"], ext::ERROR_STORAGE);
+    assert!(
+        told["params"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("the disk is full")
+    );
+
+    // A message of the user's is refused with the same code and never reaches the agent:
+    // the turn it would start could not be kept.
+    let prompt = json!({"sessionId": "s1", "prompt": []});
+    ask(&app, 2, "session/prompt", prompt.clone()).await;
+    let (refused, before) = response(&mut app, 2).await;
+    assert_eq!(refused["error"]["code"], ext::ERROR_STORAGE);
+    assert!(
+        before.is_empty(),
+        "one notice, and no lost update: {before:?}"
+    );
+    // Other requests are still passed on and answered.
     ask(
         &app,
-        2,
-        "session/prompt",
-        json!({"sessionId": "s1", "prompt": []}),
+        3,
+        "session/set_title",
+        json!({"sessionId": "s1", "title": "t"}),
     )
     .await;
     let asked = next(&mut adapter).await;
+    assert_eq!(asked["method"], "session/set_title");
+    answer(&adapter, &asked, json!({})).await;
+    response(&mut app, 3).await;
+
+    // The store works again: prompts pass, and numbering continues with no gap.
+    broken.store(false, Ordering::SeqCst);
+    ask(&app, 4, "session/prompt", prompt).await;
+    let asked = next(&mut adapter).await;
     assert_eq!(asked["method"], "session/prompt");
     answer(&adapter, &asked, json!({"messageId": "m"})).await;
-    let (answered, before) = response(&mut app, 2).await;
+    let (answered, _) = response(&mut app, 4).await;
     assert_eq!(answered["result"]["messageId"], "m");
-    assert!(
-        before
-            .iter()
-            .all(|message| message["params"]["update"]["messageId"] != "lost"),
-        "what could not be stored is not shown, so no app ever holds more than the log"
-    );
-
-    // The store works again: numbering continues with no gap.
-    broken.store(false, Ordering::SeqCst);
     update(&adapter, "s1", chunk("after")).await;
     let after = loop {
         let message = next(&mut app).await;

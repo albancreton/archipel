@@ -372,6 +372,9 @@ struct ListJob {
     /// Adapters that have not finished answering.
     waiting: usize,
     cwd: Option<String>,
+    limit: Option<usize>,
+    /// The last session of the previous page: its time and its id.
+    after: Option<(Option<String>, String)>,
 }
 
 struct Client {
@@ -466,6 +469,8 @@ struct Session {
     subscribers: BTreeSet<u64>,
     /// Requests from the agent that nobody has answered, by request id.
     pending: IndexMap<String, Pending>,
+    /// The last write to the session's log failed, and the attached apps have been told.
+    unstored: bool,
 }
 
 struct Pending {
@@ -815,6 +820,12 @@ impl Daemon {
         self.send(client, wire::error(id, code, message));
     }
 
+    /// Refuses a request because the session log could not be read or written.
+    fn refuse_unstored(&mut self, client: u64, id: &Value, error: &bridge_core::store::StoreError) {
+        let message = format!("the session log cannot be used: {error}");
+        self.refuse(client, id, ext::ERROR_STORAGE, &message);
+    }
+
     fn drop_client(&mut self, client: u64) {
         self.clients.remove(&client);
         for session in self.sessions.values_mut() {
@@ -1045,10 +1056,26 @@ impl Daemon {
         let Ok(request) = serde_json::from_value::<ext::ListSessionsRequest>(params) else {
             return self.refuse(client, id, wire::INVALID_PARAMS, "unexpected params");
         };
+        // A cursor is `<updatedAt>|<sessionId>` of the last session of the previous page.
+        let after = match request
+            .cursor
+            .as_deref()
+            .map(|cursor| cursor.split_once('|'))
+        {
+            None => None,
+            Some(Some((at, session))) if !session.is_empty() => Some((
+                Some(at.to_owned()).filter(|at| !at.is_empty()),
+                session.to_owned(),
+            )),
+            Some(_) => return self.refuse(client, id, wire::INVALID_PARAMS, "unknown cursor"),
+        };
+        if request.limit == Some(0) {
+            return self.refuse(client, id, wire::INVALID_PARAMS, "limit must be 1 or more");
+        }
         let records = match self.store.sessions() {
             Ok(records) => records,
             Err(error) => {
-                return self.refuse(client, id, wire::INTERNAL_ERROR, &error.to_string());
+                return self.refuse_unstored(client, id, &error);
             }
         };
         let wanted = |agent: &str, cwd: &str| {
@@ -1092,6 +1119,8 @@ impl Daemon {
                 sessions,
                 waiting: asked.len(),
                 cwd: request.cwd.clone(),
+                limit: request.limit.map(|limit| limit as usize),
+                after,
             },
         );
         if asked.is_empty() {
@@ -1182,9 +1211,24 @@ impl Daemon {
         let Some(mut list) = self.lists.remove(&job) else {
             return;
         };
+        // Newest first, and by id among equals, so that a cursor names one place in the order.
         list.sessions
-            .sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-        self.reply(list.client, &list.id, json!({ "sessions": list.sessions }));
+            .sort_by(|a, b| (&b.updated_at, &a.session_id).cmp(&(&a.updated_at, &b.session_id)));
+        if let Some((at, session)) = &list.after {
+            list.sessions
+                .retain(|s| (&s.updated_at, session) < (at, &s.session_id));
+        }
+        let mut response = json!({});
+        if let Some(limit) = list.limit
+            && list.sessions.len() > limit
+        {
+            list.sessions.truncate(limit);
+            let last = &list.sessions[limit - 1];
+            let at = last.updated_at.as_deref().unwrap_or_default();
+            response["nextCursor"] = format!("{at}|{}", last.session_id).into();
+        }
+        response["sessions"] = json!(list.sessions);
+        self.reply(list.client, &list.id, response);
     }
 
     /// Gets a session ready for an app: finds it in memory or in the store, or starts adopting
@@ -1236,7 +1280,7 @@ impl Daemon {
                     updated_at: at,
                 };
                 if let Err(error) = self.store.put_session(&record) {
-                    self.refuse(client, id, wire::INTERNAL_ERROR, &error.to_string());
+                    self.refuse_unstored(client, id, &error);
                     return None;
                 }
                 let params = resume_params(&record, true);
@@ -1253,6 +1297,7 @@ impl Daemon {
                         queued: vec![(client, message.clone())],
                         subscribers: BTreeSet::new(),
                         pending: IndexMap::new(),
+                        unstored: false,
                     },
                 );
                 let call = Call::Resume {
@@ -1471,6 +1516,13 @@ impl Daemon {
             return;
         };
         let agent = session.record.agent_id.clone();
+        // A turn whose log cannot be written would be lost, the user's message with it. So a
+        // write is tried before the agent gets the message.
+        if text(&message, "/method") == Some("session/prompt")
+            && let Err(error) = self.store.put_session(&session.record)
+        {
+            return self.refuse_unstored(client, &id, &error);
+        }
         if session.live {
             let method = text(&message, "/method").unwrap_or_default().to_owned();
             let params = message.get("params").cloned().unwrap_or(Value::Null);
@@ -1919,8 +1971,8 @@ impl Daemon {
             None => self.refuse(
                 client,
                 id,
-                wire::INTERNAL_ERROR,
-                "the update could not be stored",
+                ext::ERROR_STORAGE,
+                "the session log cannot be used: the update could not be stored",
             ),
         }
     }
@@ -2039,6 +2091,7 @@ impl Daemon {
                 queued: Vec::new(),
                 subscribers: BTreeSet::new(),
                 pending: IndexMap::new(),
+                unstored: false,
             },
         );
         // Whatever was in flight when the previous daemon stopped is over.
@@ -2076,6 +2129,26 @@ impl Daemon {
             Ok(seq) => seq,
             Err(error) => {
                 eprintln!("bridge: dropped an event of session {root}: {error}");
+                // There is no request to refuse here, so the attached apps are told, once.
+                if let Some(session) = self.sessions.get_mut(root)
+                    && !session.unstored
+                {
+                    session.unstored = true;
+                    let subscribers: Vec<u64> = session.subscribers.iter().copied().collect();
+                    let message = wire::notification(
+                        ext::NOTIFICATION_SESSION_ERROR,
+                        json!(ext::SessionErrorNotification {
+                            session_id: root.to_owned(),
+                            code: ext::ERROR_STORAGE,
+                            message: format!(
+                                "the session log cannot be written, so what happens now is not kept: {error}"
+                            ),
+                        }),
+                    );
+                    for client in subscribers {
+                        self.send(client, message.clone());
+                    }
+                }
                 return None;
             }
         };
@@ -2085,6 +2158,7 @@ impl Daemon {
             record,
         };
         let session = self.sessions.get_mut(root)?;
+        session.unstored = false;
         session.record.head_seq = seq;
         session.record.updated_at = at;
         let mut summary_changed = false;
@@ -3079,7 +3153,7 @@ impl Daemon {
                     updated_at: at,
                 };
                 if let Err(error) = self.store.put_session(&record) {
-                    return self.refuse(client, &id, wire::INTERNAL_ERROR, &error.to_string());
+                    return self.refuse_unstored(client, &id, &error);
                 }
                 // The copy comes with its history, which the adapter has not sent. Ask for it
                 // the way an adopted session is loaded; until then apps that open it wait.
@@ -3095,6 +3169,7 @@ impl Daemon {
                         queued: Vec::new(),
                         subscribers: BTreeSet::from([client]),
                         pending: IndexMap::new(),
+                        unstored: false,
                     },
                 );
                 self.send(client, wire::relay(&id, response));
@@ -3125,7 +3200,7 @@ impl Daemon {
                     updated_at: at,
                 };
                 if let Err(error) = self.store.put_session(&record) {
-                    return self.refuse(client, &id, wire::INTERNAL_ERROR, &error.to_string());
+                    return self.refuse_unstored(client, &id, &error);
                 }
                 self.harness.remove(&session_id);
                 self.roots.insert(session_id.clone(), session_id.clone());
@@ -3139,6 +3214,7 @@ impl Daemon {
                         queued: Vec::new(),
                         subscribers: BTreeSet::from([client]),
                         pending: IndexMap::new(),
+                        unstored: false,
                     },
                 );
                 self.send(client, wire::relay(&id, response));

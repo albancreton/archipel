@@ -3,7 +3,7 @@
 import { ClosedError, Connection, RpcError, type Transport } from "./connection.ts";
 import type { AgentInfo, OpenElsewhere } from "./generated/bridge.ts";
 import { get, isObject, type Json, type JsonObject } from "./json.ts";
-import { Mirror, rootOf, SESSIONS_REMOVED, SESSIONS_UPDATED } from "./mirror.ts";
+import { Mirror, rootOf, SESSION_ERROR, SESSIONS_REMOVED, SESSIONS_UPDATED } from "./mirror.ts";
 import type { Conversation, ItemRef, Request, SessionState } from "./state.ts";
 
 /** What the daemon answers about a session it does not know (JSON-RPC "invalid params"). */
@@ -129,6 +129,13 @@ export class BridgeClient {
       if (isObject(summary)) this.options.onSessionUpdated?.(summary as unknown as SessionSummary);
       return;
     }
+    if (get(message, "method") === SESSION_ERROR) {
+      const [sessionId, code, text] = ["sessionId", "code", "message"].map((key) => get(message, `params.${key}`));
+      if (typeof sessionId === "string" && typeof code === "number" && typeof text === "string") {
+        this.sessions.get(sessionId)?.failed(new RpcError(code, text));
+      }
+      return;
+    }
     const root = rootOf(message);
     if (root !== undefined) {
       this.sessions.get(root)?.received(message);
@@ -159,6 +166,26 @@ export class BridgeClient {
   async listSessions(filter: { agentId?: string; cwd?: string; loggedOnly?: boolean } = {}): Promise<SessionSummary[]> {
     const result = await this.call("_bridge/sessions/list", filter as JsonObject);
     return (get(result, "sessions") as unknown as SessionSummary[] | undefined) ?? [];
+  }
+
+  /**
+   * At most `limit` sessions, newest first. `nextCursor` is there when more follow: pass it as
+   * `cursor` to get them. A session that changes between two pages moves to the front, which
+   * `onSessionUpdated` has already reported.
+   */
+  async sessionsPage(page: {
+    limit: number;
+    cursor?: string;
+    agentId?: string;
+    cwd?: string;
+    loggedOnly?: boolean;
+  }): Promise<{ sessions: SessionSummary[]; nextCursor?: string }> {
+    const result = await this.call("_bridge/sessions/list", page as JsonObject);
+    const nextCursor = get(result, "nextCursor");
+    return {
+      sessions: (get(result, "sessions") as unknown as SessionSummary[] | undefined) ?? [],
+      ...(typeof nextCursor === "string" ? { nextCursor } : {}),
+    };
   }
 
   /** Creates a session and attaches to it. */
@@ -261,6 +288,12 @@ export class Session {
    * more changes, and acting on it fails. Listeners are called once when this becomes true.
    */
   removed = false;
+  /**
+   * Something went wrong in the session outside any request, as far as the daemon last said.
+   * With `error.storage`: the daemon cannot write its log, so what happens now is not kept and
+   * not shown. It is cleared by the next change that arrives.
+   */
+  error: RpcError | null = null;
 
   constructor(id: string, connection: () => Connection, fork: () => Promise<Session>) {
     this.id = id;
@@ -389,6 +422,12 @@ export class Session {
     await this.act("session/set_config_option", { sessionId: this.id, configId, type: "id", value });
   }
 
+  /** Internal: the daemon reported an error that belongs to no request. */
+  failed(error: RpcError): void {
+    this.error = error;
+    for (const listener of this.listeners) listener();
+  }
+
   /** Internal: the daemon said the session was deleted. */
   markRemoved(): void {
     if (this.removed) return;
@@ -447,6 +486,7 @@ export class Session {
         return;
       }
     }
+    const before = this.mirror.seq;
     try {
       this.mirror.received(message);
     } catch (error) {
@@ -456,6 +496,7 @@ export class Session {
       this.replayed?.();
       this.replayed = null;
     }
+    if (this.mirror.seq > before) this.error = null;
     for (const listener of this.listeners) listener();
   }
 }

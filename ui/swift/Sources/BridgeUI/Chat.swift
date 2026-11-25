@@ -152,18 +152,21 @@ public struct ChatView: View {
     var custom: ItemViews = [:]
     /// Set while another process has the session open: the chat says so and offers `actions.fork`.
     var openElsewhere: OpenElsewhere?
+    /// Something the daemon reported outside any request, such as a log it cannot write.
+    var error: String?
     @State private var draft = ""
     @State private var problem: String?
 
     public init(
         conversation: Conversation, sessionId: String? = nil, actions: ChatActions = ChatActions(), custom: ItemViews = [:],
-        openElsewhere: OpenElsewhere? = nil
+        openElsewhere: OpenElsewhere? = nil, error: String? = nil
     ) {
         self.conversation = conversation
         self.sessionId = sessionId
         self.actions = actions
         self.custom = custom
         self.openElsewhere = openElsewhere
+        self.error = error
     }
 
     public var body: some View {
@@ -178,6 +181,10 @@ public struct ChatView: View {
                 .defaultScrollAnchor(.bottom)
                 if let openElsewhere {
                     OpenElsewhereNotice(holder: openElsewhere, fork: actions.fork).padding([.horizontal, .bottom], 12)
+                }
+                if let error {
+                    Text(error).font(.callout).foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding([.horizontal, .bottom], 12)
                 }
                 if let prompt = actions.prompt {
                     Divider()
@@ -244,6 +251,6 @@ public struct LiveChatView: View {
         if let onFork { actions.fork = { onFork(try await session.fork()) } }
         return ChatView(
             conversation: session.conversation, sessionId: session.id, actions: actions, custom: custom,
-            openElsewhere: session.openElsewhere)
+            openElsewhere: session.openElsewhere, error: session.error?.message)
     }
 }

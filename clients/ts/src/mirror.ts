@@ -8,6 +8,7 @@ import { Conversation } from "./state.ts";
 export const REQUEST_RESOLVED = "_bridge/request/resolved";
 export const SESSIONS_UPDATED = "_bridge/sessions/updated";
 export const SESSIONS_REMOVED = "_bridge/sessions/removed";
+export const SESSION_ERROR = "_bridge/session/error";
 
 /** A client's copy of one session, including its subagents' child sessions. */
 export class Mirror {

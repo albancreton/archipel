@@ -87,6 +87,8 @@ Node 22.18 or later runs the TypeScript sources directly; there is no build step
 - A new session uses the account's default model, which may be an expensive one. Set the model before the first message when cost matters: `session.setConfigOption("model", "haiku")`.
 - A daemon started by a service manager does not have your shell's `PATH`. If every agent fails to start, that is why (`examples/service/README.md`).
 - A session that another process of the harness has open (its own terminal UI, say) is refused with error `-32004`. Offer a fork (`session.fork()`); the kits already do.
+- When the daemon cannot write its log (a full disk), a prompt is refused with error `-32005` (`error.storage` in the SDKs) and the agent never gets it. If that starts in the middle of a turn, `session.error` is set until updates arrive again; the kits' chat views show both.
+- For a long session list, `sessionsPage({ limit, cursor })` returns a page and a `nextCursor`. `listSessions()` still returns everything.
 - A session started in the harness's own UI shows up in the session list and is loaded the first time it is opened.
 - Pi runs one process per session and is stopped when idle.
 - When the daemon or an adapter stops, running turns end as interrupted. Sessions and their history stay, and the next message starts the adapter again.

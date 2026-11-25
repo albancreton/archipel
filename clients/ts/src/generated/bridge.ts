@@ -36,6 +36,7 @@ export interface BridgeExtensionsToACPV2Draft {
   requestResolvedNotification: RequestResolvedNotification;
   sessionsUpdatedNotification: SessionsUpdatedNotification;
   sessionsRemovedNotification: SessionsRemovedNotification;
+  sessionErrorNotification: SessionErrorNotification;
   scope: Scope;
   registerExtensionRequest: RegisterExtensionRequest;
   appendRequest: AppendRequest;
@@ -152,7 +153,13 @@ export interface ListSessionsRequest {
    */
   loggedOnly?: boolean;
   /**
-   * From a previous response, to get the next page.
+   * At most this many sessions, newest first. Absent for all of them.
+   */
+  limit?: number | null;
+  /**
+   * `nextCursor` of a previous response, to get the sessions after that page. A session
+   * that changes between two pages moves to the front, where `_bridge/sessions/updated`
+   * has already reported it.
    */
   cursor?: string | null;
 }
@@ -162,6 +169,9 @@ export interface ListSessionsRequest {
  */
 export interface ListSessionsResponse {
   sessions: SessionSummary[];
+  /**
+   * Present when `limit` left sessions out: pass it as `cursor` for the next page.
+   */
   nextCursor?: string | null;
 }
 /**
@@ -319,6 +329,23 @@ export interface SessionsUpdatedNotification {
  */
 export interface SessionsRemovedNotification {
   sessionId: string;
+}
+/**
+ * `_bridge/session/error`: something went wrong in a session outside any request, so there
+ * is no response to carry the error. `code` and `message` mean what they mean in a JSON-RPC
+ * error. Sent to the attached apps and not stored.
+ *
+ * With [`ERROR_STORAGE`]: updates of the session are being lost, because the log cannot be
+ * written. It is sent once, when the first write fails, not for every lost update. What is
+ * lost is not sent to any app, so no app holds more than the log does.
+ *
+ * This interface was referenced by `BridgeExtensionsToACPV2Draft`'s JSON-Schema
+ * via the `definition` "SessionErrorNotification".
+ */
+export interface SessionErrorNotification {
+  sessionId: string;
+  code: number;
+  message: string;
 }
 /**
  * `_bridge/extension/register` request: this connection is the extension `namespace`.

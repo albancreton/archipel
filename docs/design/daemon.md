@@ -81,7 +81,7 @@ ACP reserves `_`-prefixed methods and `_meta` for this.
 | Addition | Purpose |
 |---|---|
 | `_bridge/agents/list` | Which agents the daemon can start, with version and readiness |
-| `_bridge/sessions/list` | Sessions across all agents: the daemon's own, and those each harness reports (`logged: false`). Opening one of the latter adopts it (section 4) |
+| `_bridge/sessions/list` | Sessions across all agents: the daemon's own, and those each harness reports (`logged: false`). Opening one of the latter adopts it (section 4). With `limit` it answers in pages, newest first: `nextCursor` of one answer is the `cursor` of the next request. Each page still asks every harness for its whole list, so pages make answers smaller, not cheaper |
 | `_bridge/sessions/updated` (notification) | A session appeared, or its title, turn state or liveness changed. Sent to every connected app |
 | `_bridge/session/attach {sessionId, afterSeq?}` | Subscribe to a session another app may already be using. The response says whether a delta or a full replay follows, and `openElsewhere` when another process of the harness has the session open |
 | `_bridge/session/detach` | Unsubscribe without closing the session |
@@ -108,6 +108,7 @@ Every canonical (v2) update, every request from the agent and every answer gets 
 - **Setup values:** `configOptions` and `availableCommands` arrive in the response to `session/new`, not as updates. The daemon writes them into the log as updates marked `origin = "daemon"`, so the log alone rebuilds a session.
 - **Condensing:** chunk runs for the same id are merged when replaying, so a replay grows with content, not with token count. Stored entries are not merged yet (to do with retention).
 - **Storage:** one SQLite file, one row per entry, keyed by session and sequence. Write-ahead log with `synchronous = NORMAL`.
+- **When the log cannot be written** (a full disk): a `session/prompt` is refused with error `-32005` and does not reach the agent, since the daemon tries a write first. Updates that arrive meanwhile are dropped and sent to no app, so no app ever holds more than the log; the attached apps get one `_bridge/session/error` with the same code when the first write fails. Nothing else is stopped: the turn goes on in the harness, and numbering continues without a gap when writes work again.
 - **The log is a cache.** The harness owns the transcript of record. A lost log is rebuilt from the adapter: Claude replays everything including subagent child sessions; Pi replays messages and tools but not reasoning (tested).
 - **Adoption:** a session the daemon has never seen (started in the harness's own UI) is listed with `logged: false`. The first app that opens it makes the daemon call `session/resume` with a replay; the replayed updates become its log. A harness replay has no approvals or questions, so an adopted session shows less than one watched live (`docs/research/14`).
 - **Retention:** by age (`retentionDays`); pruned sessions stay listed because the harness still has them, and are adopted again when opened. By size: not implemented.
@@ -185,6 +186,7 @@ A second option for Pi is to drop `pi-acp` and have the daemon speak Pi's own RP
 - A pending request survives all apps disconnecting, and is sent again to every app that attaches, since an app can only answer on its current connection. Done. Tested on Claude: still valid after 150 seconds, no timeout seen.
 - Prompts are handed to the adapter in the order the daemon receives them; the adapter queues or steers.
 - A session that another process of the harness has open (its own terminal UI, an editor extension) is not acted on: the two would not see each other's turns. Requests are refused with `-32004`; the app can read the session, or fork it (`session/fork`) and continue on the copy. Detection is per agent profile; Claude's reads Claude Code's registry of running processes (`docs/research/20`).
+- Errors are JSON-RPC errors: `code`, `message`, and `data` where the code defines it. The daemon's own codes are `-32003` (the connection's scope does not allow it), `-32004` (the session is open in another process; `data` says which) and `-32005` (the session log cannot be written). An agent's errors are passed on unchanged. An error that belongs to no request is sent as `_bridge/session/error` with the same `code` and `message`.
 - An app that reads too slowly (4096 messages behind) is disconnected instead of buffered without limit. It catches up when it attaches again.
 
 ## 8. Adapter processes
@@ -198,6 +200,7 @@ A second option for Pi is to drop `pi-acp` and have the daemon speak Pi's own RP
 - Adapters are pinned by version in the daemon's manifest and updated deliberately; the ACP registry is the catalogue for accessory agents.
 - If an adapter dies: its sessions stop being live. Open approvals are cancelled, and a turn that was running gets a `notice` and a `state_update` to `idle` with stop reason `cancelled`, all written to the log by the daemon. The next request for such a session restarts the adapter and resumes the session with `session/resume`. Done, tested live.
 - If the daemon restarts: sessions are listed and replayed from the log with no adapter running; the adapter is started on the first request that needs it. Done, tested live.
+- If the daemon is killed (`SIGKILL`): its adapters are not signalled, but their stdin closes and they exit, and the harness and the tools it was running go with them. Measured on macOS on 2026-11-24 with a `sleep 300` running in a Claude and in a Pi turn: nothing was left a few seconds later. The daemon has no second mechanism, so an adapter that ignored its closed stdin would stay; under systemd the service's control group stops it anyway.
 - The daemon never passes app-supplied commands or environment to a spawn. Agents come from its own manifest.
 
 ## 9. Transport and security

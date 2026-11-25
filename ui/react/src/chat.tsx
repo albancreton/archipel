@@ -201,10 +201,12 @@ export interface ChatViewProps {
   components?: ItemComponents;
   /** Set while another process has the session open: the chat says so and offers `actions.fork`. */
   openElsewhere?: Holder | null;
+  /** Something the daemon reported outside any request, such as a log it cannot write. Shown above the composer. */
+  error?: string | null;
 }
 
 /** A simple chat: status, the items, and a composer. Assemble your own from the parts if it does not fit. */
-export function ChatView({ conversation, sessionId, actions, components, openElsewhere }: ChatViewProps) {
+export function ChatView({ conversation, sessionId, actions, components, openElsewhere, error }: ChatViewProps) {
   const state = sessionId ? conversation.sessions.get(sessionId) : conversation.root()?.[1];
   if (!state) return <div className="hb-chat hb-empty">No session</div>;
   const turn = state.values.get("state") as JsonObject | undefined;
@@ -214,6 +216,7 @@ export function ChatView({ conversation, sessionId, actions, components, openEls
       <StatusBar state={state} />
       <Timeline conversation={conversation} state={state} actions={actions} components={components} />
       {openElsewhere && <OpenElsewhere holder={openElsewhere} onFork={actions?.fork} />}
+      {error && <div className="hb-problem hb-session-error" role="alert">{error}</div>}
       {actions?.prompt && <Composer running={running} actions={actions} />}
     </div>
   );
@@ -227,7 +230,7 @@ export function ChatView({ conversation, sessionId, actions, components, openEls
 export function useSession(
   session: Session,
   options: { onFork?: (copy: Session) => void } = {},
-): { conversation: Conversation; actions: Actions; openElsewhere: Holder | null } {
+): { conversation: Conversation; actions: Actions; openElsewhere: Holder | null; error: string | null } {
   // The session changes in place, so a counter is the snapshot React compares.
   const [store] = useState(() => {
     let version = 0;
@@ -241,6 +244,7 @@ export function useSession(
   return {
     conversation: session.conversation,
     openElsewhere: session.openElsewhere,
+    error: session.error?.message ?? null,
     actions: {
       approve: (requestId, optionId) => session.approve(requestId, optionId),
       answer: (requestId, content) =>

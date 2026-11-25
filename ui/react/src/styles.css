@@ -50,3 +50,4 @@
 .hb-elsewhere-text { flex: 1; }
 .hb-elsewhere button { white-space: nowrap; }
 .hb-problem { flex-basis: 100%; margin-top: 4px; color: var(--hb-bad); font-size: 13px; }
+.hb-session-error { margin: 0; padding: 8px 12px; }
