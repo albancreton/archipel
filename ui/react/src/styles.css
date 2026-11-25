@@ -122,3 +122,17 @@
 .hb-diff-add { background: color-mix(in srgb, var(--hb-ok) 14%, transparent); } .hb-diff-remove { background: color-mix(in srgb, var(--hb-bad) 14%, transparent); }
 .hb-diff-hunk td { color: var(--hb-muted); background: var(--hb-soft); }
 .hb-chat .hb-diff-fold button { padding: 0 6px; border: 0; background: none; color: var(--hb-accent); font: inherit; }
+.hb-notices { gap: 6px; padding-top: 8px; padding-bottom: 8px; background: none; }
+.hb-notice { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--hb-line); background: var(--hb-soft); font-size: 13px; }
+.hb-notice span { flex: 1; }
+.hb-notice-act { border-color: var(--hb-run); } .hb-notice-bad { border-color: var(--hb-bad); } .hb-notice-wait { color: var(--hb-muted); }
+.hb-status-usage { display: inline-flex; align-items: center; gap: 6px; }
+.hb-meter { display: inline-block; width: 44px; height: 5px; border-radius: 3px; background: var(--hb-line); overflow: hidden; }
+.hb-meter > span { display: block; height: 100%; background: var(--hb-muted); }
+.hb-meter-high > span { background: var(--hb-run); }
+.hb-cost { padding-left: 6px; border-left: 1px solid var(--hb-line); }
+.hb-activity { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--hb-line); border-radius: 10px; background: var(--hb-soft); font-size: 13px; }
+.hb-todos summary { cursor: pointer; } .hb-todos ul { list-style: none; margin: 6px 0 0; padding: 0; }
+.hb-todo-now { color: var(--hb-muted); }
+.hb-background { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.hb-background .hb-chip { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--hb-bg); }

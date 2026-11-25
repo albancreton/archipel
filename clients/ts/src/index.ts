@@ -1,4 +1,4 @@
-export { BridgeClient, Session, type ClientOptions, type SessionSummary } from "./client.ts";
+export { BridgeClient, Session, attentionOf, type Attention, type ClientOptions, type SessionSummary } from "./client.ts";
 export { ClosedError, Connection, RpcError, type Transport } from "./connection.ts";
 export { base64Text, type Json, type JsonObject } from "./json.ts";
 export { Mirror, rootOf, seqOf } from "./mirror.ts";

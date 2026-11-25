@@ -202,17 +202,34 @@
     "AgentReadiness": {
       "oneOf": [
         {
+          "description": "Started and answering.",
           "type": "string",
-          "enum": [
-            "ready",
-            "not_installed",
-            "error"
-          ]
+          "const": "ready"
+        },
+        {
+          "description": "The daemon has not started it yet, so nothing is known about it. The first request\nthat needs the agent starts it; `_bridge/sessions/list` with its id is one.",
+          "type": "string",
+          "const": "not_started"
+        },
+        {
+          "description": "Being started: its process runs and has not answered `initialize` yet.",
+          "type": "string",
+          "const": "starting"
         },
         {
           "description": "Installed, but the user has to log in with the harness itself.",
           "type": "string",
           "const": "needs_login"
+        },
+        {
+          "description": "Its program was not found when the daemon tried to start it. `detail` names it.",
+          "type": "string",
+          "const": "not_installed"
+        },
+        {
+          "description": "It could not be started, or stopped with an error. `detail` says why.",
+          "type": "string",
+          "const": "error"
         }
       ]
     },

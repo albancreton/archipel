@@ -148,7 +148,10 @@ impl Launcher for Flaky {
     fn launch(&self) -> std::io::Result<Running> {
         self.tried.fetch_add(1, Ordering::SeqCst);
         if self.broken.load(Ordering::SeqCst) {
-            return Err(std::io::Error::other("no such program"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "no such program",
+            ));
         }
         let (ours, theirs) = Link::pair();
         self.launched.send(theirs).map_err(std::io::Error::other)?;
@@ -188,7 +191,10 @@ async fn an_adapter_that_cannot_be_started_is_reported_and_tried_again_on_the_ne
     );
     ask(&app, 2, ext::METHOD_AGENTS_LIST, json!({})).await;
     let (listed, _) = response(&mut app, 2).await;
-    assert_eq!(listed["result"]["agents"][0]["readiness"], "error");
+    assert_eq!(
+        listed["result"]["agents"][0]["readiness"], "not_installed",
+        "a program that was not found is told apart from one that failed"
+    );
     assert!(
         listed["result"]["agents"][0]["detail"]
             .as_str()

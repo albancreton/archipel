@@ -110,7 +110,7 @@ test("list helpers: a changed session comes first once, a deleted one goes, and 
   );
 });
 
-import { Composer, acceptsOf, commandQuery, commandsOf, mentionQuery, promptContent } from "../src/index.ts";
+import { Composer, acceptsOf, commandQuery, commandsOf, matchCommands, mentionQuery, promptContent } from "../src/index.ts";
 
 test("the composer knows when a command or a mention is being typed", () => {
   assert.deepEqual(["/", "/mod", "/model ", "say /model", "", "//"].map(commandQuery), ["", "mod", null, null, null, null]);
@@ -123,6 +123,9 @@ test("the composer knows when a command or a mention is being typed", () => {
   assert.ok(commands.length > 3 && commands.every((command) => command.name && !command.name.startsWith("/")));
   assert.deepEqual(commandsOf([{ type: "command", name: "review", description: "Review", input: { type: "text", hint: "a PR number" } }, { nameless: true }]),
     [{ name: "review", description: "Review", hint: "a PR number" }]);
+  const names = (query: string) => matchCommands(["deep-research", "rename", "code-review", "reload"].map((name) => ({ name })), query).map((command) => command.name);
+  assert.deepEqual(names("re"), ["rename", "reload", "deep-research", "code-review"], "a name that starts with what was typed comes first");
+  assert.deepEqual(names(""), ["deep-research", "rename", "code-review", "reload"]);
 });
 
 test("what is sent: text alone, or blocks with what was attached and mentioned", () => {

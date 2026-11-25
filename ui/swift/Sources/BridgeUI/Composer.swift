@@ -10,6 +10,14 @@ public struct Command: Identifiable, Equatable {
     public var hint: String?
     public var id: String { name }
 
+    /// The commands for what was typed after `/`: those whose name starts with it first, then
+    /// those that contain it.
+    public static func matching(_ query: String, in commands: [Command]) -> [Command] {
+        let wanted = query.lowercased()
+        let starts = commands.filter { $0.name.lowercased().hasPrefix(wanted) }
+        return starts + commands.filter { !$0.name.lowercased().hasPrefix(wanted) && $0.name.lowercased().contains(wanted) }
+    }
+
     /// Reads the agent's `availableCommands`.
     public static func all(from availableCommands: JSON?) -> [Command] {
         (availableCommands?.array ?? []).compactMap { entry in
@@ -160,7 +168,7 @@ public struct Composer: View {
     private var menu: [Entry] {
         if closed { return [] }
         if let query = commandQuery(draft) {
-            return commands.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }.prefix(8).map { command in
+            return Command.matching(query, in: commands).prefix(8).map { command in
                 Entry(id: command.name, label: "/" + command.name, detail: [command.hint, command.description].compactMap { $0 }.joined(separator: " · ")) {
                     draft = "/\(command.name) "
                 }

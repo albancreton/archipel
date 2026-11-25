@@ -60,6 +60,14 @@ await client.newSession({ cwd, agentId, configOptions: initial });
 
 With any of these, `actions.prompt` receives content blocks instead of a string; `session.prompt` takes both. The user's message in the timeline shows the picture and the names of the files. Checked live (`prompt.attachments`): Claude and Pi both read a picture, a linked file and a file sent with its content. Pi says it only takes pictures, so `acceptsOf` offers only those for Pi.
 
+## Status
+
+- `AgentStatus agents={await client.agents()}` says which agents cannot be used and why: starting, not signed in, not installed, failed. It draws nothing when all is well, and nothing for an agent that was never started, since nothing is known about it yet.
+- `ConnectionStatus connected={useConnected(client)}` says when the connection is lost and being retried.
+- `Usage` (in the status bar) shows how full the context is and, when the agent gives it, the session's cost. Claude gives a cost; Pi does not. No harness passes rate-limit information.
+- `Activity` (above the composer) keeps in view what still runs in the background after a turn, and the agent's todo list with its progress. Draws nothing without either.
+- **Needs attention:** `onAttention` in the client's options is called once when a session starts to wait for an answer (`needs_answer`) or its turn ends (`finished`), for any session, open or not. Showing a notification or a badge is yours.
+
 ## The rest
 
 - **Diffs** (`Diff`) are drawn per file with line numbers, the count of added and removed lines, and long unchanged parts folded behind "Show N unchanged lines". There is no syntax highlighting. `parsePatch` and `foldContext` are exported.

@@ -48,6 +48,8 @@ async fn options_go_to_the_agent_they_are_about_without_waking_a_session() {
     let agents = listed["result"]["agents"].as_array().unwrap();
     assert_eq!(agents[0]["agentId"], "claude");
     assert!(agents[0].get("capabilities").is_none());
+    assert_eq!(agents[0]["readiness"], "not_started");
+    assert_eq!(agents[1]["readiness"], "ready");
     assert_eq!(agents[1]["capabilities"], can);
 
     // Named by session, one only the harness knows: asked directly, not loaded or resumed.

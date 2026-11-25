@@ -27,6 +27,11 @@ struct BridgeChatDemo: App {
     var body: some Scene {
         WindowGroup("Bridge") {
             NavigationSplitView {
+                VStack(spacing: 6) {
+                    ConnectionStatus(connected: client.connected)
+                    AgentStatus(agents: agents) { Task { try? await client.refreshSessions(); agents = (try? await client.agents()) ?? agents } }
+                }
+                .padding(.horizontal, 8)
                 SessionList(
                     sessions: client.sessions, selection: Binding(get: { session?.id }, set: { open($0) }), agents: agents,
                     rename: { id, title in _ = try await client.setTitle(id, to: title) },

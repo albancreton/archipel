@@ -65,6 +65,13 @@ export function commandQuery(draft: string): string | null {
   return /^\/[^\s/]*$/.test(draft) ? draft.slice(1) : null;
 }
 
+/** The commands for what was typed after `/`: those whose name starts with it first, then those that contain it. */
+export function matchCommands(commands: Command[], query: string): Command[] {
+  const wanted = query.toLowerCase();
+  const starts = commands.filter((command) => command.name.toLowerCase().startsWith(wanted));
+  return [...starts, ...commands.filter((command) => !starts.includes(command) && command.name.toLowerCase().includes(wanted))];
+}
+
 /** The mention the user is typing at the caret: `@` at the start of a word, and what follows it. */
 export function mentionQuery(draft: string, caret: number): { start: number; query: string } | null {
   const found = /(^|\s)@([^\s@]*)$/.exec(draft.slice(0, caret));
@@ -159,7 +166,7 @@ export function Composer({ running, onSend, onCancel, commands = [], mentions, a
     return () => { current = false; };
   }, [query, mentions]);
 
-  const matching = command === null ? [] : commands.filter((entry) => entry.name.toLowerCase().includes(command.toLowerCase())).slice(0, 20);
+  const matching = command === null ? [] : matchCommands(commands, command).slice(0, 20);
   const menu: { key: string; label: string; detail?: string; pick: () => void }[] = closed ? [] : command !== null
     ? matching.map((entry) => ({
       key: entry.name, label: `/${entry.name}`, detail: entry.hint ? `${entry.hint} · ${entry.description ?? ""}` : entry.description,

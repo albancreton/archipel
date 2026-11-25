@@ -14,8 +14,9 @@ const USAGE: &str = "\
 bridge: talk to the harness-bridge daemon
 
   bridge agents                          start every agent the daemon has and say whether each
-                                         works: `ready`, `needs_login`, or `error` with the
-                                         reason. Fails unless all are ready. Run this first
+                                         works: `ready`, `needs_login`, `not_installed`, or `error`
+                                         with the reason. Fails unless all are ready. Run this
+                                         first
   bridge sessions [--logged]             all sessions, newest first. `+` marks those only the
                                          harness knows; opening one loads its history.
                                          --logged leaves those out and starts no agent

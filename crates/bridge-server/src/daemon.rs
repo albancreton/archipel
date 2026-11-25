@@ -388,6 +388,8 @@ struct Agent {
     spec: AgentSpec,
     running: Option<Adapter>,
     last_error: Option<String>,
+    /// The last start failed because the program was not found.
+    missing: bool,
 }
 
 /// A started adapter process and the daemon's open business with it.
@@ -515,6 +517,7 @@ impl Daemon {
                         spec,
                         running: None,
                         last_error: None,
+                        missing: false,
                     };
                     (agent.spec.id.clone(), agent)
                 })
@@ -998,14 +1001,17 @@ impl Daemon {
                     version: info
                         .and_then(|result| text(result, "/info/version"))
                         .map(str::to_owned),
-                    readiness: if failed {
-                        ext::AgentReadiness::Error
-                    } else if agent.running.as_ref().and_then(|a| a.auth.as_deref())
-                        == Some("unauthenticated")
-                    {
-                        ext::AgentReadiness::NeedsLogin
-                    } else {
-                        ext::AgentReadiness::Ready
+                    readiness: match &agent.running {
+                        None if failed && agent.missing => ext::AgentReadiness::NotInstalled,
+                        None if failed => ext::AgentReadiness::Error,
+                        None => ext::AgentReadiness::NotStarted,
+                        Some(adapter) if adapter.initialized.is_none() => {
+                            ext::AgentReadiness::Starting
+                        }
+                        Some(adapter) if adapter.auth.as_deref() == Some("unauthenticated") => {
+                            ext::AgentReadiness::NeedsLogin
+                        }
+                        Some(_) => ext::AgentReadiness::Ready,
                     },
                     detail: agent.last_error.clone().filter(|_| failed),
                     capabilities: info.and_then(|result| result.get("capabilities")).cloned(),
@@ -2330,6 +2336,7 @@ impl Daemon {
         let running = agent.spec.launcher.launch().map_err(|error| {
             let why = format!("could not start the agent: {error}");
             agent.last_error = Some(why.clone());
+            agent.missing = error.kind() == std::io::ErrorKind::NotFound;
             why
         })?;
         self.generations += 1;
@@ -2355,6 +2362,7 @@ impl Daemon {
                 .await;
         });
         agent.last_error = None;
+        agent.missing = false;
         agent.running = Some(Adapter {
             tx,
             _guard: running.guard,
@@ -3319,6 +3327,7 @@ impl Daemon {
             return;
         };
         agent.last_error = Some(why.to_owned());
+        agent.missing = false;
         // What addons held for this adapter ends with it. A call of an addon's own method
         // belongs to no adapter and stays.
         let held: Vec<u64> = self

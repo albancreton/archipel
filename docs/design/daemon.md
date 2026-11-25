@@ -80,7 +80,7 @@ ACP reserves `_`-prefixed methods and `_meta` for this.
 
 | Addition | Purpose |
 |---|---|
-| `_bridge/agents/list` | Which agents the daemon can start, with version and readiness |
+| `_bridge/agents/list` | Which agents the daemon can start, with version and readiness: `not_started` (nothing known yet), `starting`, `ready`, `needs_login`, `not_installed` (its program was not found), `error`. The list never starts an agent; the first request that needs one does |
 | `_bridge/sessions/list` | Sessions across all agents: the daemon's own, and those each harness reports (`logged: false`). Opening one of the latter adopts it (section 4). With `limit` it answers in pages, newest first: `nextCursor` of one answer is the `cursor` of the next request. Each page still asks every harness for its whole list, so pages make answers smaller, not cheaper |
 | `_bridge/sessions/updated` (notification) | A session appeared, or its title, turn state or liveness changed. Sent to every connected app |
 | `_bridge/session/attach {sessionId, afterSeq?}` | Subscribe to a session another app may already be using. The response says whether a delta or a full replay follows, and `openElsewhere` when another process of the harness has the session open |

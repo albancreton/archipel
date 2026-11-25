@@ -141,9 +141,7 @@ public struct StatusBar: View {
         HStack {
             Text(state.values["sessionInfo"]?["title"]?.string ?? "New session").font(.headline).lineLimit(1)
             Spacer()
-            if let used = state.values["usage"]?["used"]?.number, let size = state.values["usage"]?["size"]?.number, size > 0 {
-                Text("\(Int((used / size * 100).rounded()))% of context").font(.caption).foregroundStyle(.secondary)
-            }
+            UsageView(state: state)
             if let turn = state.values["state"]?["state"]?.string { Badge(text: turn) }
         }
     }
@@ -189,6 +187,7 @@ public struct ChatView: View {
                     SessionTimeline(conversation: conversation, state: state, actions: actions, custom: custom).padding(12)
                 }
                 .defaultScrollAnchor(.bottom)
+                ActivityView(state: state).padding([.horizontal, .bottom], 12)
                 if let openElsewhere {
                     OpenElsewhereNotice(holder: openElsewhere, fork: actions.fork).padding([.horizontal, .bottom], 12)
                 }

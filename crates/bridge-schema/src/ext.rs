@@ -193,10 +193,18 @@ pub struct AgentInfo {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentReadiness {
+    /// Started and answering.
     Ready,
+    /// The daemon has not started it yet, so nothing is known about it. The first request
+    /// that needs the agent starts it; `_bridge/sessions/list` with its id is one.
+    NotStarted,
+    /// Being started: its process runs and has not answered `initialize` yet.
+    Starting,
     /// Installed, but the user has to log in with the harness itself.
     NeedsLogin,
+    /// Its program was not found when the daemon tried to start it. `detail` names it.
     NotInstalled,
+    /// It could not be started, or stopped with an error. `detail` says why.
     Error,
 }
 

@@ -45,11 +45,34 @@ export interface ClientOptions {
   onSessionRemoved?: (sessionId: string) => void;
   /** Called when the connection is lost (`false`) and when it is back (`true`). */
   onConnection?: (connected: boolean) => void;
+  /**
+   * Called when a session starts to need the user: it asks something (`needs_answer`), or its
+   * turn ended (`finished`). For a notification or a badge; showing one is the app's.
+   */
+  onAttention?: (session: SessionSummary, why: Attention) => void;
   /** Milliseconds between attempts to reconnect. 0 disables reconnecting. Default 1000. */
   retryMs?: number;
 }
 
+/** Why a session needs the user. */
+export type Attention = "needs_answer" | "finished";
+
+/**
+ * Whether a session's change is one the user should hear about: it now waits for an answer,
+ * or its turn has just ended. `before` is the state it had, when known.
+ */
+export function attentionOf(before: string | null | undefined, after: string | null | undefined): Attention | null {
+  if (after === "requires_action" && before !== "requires_action") return "needs_answer";
+  if (after === "idle" && (before === "running" || before === "requires_action")) return "finished";
+  return null;
+}
+
 export class BridgeClient {
+  /** False while the connection is lost and being retried. */
+  connected = false;
+  private watchers = new Set<(connected: boolean) => void>();
+  /** The last state seen of each session, to tell a change from a repeat. */
+  private states = new Map<string, string | null>();
   private options: ClientOptions;
   private connection!: Connection;
   private sessions = new Map<string, Session>();
@@ -65,6 +88,7 @@ export class BridgeClient {
   static async connect(options: ClientOptions): Promise<BridgeClient> {
     const client = new BridgeClient(options);
     await client.open();
+    client.connected = true;
     return client;
   }
 
@@ -84,9 +108,21 @@ export class BridgeClient {
     });
   }
 
+  /** Calls `listener` when the connection is lost or back. Returns a function that stops it. */
+  onConnectionChange(listener: (connected: boolean) => void): () => void {
+    this.watchers.add(listener);
+    return () => this.watchers.delete(listener);
+  }
+
+  private setConnected(connected: boolean): void {
+    this.connected = connected;
+    this.options.onConnection?.(connected);
+    for (const watcher of this.watchers) watcher(connected);
+  }
+
   private async lost(): Promise<void> {
     if (this.closed) return;
-    this.options.onConnection?.(false);
+    this.setConnected(false);
     const retry = this.options.retryMs ?? 1000;
     if (retry <= 0) return;
     while (!this.closed) {
@@ -103,7 +139,7 @@ export class BridgeClient {
             }),
           ),
         );
-        this.options.onConnection?.(true);
+        this.setConnected(true);
         return;
       } catch {
         // Not back yet.
@@ -114,6 +150,7 @@ export class BridgeClient {
   private removed(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
+    this.states.delete(sessionId);
     session?.markRemoved();
     this.options.onSessionRemoved?.(sessionId);
   }
@@ -126,7 +163,13 @@ export class BridgeClient {
     }
     if (get(message, "method") === SESSIONS_UPDATED) {
       const summary = get(message, "params.session");
-      if (isObject(summary)) this.options.onSessionUpdated?.(summary as unknown as SessionSummary);
+      if (isObject(summary)) {
+        const session = summary as unknown as SessionSummary;
+        const why = attentionOf(this.states.get(session.sessionId), session.state);
+        this.states.set(session.sessionId, session.state ?? null);
+        this.options.onSessionUpdated?.(session);
+        if (why) this.options.onAttention?.(session, why);
+      }
       return;
     }
     if (get(message, "method") === SESSION_ERROR) {

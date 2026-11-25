@@ -157,3 +157,33 @@ test("an error outside any request is kept on its session until the next change 
   assert.equal(session.error, null);
   app.close();
 });
+
+test("the app is told once when a session starts to need the user, and when the connection goes and comes", async () => {
+  const daemon = daemonWith(new Set(["s1"]));
+  const heard: string[] = [];
+  const app = await BridgeClient.connect({
+    open: daemon.open, name: "test", retryMs: 1,
+    onAttention: (session, why) => heard.push(`${session.sessionId} ${why}`),
+  });
+  const say = (sessionId: string, state: string) =>
+    daemon.say({ method: "_bridge/sessions/updated", params: { session: { sessionId, agentId: "claude", cwd: "/w", live: true, logged: true, headSeq: 1, state } } });
+  say("s1", "idle"); // first sight of an idle session: nothing happened
+  say("s1", "running");
+  say("s1", "requires_action");
+  say("s1", "requires_action"); // a repeat, such as a title change meanwhile
+  say("s1", "running");
+  say("s1", "idle");
+  say("s2", "requires_action"); // first sight of one that already waits
+  assert.deepEqual(heard, ["s1 needs_answer", "s1 finished", "s2 needs_answer"]);
+
+  assert.equal(app.connected, true);
+  const seen: boolean[] = [];
+  const stop = app.onConnectionChange((connected) => seen.push(connected));
+  daemon.drop();
+  assert.equal(app.connected, false);
+  await new Promise<void>((back) => { const off = app.onConnectionChange((connected) => { if (connected) { off(); back(); } }); });
+  assert.deepEqual(seen, [false, true]);
+  stop();
+  app.close();
+});
+

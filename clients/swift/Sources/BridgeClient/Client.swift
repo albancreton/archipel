@@ -69,6 +69,22 @@ public struct SessionSummary: Identifiable, Equatable, Sendable {
     }
 }
 
+/// Why a session needs the user.
+public enum Attention: Equatable, Sendable {
+    /// It asks something: an approval or a question waits.
+    case needsAnswer
+    /// Its turn has just ended.
+    case finished
+
+    /// Whether a session's change is one the user should hear about. `before` is the state it
+    /// had, when known.
+    public static func of(before: String?, after: String?) -> Attention? {
+        if after == "requires_action", before != "requires_action" { return .needsAnswer }
+        if after == "idle", before == "running" || before == "requires_action" { return .finished }
+        return nil
+    }
+}
+
 /// The client an app uses. Its sessions stay in step with the daemon, across reconnects.
 /// It is observable: SwiftUI views that read `connected` or `sessions` update by themselves.
 @MainActor
@@ -85,6 +101,11 @@ public final class BridgeClient {
     private let open: @Sendable () async throws -> any Transport
     /// Seconds between attempts to reconnect. 0 disables reconnecting.
     public var retryAfter: TimeInterval = 1
+    /// Called when a session starts to need the user: it asks something, or its turn ended.
+    /// For a notification or a badge; showing one is the app's.
+    @ObservationIgnored public var onAttention: ((SessionSummary, Attention) -> Void)?
+    /// The last state seen of each session, to tell a change from a repeat.
+    @ObservationIgnored private var states: [String: String] = [:]
 
     private var transport: (any Transport)?
     private var nextId = 1
@@ -176,6 +197,9 @@ public final class BridgeClient {
         }
         if message["method"]?.string == Bridge.sessionsUpdated {
             if let summary = message.at("params.session").flatMap(SessionSummary.init) {
+                let why = Attention.of(before: states[summary.id], after: summary.state)
+                states[summary.id] = summary.state
+                if let why { onAttention?(summary, why) }
                 if let index = sessions.firstIndex(where: { $0.id == summary.id }) {
                     sessions[index] = summary
                 } else {
@@ -298,6 +322,7 @@ public final class BridgeClient {
     /// A session was deleted, by this app or another: it leaves the list and is no longer followed.
     private func removed(_ id: String) {
         sessions.removeAll { $0.id == id }
+        states[id] = nil
         followed.removeValue(forKey: id)?.markRemoved()
     }
 

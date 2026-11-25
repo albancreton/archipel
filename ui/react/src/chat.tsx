@@ -5,6 +5,7 @@ import { useState, useSyncExternalStore, type ComponentType, type ReactNode } fr
 import { Composer, commandsOf, type Accepts, type Mention } from "./composer.tsx";
 import { RenderText } from "./markdown.tsx";
 import { SettingsBar, settingsOf } from "./settings.tsx";
+import { Activity, Usage } from "./status.tsx";
 import {
   Approval, AssistantMessage, Compaction, Fallback, Plan, Question, SessionMessage, Subagent, Terminal, Thought, ToolCall, UserMessage,
 } from "./items.tsx";
@@ -126,14 +127,11 @@ export function Timeline({ conversation, state, actions, components, pageSize = 
 export function StatusBar({ state }: { state: SessionState }) {
   const turn = state.values.get("state") as JsonObject | undefined;
   const info = state.values.get("sessionInfo") as JsonObject | undefined;
-  const usage = state.values.get("usage") as JsonObject | undefined;
   const turnState = typeof turn?.["state"] === "string" ? turn["state"] : "";
   return (
     <div className="hb-status">
       <span className="hb-status-title">{typeof info?.["title"] === "string" ? info["title"] : "New session"}</span>
-      {typeof usage?.["used"] === "number" && typeof usage["size"] === "number" && (
-        <span className="hb-status-usage">{Math.round((usage["used"] / usage["size"]) * 100)}% of context</span>
-      )}
+      <Usage state={state} />
       {turnState && (
         <span className={`hb-badge hb-${turnState === "idle" ? "ok" : "running"}`}>{turnState.replace("_", " ")}</span>
       )}
@@ -209,6 +207,7 @@ export function ChatView({ conversation, sessionId, actions, components, openEls
     <div className="hb-chat">
       <StatusBar state={state} />
       {renderText ? <RenderText value={renderText}>{timeline}</RenderText> : timeline}
+      <Activity state={state} />
       {openElsewhere && <OpenElsewhere holder={openElsewhere} onFork={actions?.fork} />}
       {error && <div className="hb-problem hb-session-error" role="alert">{error}</div>}
       {actions?.setOption && <SettingsBar settings={settingsOf(state.values.get("configOptions"))} onChange={actions.setOption} />}

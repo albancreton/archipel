@@ -9,11 +9,15 @@
 import { BridgeClient, webSocketTransport, type Bridge, type Session, type SessionSummary } from "@harness-bridge/client";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ChatView, SessionList, acceptsOf, useSession, withSession, withoutSession, type Accepts } from "../src/index.ts";
+import { AgentStatus, ChatView, ConnectionStatus, SessionList, acceptsOf, useConnected, useSession, withSession, withoutSession, type Accepts } from "../src/index.ts";
 
 function Chat({ session, accepts, onFork }: { session: Session; accepts: Accepts; onFork: (copy: Session) => void }) {
   const { conversation, actions, openElsewhere, error } = useSession(session, { onFork });
   return <ChatView conversation={conversation} sessionId={session.id} actions={actions} openElsewhere={openElsewhere} error={error} accepts={accepts} />;
+}
+
+function Connection({ client }: { client: BridgeClient }) {
+  return <ConnectionStatus connected={useConnected(client)} />;
 }
 
 function App() {
@@ -53,6 +57,8 @@ function App() {
   return (
     <div className="demo">
       <div className="demo-sessions">
+        <Connection client={client} />
+        <AgentStatus agents={agents} onRetry={() => void client.listSessions().then(() => client.agents()).then(setAgents)} />
         <SessionList
           sessions={sessions}
           agents={agents}

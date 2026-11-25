@@ -161,6 +161,31 @@ final class RemovedTests: XCTestCase {
         app.close()
     }
 
+    func testTheAppIsToldOnceWhenASessionStartsToNeedTheUser() async throws {
+        XCTAssertEqual(Attention.of(before: nil, after: "idle"), nil)
+        XCTAssertEqual(Attention.of(before: "running", after: "requires_action"), .needsAnswer)
+        XCTAssertEqual(Attention.of(before: "requires_action", after: "requires_action"), nil)
+        XCTAssertEqual(Attention.of(before: "requires_action", after: "idle"), .finished)
+        XCTAssertEqual(Attention.of(before: nil, after: "requires_action"), .needsAnswer)
+
+        let daemon = Known(["s1"])
+        let app = BridgeClient(name: "test") { daemon.open() }
+        var heard: [String] = []
+        app.onAttention = { session, why in heard.append("\(session.id) \(why)") }
+        try await app.connect()
+        let session = try await app.session("s1")
+        for state in ["idle", "running", "requires_action", "requires_action", "running", "idle"] {
+            daemon.say(["jsonrpc": "2.0", "method": "_bridge/sessions/updated", "params": ["session": [
+                "sessionId": "s1", "agentId": "claude", "cwd": "/w", "state": .string(state)]]])
+        }
+        // Messages are handled in order: once this update has arrived, the ones before have too.
+        daemon.say(["jsonrpc": "2.0", "method": "session/update", "params": [
+            "sessionId": "s1", "update": ["sessionUpdate": "state_update", "state": "running"], "_meta": ["bridge": ["seq": 1]]]])
+        await session.until { session.turnState == "running" }
+        XCTAssertEqual(heard, ["s1 needsAnswer", "s1 finished"])
+        app.close()
+    }
+
     func testASessionDeletedWhileTheConnectionWasDownDoesNotStopTheClientComingBack() async throws {
         let daemon = Known(["s1", "s2"])
         let app = BridgeClient(name: "test") { daemon.open() }

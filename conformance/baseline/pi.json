@@ -174,5 +174,11 @@
         "resource"
       ]
     ]
+  },
+  "todos.listed": {
+    "plans": [],
+    "toolCallKinds": [
+      "other"
+    ]
   }
 }

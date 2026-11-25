@@ -191,6 +191,9 @@ final class RenderTests: XCTestCase {
             Command.all(from: [["type": "command", "name": "review", "description": "Review", "input": ["type": "text", "hint": "a PR number"]], ["nameless": true]]),
             [Command(name: "review", description: "Review", hint: "a PR number")])
 
+        let offered = ["deep-research", "rename", "code-review", "reload"].map { Command(name: $0) }
+        XCTAssertEqual(Command.matching("re", in: offered).map(\.name), ["rename", "reload", "deep-research", "code-review"])
+
         XCTAssertEqual(promptContent("hello"), [["type": "text", "text": "hello"]])
         let picture = Attachment(name: "shot.png", mimeType: "image/png", data: Data([0, 0, 0]))
         let notes = Attachment(name: "my notes.md", mimeType: "text/markdown", data: Data("# Hé".utf8))
@@ -270,6 +273,46 @@ final class RenderTests: XCTestCase {
         let view = DiffView(block: ["changes": [["operation": "modify", "path": "src/a.ts"]], "patch": ["text": .string(patch)]])
             .padding(12).frame(width: 520)
         XCTAssertGreaterThan(try draw(view, as: "diff"), 10_000)
+    }
+
+    func testAgentAndConnectionStatusUsageAndBackgroundWork() throws {
+        func agent(_ readiness: String, _ detail: String? = nil) -> JSON {
+            var agent: [String: JSON] = ["agentId": "claude", "name": "Claude", "readiness": .string(readiness)]
+            if let detail { agent["detail"] = .string(detail) }
+            return .object(agent)
+        }
+        XCTAssertNil(AgentProblem(agent: agent("ready")))
+        XCTAssertNil(AgentProblem(agent: agent("not_started")), "nothing is known yet, so nothing is claimed")
+        XCTAssertEqual(AgentProblem(agent: agent("starting"))?.tone, .wait)
+        XCTAssertEqual(AgentProblem(agent: agent("needs_login"))?.tone, .act)
+        XCTAssertEqual(AgentProblem(agent: agent("not_installed", "no such file"))?.text, "Claude is not installed on the daemon's machine (no such file).")
+        XCTAssertEqual(AgentProblem(agent: agent("error", "it stopped"))?.text, "Claude could not be started (it stopped).")
+
+        var state = try XCTUnwrap(conversation("claude-v2/background").root)
+        let usage = UsageSummary(state: state)
+        XCTAssertEqual(usage.percent, 4)
+        XCTAssertEqual(usage.cost, "$0.0053")
+        XCTAssertGreaterThan(usage.turnTokens ?? 0, 0)
+        XCTAssertNil(UsageSummary(state: try XCTUnwrap(conversation("pi-v2/simple").root)).cost, "Pi gives no cost")
+
+        XCTAssertEqual(BackgroundWork.all(in: state), [])
+        XCTAssertNil(todos(in: state))
+        let terminal = try XCTUnwrap(state.collections["terminal"]?.first)
+        try state.applyUpdate(["sessionUpdate": "state_update", "state": "idle", "background": [
+            ["type": "terminal", "terminalId": .string(terminal.key)], ["type": "tool_call", "toolCallId": "unknown-call"], ["type": "mystery"]]])
+        XCTAssertEqual(BackgroundWork.all(in: state).map(\.label), [terminal.value["command"]?.string ?? "", "unknown-call"])
+        try state.applyUpdate(["sessionUpdate": "plan_update", "plan": ["type": "items", "planId": "now", "entries": [
+            ["content": "alpha", "status": "completed"], ["content": "beta", "status": "in_progress"], ["content": "gamma", "status": "pending"]]]])
+        XCTAssertEqual(todos(in: state)?.map(\.content), ["alpha", "beta", "gamma"])
+
+        let view = VStack(alignment: .leading, spacing: 10) {
+            AgentStatus(agents: [agent("needs_login"), ["agentId": "pi", "name": "Pi", "readiness": "not_installed", "detail": "pi-acp: No such file or directory"]])
+            ConnectionStatus(connected: false)
+            StatusBar(state: state)
+            ActivityView(state: state)
+        }
+        .padding(16).frame(width: 620)
+        XCTAssertGreaterThan(try draw(view, as: "status"), 15_000)
     }
 
     func testTextOfContent() {

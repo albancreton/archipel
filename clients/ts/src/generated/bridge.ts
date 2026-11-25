@@ -4,7 +4,7 @@
  * This interface was referenced by `BridgeExtensionsToACPV2Draft`'s JSON-Schema
  * via the `definition` "AgentReadiness".
  */
-export type AgentReadiness = ("ready" | "not_installed" | "error") | "needs_login";
+export type AgentReadiness = "ready" | "not_started" | "starting" | "needs_login" | "not_installed" | "error";
 /**
  * What a connected app may do. Each level includes the ones before it.
  *

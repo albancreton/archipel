@@ -88,6 +88,7 @@ Node 22.18 or later runs the TypeScript sources directly; there is no build step
 - A daemon started by a service manager does not have your shell's `PATH`. If every agent fails to start, that is why (`examples/service/README.md`).
 - A session that another process of the harness has open (its own terminal UI, say) is refused with error `-32004`. Offer a fork (`session.fork()`); the kits already do.
 - When the daemon cannot write its log (a full disk), a prompt is refused with error `-32005` (`error.storage` in the SDKs) and the agent never gets it. If that starts in the middle of a turn, `session.error` is set until updates arrive again; the kits' chat views show both.
+- `client.agents()` reports each agent as `not_started`, `starting`, `ready`, `needs_login`, `not_installed` or `error`. `not_started` is not a fault: the daemon starts an agent on the first request that needs it.
 - For a long session list, `sessionsPage({ limit, cursor })` returns a page and a `nextCursor`. `listSessions()` still returns everything.
 - A session started in the harness's own UI shows up in the session list and is loaded the first time it is opened.
 - Pi runs one process per session and is stopped when idle.

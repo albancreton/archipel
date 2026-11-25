@@ -350,6 +350,25 @@ export const scenarios: Scenario[] = [
     },
   },
   {
+    name: "todos.listed",
+    about: "When the agent keeps a todo list, what reaches an app: a list with entries, or only tool calls?",
+    agents: ["claude", "pi"],
+    cost: "turn",
+    async run(t) {
+      const session = await t.session(await t.app());
+      await turn(session, "Create three tasks with your task tools (TaskCreate, or TodoWrite if that is what you have; load them first if they are deferred): alpha, beta, gamma. Then mark alpha completed (TaskUpdate). Reply with exactly: done.");
+      const plans = [...(session.state.collections.get("plan")?.values() ?? [])] as JsonObject[];
+      t.fact("plans", plans.map((plan) => ({
+        type: plan["type"] ?? null,
+        entries: ((plan["entries"] as JsonObject[] | undefined) ?? []).map((entry) => String(entry["status"])).sort(),
+      })));
+      const tools = [...(session.state.collections.get("toolCall")?.values() ?? [])] as JsonObject[];
+      t.fact("toolCallKinds", [...new Set(tools.map((tool) => String(tool["kind"] ?? "")))].sort());
+      t.info("toolCallTitles", tools.map((tool) => String(tool["title"] ?? "")));
+      t.info("said", said(session).slice(0, 300));
+    },
+  },
+  {
     name: "turn.interrupt",
     about: "Does stopping a running turn end it, and how does the session say so?",
     agents: ["claude", "pi"],
