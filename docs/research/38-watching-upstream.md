@@ -50,7 +50,16 @@ The agent's report on the ACP SDK said the script's "state rules changed" was a 
 ## Not done
 
 - **No schedule is installed.** Where it runs (this Mac on a timer, CI once there is a remote) and how often are the user's to decide, and a timer on the user's machine needs their say.
-- The script does not remember what it already reported, so a scheduled run with `--report` repeats the report until `current` is updated.
 - The "replay our tests against the new schema" step of note 21 is not built. The schema comparison says whether a state rule changed, which is what that step was for; running the Rust tests on a swapped schema needs the crate bumped too and is the first step of the update itself.
 - `session/options` of the new adapter is not compared separately; the free conformance scenarios cover it (`session.options`, `settings.listed`).
 - The paid scenarios were not run against the new adapter (as agreed earlier).
+
+## Later the same day: made to run elsewhere
+
+The user wants it run by an agent platform on another machine that reports to them. Three changes for that:
+
+- **It remembers what it told** (`target/watch/seen.json`): a newer version is news once, then `known`. Reports are written for news only.
+- **`--json`** prints one object with `news`, and per source the versions, a headline per check and the files to read.
+- **The adapter check installs both versions itself**, so it no longer needs this machine's conformance setup. `--live` still does, and says "not run" without it.
+
+Not checked: the script on Linux, and an adapter started on a machine where the harness is not signed in (here `initialize` answered without any of the conformance settings, but Claude Code is signed in on this machine).

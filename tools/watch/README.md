@@ -40,8 +40,22 @@ Set `current` in `sources.json` to the version the library now uses. That is the
 
 An entry in `sources.json`: `id`, `registry` (`npm` or `crates`), `package`, `current`, `why` (given to the agent), `files` (patterns: `*` within a folder, `**` across folders), and where they apply `changelog` (a URL, when the package does not carry its changelog), `schema` (an ACP schema inside the package) and `probe` (the agent in `conformance/config.json` that runs this adapter).
 
-## Running it on a schedule
+## Running it on a schedule, or from another agent
 
-The script is the component; what runs it is yours: cron, a launchd timer, a CI schedule, or a scheduled agent. Daily is cheap: without `--report` nothing is paid, and with it an agent runs only for a source that has a new version. The script does not remember that it already reported a version, so a daily run with `--report` writes a report every day until `current` is updated; run it without `--report` on the schedule and with it by hand, or accept the repeats.
+The script is the component; what runs it is yours: cron, a launchd timer, a CI schedule, or an agent platform that already runs recurring tasks and can tell you when one finds something.
+
+```
+node watch.ts --json            # prints one JSON object and nothing else
+```
+
+- `news` is true when a source has a version that no earlier run told about, or when something failed. That is the moment to tell someone. A version already told about is still listed, with `"news": false`.
+- Each source has `from`, `to`, `headlines` (one line per check: how many files changed, what the schema comparison found, what changed at `initialize`, the conformance verdicts) and `files` (what to read).
+- What was already told is remembered in `target/watch/seen.json`; `--state=FILE` puts it elsewhere, `--again` ignores it. `--report` only writes reports for news.
+
+**What the machine needs.** A checkout of this repository, Node 24, `git`, `tar` and `npm`, and access to npm, crates.io and GitHub. That is enough for everything free except `--live`: the adapters are installed and started there by the script itself.
+
+`--live` also needs the daemon built (`cargo build`), the harness installed and signed in, and `conformance/config.json`. On a machine without those it says "not run" and goes on.
+
+**Two ways to get the report from an agent of yours.** Let the script start it (`--report --agent="your-agent …"`: it gets the brief on its standard input and its output becomes the report). Or run the script with `--json` from the agent, and have the agent follow `brief.md` on the `files` of each source with news; then the agent can also send the result wherever it sends things.
 
 Nothing personal leaves the machine: the requests name the packages and carry a generic client name.

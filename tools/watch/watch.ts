@@ -1,6 +1,6 @@
 // Looks for new versions of what the library depends on and writes down what changed.
 //
-//   node watch.ts [source ...] [--report] [--live | --live=all] [--agent="command args"]
+//   node watch.ts [source ...] [--report] [--live | --live=all] [--agent="command args"] [--json] [--again] [--state=FILE]
 //
 // Without flags it costs nothing: it asks the registries for the newest versions, downloads
 // what is new next to what we use, and writes the differences to target/watch/out/<date>/.
@@ -11,6 +11,9 @@
 // --live       also run the conformance scenarios that spend no model turn against a new
 //              adapter. --live=all runs every scenario (a few cents for Claude).
 // --agent=…    the agent to start instead of the one in sources.json.
+// --json       print the result as one JSON object and nothing else, for a program that calls this.
+// --again      treat every newer version as news, also one an earlier run already told about.
+// --state=FILE where the versions already told about are remembered (default target/watch/seen.json).
 //
 // Sources, and the versions we are on, are in sources.json. See README.md.
 
@@ -52,6 +55,12 @@ const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toI
 const cache = path.join(root, "target/watch/cache");
 const out = path.join(root, "target/watch/out", today);
 const relative = (file: string) => path.relative(root, file);
+const quiet = flag("json") !== undefined;
+const say = (line: string) => { if (!quiet) console.log(line); };
+
+// The newest version each source was seen at, so the same news is told once.
+const stateFile = flag("state")?.split("=").slice(1).join("=") || path.join(root, "target/watch/seen.json");
+const seen: Record<string, string> = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, "utf8")) : {};
 
 // A generic name: registries ask automated clients to say who they are, not who runs them.
 const headers = { "user-agent": "harness-bridge-watch" };
@@ -133,6 +142,9 @@ function install(source: Source, version: string): string | null {
   return entry ? path.join(path.dirname(manifest), entry) : null;
 }
 
+/** An agent to start an adapter with when this machine has no conformance setup: enough for `initialize`. */
+const bare = (id: string): AgentConfig => ({ daemon: { id, profile: id, command: "node", args: [] } });
+
 const conformance = (): { agents: Record<string, AgentConfig> } | null => {
   const file = path.join(root, "conformance/config.json");
   return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
@@ -158,16 +170,21 @@ interface Finding {
   written: string[];
   /** The new adapter's program, when it was installed. */
   entry?: string;
+  /** No earlier run told about this version. */
+  news: boolean;
+  /** One line per thing found, for whoever is told. */
+  headlines: string[];
 }
 
 async function look(source: Source): Promise<Finding | null> {
   const newest = await latest(source);
   if (!newer(source.current, newest)) {
-    console.log(`same      ${source.id}  ${source.current}`);
+    say(`same      ${source.id}  ${source.current}`);
     return null;
   }
-  console.log(`NEW       ${source.id}  ${source.current} -> ${newest}`);
-  const finding: Finding = { source, latest: newest, notes: [], written: [] };
+  const news = flag("again") !== undefined || seen[source.id] !== newest;
+  say(`${news ? "NEW  " : "known"}     ${source.id}  ${source.current} -> ${newest}`);
+  const finding: Finding = { source, latest: newest, notes: [], written: [], news, headlines: [] };
   const write = (name: string, text: string) => {
     const file = path.join(out, `${source.id}.${name}`);
     writeFileSync(file, text);
@@ -181,6 +198,7 @@ async function look(source: Source): Promise<Finding | null> {
   if (stat) {
     const file = write("diff", diff(oldKept, newKept));
     finding.notes.push(`Files that matter to us changed (\`${file}\`):`, "", "```", stat, "```");
+    finding.headlines.push(stat.split("\n").at(-1)!.trim());
   } else {
     finding.notes.push(`None of the files that matter to us changed (${source.files.join(", ")}).`);
   }
@@ -202,23 +220,25 @@ async function look(source: Source): Promise<Finding | null> {
     const changes = schemaChanges(read(oldFolder), read(newFolder));
     write("schema-changes.json", `${JSON.stringify(changes, null, 2)}\n`);
     finding.notes.push("", ...schemaNotes(changes));
+    finding.headlines.push(noSchemaChanges(changes) ? "schema: says the same" : `schema: ${changes.stateRulesChanged.length} state rules, ${changes.methodsAdded.length + changes.methodsRemoved.length} methods, ${changes.typesAdded.length + changes.typesRemoved.length + changes.typesChanged.length} types changed`);
   }
 
-  const agent = source.probe ? conformance()?.agents[source.probe] : undefined;
-  if (source.probe && !agent) finding.notes.push("", `The adapter was not started: conformance/config.json has no agent \`${source.probe}\`.`);
-  if (agent) {
-    const entry = install(source, newest);
-    if (!entry) {
-      finding.notes.push("", "The new adapter could not be installed, so it was not started.");
+  if (source.probe) {
+    // Both versions are installed here, so this works on a machine without the conformance setup.
+    const agent = conformance()?.agents[source.probe] ?? bare(source.probe);
+    const [oldEntry, entry] = [install(source, source.current), install(source, newest)];
+    if (!oldEntry || !entry) {
+      finding.notes.push("", "The adapters could not be installed, so they were not started.");
     } else {
       finding.entry = entry;
       try {
-        const [was, is] = [await welcome(agent), await welcome(withAdapter(agent, entry))];
+        const [was, is] = [await welcome(withAdapter(agent, oldEntry)), await welcome(withAdapter(agent, entry))];
         const changed = differences(was, is);
         write("initialize.json", `${JSON.stringify({ [source.current]: was, [newest]: is }, null, 2)}\n`);
         finding.notes.push("", changed.length
           ? `What the adapter says about itself at \`initialize\` changed:\n\n${changed.map((line) => `- \`${line}\``).join("\n")}`
           : "What the adapter says about itself at `initialize` is the same.");
+        finding.headlines.push(`initialize: ${changed.filter((line) => !line.startsWith("info.version")).join("; ") || "the same"}`);
       } catch (error) {
         finding.notes.push("", `The adapters could not be asked: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -244,7 +264,8 @@ function schemaNotes(changes: SchemaChanges): string[] {
 
 /** Runs conformance scenarios against the new adapter and returns what the run printed. */
 function live(finding: Finding, all: boolean): string {
-  const agents = conformance()!.agents;
+  const agents = conformance()?.agents;
+  if (!agents?.[finding.source.probe!]) return "not run: conformance/config.json has no such agent on this machine";
   const id = finding.source.probe!;
   const file = path.join(out, `${finding.source.id}.conformance-config.json`);
   writeFileSync(file, JSON.stringify({ agents: { ...agents, [id]: withAdapter(agents[id]!, finding.entry!) } }, null, 2));
@@ -282,12 +303,14 @@ mkdirSync(out, { recursive: true });
 const unknown = wanted.filter((id) => !config.sources.some((source) => source.id === id));
 if (unknown.length) throw new Error(`no such source: ${unknown.join(", ")}. Known: ${config.sources.map((source) => source.id).join(", ")}`);
 const findings: Finding[] = [];
+const failed: { source: string; error: string }[] = [];
 for (const source of config.sources.filter((entry) => wanted.length === 0 || wanted.includes(entry.id))) {
   try {
     const finding = await look(source);
     if (finding) findings.push(finding);
   } catch (error) {
-    console.log(`FAILED    ${source.id}  ${error instanceof Error ? error.message : String(error)}`);
+    say(`FAILED    ${source.id}  ${error instanceof Error ? error.message : String(error)}`);
+    failed.push({ source: source.id, error: error instanceof Error ? error.message : String(error) });
     process.exitCode = 1;
   }
 }
@@ -295,9 +318,12 @@ for (const source of config.sources.filter((entry) => wanted.length === 0 || wan
 const liveFlag = flag("live");
 if (liveFlag) {
   for (const finding of findings.filter((entry) => entry.entry)) {
-    console.log(`\nconformance against ${finding.source.package}@${finding.latest}:`);
+    say(`\nconformance against ${finding.source.package}@${finding.latest}:`);
     const printed = live(finding, liveFlag === "--live=all");
-    console.log(printed);
+    say(printed);
+    const verdicts = printed.split("\n").map((line) => line.split(/\s+/)[0]!);
+    const count = (verdict: string) => verdicts.filter((entry) => entry === verdict).length;
+    finding.headlines.push(printed.startsWith("not run") ? `conformance: ${printed}` : `conformance: ${count("same")} same, ${count("CHANGED")} changed, ${count("FAILED")} failed`);
     finding.notes.push("", `The conformance scenarios${liveFlag === "--live=all" ? "" : " that spend no model turn"} against the new adapter:`, "", "```", printed, "```");
   }
 }
@@ -310,20 +336,48 @@ const summary = [
   ...findings.flatMap((finding) => [`## ${finding.source.id}: ${finding.source.current} to ${finding.latest}`, "", `${finding.source.package}. ${finding.source.why}`, "", ...finding.notes, ""]),
 ].join("\n");
 writeFileSync(path.join(out, "summary.md"), summary);
-console.log(`\n${relative(path.join(out, "summary.md"))}`);
+say(`\n${relative(path.join(out, "summary.md"))}`);
 
-if (flag("report") && findings.length) {
+const reports: Record<string, string> = {};
+if (flag("report") && findings.some((finding) => finding.news)) {
   const given = flag("agent")?.split("=").slice(1).join("=").split(" ").filter(Boolean);
   const [command, ...commandArgs] = given?.length ? given : [config.agent.command, ...config.agent.args];
   mkdirSync(path.join(root, "docs/updates"), { recursive: true });
-  for (const finding of findings) {
+  // Only for news: a version an earlier run reported is not reported again.
+  for (const finding of findings.filter((entry) => entry.news)) {
     const file = path.join(root, "docs/updates", `${today}-${finding.source.id}.md`);
     try {
       writeFileSync(file, `${await report(finding, command!, commandArgs)}\n`);
-      console.log(`report    ${relative(file)}`);
+      reports[finding.source.id] = relative(file);
+      say(`report    ${relative(file)}`);
     } catch (error) {
-      console.log(`FAILED    report for ${finding.source.id}: ${error instanceof Error ? error.message : String(error)}`);
+      say(`FAILED    report for ${finding.source.id}: ${error instanceof Error ? error.message : String(error)}`);
+      failed.push({ source: finding.source.id, error: `report: ${error instanceof Error ? error.message : String(error)}` });
       process.exitCode = 1;
     }
   }
 }
+
+for (const finding of findings) seen[finding.source.id] = finding.latest;
+mkdirSync(path.dirname(stateFile), { recursive: true });
+writeFileSync(stateFile, `${JSON.stringify(seen, null, 2)}\n`);
+
+const result = {
+  date: today,
+  /** True when there is something nobody was told yet: the moment to tell someone. */
+  news: findings.some((finding) => finding.news) || failed.length > 0,
+  summary: relative(path.join(out, "summary.md")),
+  sources: findings.map((finding) => ({
+    id: finding.source.id,
+    package: finding.source.package,
+    from: finding.source.current,
+    to: finding.latest,
+    news: finding.news,
+    headlines: finding.headlines,
+    files: finding.written,
+    ...(reports[finding.source.id] ? { report: reports[finding.source.id] } : {}),
+  })),
+  failed,
+};
+writeFileSync(path.join(out, "result.json"), `${JSON.stringify(result, null, 2)}\n`);
+if (quiet) console.log(JSON.stringify(result, null, 2));
