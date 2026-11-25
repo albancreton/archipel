@@ -34,7 +34,7 @@ Taken from the changed lines of the diff and from `claude-agent-sdk.changelog.md
 
 ## What it touches here
 
-- **Dependency chain.** No `package.json` of ours lists `@anthropic-ai/claude-agent-sdk`. It appears only in `tools/watch/sources.json` and in the probe lock file `spikes/acp-probe/package-lock.json`, which pins 0.3.330. The adapter's imports (`forkSession`, `getSessionMessages`, `matchDeniedModels`, from `claude-adapter.diff` lines 63, 1050 and 1177) are not named in the changed lines of the SDK diff.
+- **Dependency chain.** No `package.json` of ours lists `@anthropic-ai/claude-agent-sdk`. It appears only in `tools/watch/sources.json` and in the probe lock file `docs/research/spikes/acp-probe/package-lock.json`, which pins 0.3.330. The adapter's imports (`forkSession`, `getSessionMessages`, `matchDeniedModels`, from `claude-adapter.diff` lines 63, 1050 and 1177) are not named in the changed lines of the SDK diff.
 - **`schema/acp-v2.schema.json` and `schema/state-rules.json`.** No change needed. The SDK's changes are to its own hook, permission and tool types, not to ACP messages.
 - **Addons (`crates/archipel-addons`).** None mentions an SDK name. `acp.restore-settings` relies on `session/resume` with `configOptions`, which is ACP, not the SDK. `pi.check-setting-values` is Pi only. No addon works around an SDK fault, so none can be removed on this evidence.
 - **Profiles (`crates/archipel-agents/src/lib.rs`).** `claude()` (line 121) starts the adapter and sets `CLAUDE_CODE_THINKING_DISPLAY`. `Claude::elsewhere` (line 162 on) reads Claude Code's `~/.claude/sessions` registry, which the SDK diff does not describe. The Pi translation from ACP v1 is not touched.
@@ -43,7 +43,7 @@ Taken from the changed lines of the diff and from `claude-agent-sdk.changelog.md
 
 ## Proposed steps
 
-1. **Nothing to change in this repo now.** Leave `spikes/acp-probe` at 0.3.330; it is a probe, not the library.
+1. **Nothing to change in this repo now.** Leave `tools/record` at 0.3.330; it is a probe, not the library.
 2. **When an adapter release bundles 0.3.332** (check its `package.json` for `@anthropic-ai/claude-agent-sdk`), treat it as an adapter update. First run `cargo build`, then `archipel agents` against a real daemon, as `AGENTS.md` asks. It must print `ready` for Claude.
 3. **Free checks.** Run `cargo test --workspace` and `pnpm -r test`. The recordings replay through the fake agent and should still pass if the adapter's wire is unchanged.
 4. **Free conformance.** Run the seven free Claude scenarios listed in `conformance/baseline/claude.json` (`settings.*`, `session.*`) and compare with the baseline.

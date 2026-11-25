@@ -1,6 +1,6 @@
 # Milestone 0: closing the unknowns
 
-_2026-11-22. Live runs with `spikes/acp-probe/m0.mjs`; raw logs in `spikes/acp-probe/logs/m0-*.ndjson`. Claude: `claude` 2.1.330 on Haiku (one run on Sonnet), adapter `@agentclientprotocol/claude-agent-acp` 0.109.1. Pi: 1.6.0 on `local/Qwen3.8-27B-BF16-DFLASH2`, adapter `pi-acp` 0.0.35._
+_2026-11-22. Live runs with `docs/research/spikes/acp-probe/m0.mjs`; the raw logs are not kept in this repository. Claude: `claude` 2.1.330 on Haiku (one run on Sonnet), adapter `@agentclientprotocol/claude-agent-acp` 0.109.1. Pi: 1.6.0 on `local/Qwen3.8-27B-BF16-DFLASH2`, adapter `pi-acp` 0.0.35._
 
 ## Results
 

@@ -32,7 +32,7 @@ const SCENARIOS = {
 async function record(name) {
   const SC = SCENARIOS[name]; const T0 = Date.now(); const ts = () => `+${String(Date.now() - T0).padStart(6)}ms`;
   fs.writeFileSync(path.join(cwd, "package.json"), '{"name":"acp-probe","version":"1.0.0"}\n');
-  const child = spawn("node", [path.join(here, "node_modules/@agentclientprotocol/claude-agent-acp/dist/index.js")], { cwd, env: { ...process.env, ANTHROPIC_MODEL: "haiku", CLAUDE_CODE_EXECUTABLE: "/Users/dev/.local/bin/claude", CLAUDE_CODE_THINKING_DISPLAY: "summarized" }, stdio: ["pipe", "pipe", "ignore"] });
+  const child = spawn("node", [path.join(here, "node_modules/@agentclientprotocol/claude-agent-acp/dist/index.js")], { cwd, env: { ...process.env, ANTHROPIC_MODEL: "haiku", CLAUDE_CODE_THINKING_DISPLAY: "summarized" }, stdio: ["pipe", "pipe", "ignore"] });
   const lines = []; const updates = []; let nextId = 1; const pending = new Map(); const kinds = {}; let lastUpdateAt = Date.now(); let sawTool = null; const reqs = {};
   const rec = (dir, m) => lines.push(redact(JSON.stringify({ dir, t: Date.now() - T0, m })));
   const send = (m) => { rec("out", m); child.stdin.write(JSON.stringify(m) + "\n"); };

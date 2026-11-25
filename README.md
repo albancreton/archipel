@@ -83,7 +83,8 @@ With the real Claude adapter: put a `config.json` in the daemon's home (see `arc
 | `tools/watch/` | Looks for new upstream versions and writes down what changed; its reports go to `docs/updates/` |
 | `docs/remote.md` | How to reach a daemon from another machine or a browser |
 | `testdata/` | Recorded sessions and readable renderings of what the core makes of them |
-| `spikes/` | The scripts and raw logs behind 05, 06, 09, 10. See `spikes/README.md` |
+| `docs/research/spikes/` | The scripts behind 05, 06, 09, 10. See its README |
+| `tools/record/` | Records sessions of the real Claude adapter into `testdata/` |
 | `data/t3-claude-commits-30d.txt` | The 230 Claude-related T3 commits analysed in 03 |
 
 ## What was tested, in one table
@@ -118,4 +119,4 @@ Licensed under either of Apache License, Version 2.0 (`LICENSE-APACHE`) or MIT l
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this work, as defined in the Apache-2.0 licence, shall be dual licensed as above, without any additional terms or conditions.
 
-Files derived from other projects keep their own notices. Scenario prompts in `spikes/acp-probe/scenarios.json` are taken from or modelled on T3 Code's replay fixtures (MIT, Copyright (c) 2026 T3 Tools Inc.).
+Files derived from other projects keep their own notices. Scenario prompts in `docs/research/spikes/acp-probe/scenarios.json` are taken from or modelled on T3 Code's replay fixtures (MIT, Copyright (c) 2026 T3 Tools Inc.).

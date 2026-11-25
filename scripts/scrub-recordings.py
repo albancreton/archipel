@@ -36,8 +36,8 @@ home = os.path.expanduser("~")
 dashed = home.replace("/", "-")  # how Claude Code names a project's folder
 rules = [
     # The scratch project the recordings were made in, then any other path under the home folder.
-    (re.compile(re.escape(dashed) + r"-Dev-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*?-spikes-acp-probe-work"), "-work-probe"),
-    (re.compile(re.escape(home) + r"/Dev/[A-Za-z0-9-]+/spikes/acp-probe/work"), "/work/probe"),
+    (re.compile(re.escape(dashed) + r"-Dev-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*?-(?:spikes-acp-probe|tools-record)-work"), "-work-probe"),
+    (re.compile(re.escape(home) + r"/Dev/[A-Za-z0-9-]+/(?:spikes/acp-probe|tools/record)/work"), "/work/probe"),
     (re.compile(re.escape(home) + r"/Dev/([A-Za-z0-9-]+)"), r"/work/\1"),
     (re.compile(re.escape(dashed) + r"-Dev-"), "-work-"),
     (re.compile(re.escape(home)), "/Users/dev"),

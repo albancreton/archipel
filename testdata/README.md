@@ -13,7 +13,7 @@ One file per recorded session: every JSON-RPC message between a client and an AC
 
 | Set | Recorded from | With |
 |---|---|---|
-| `claude-v2/` | Claude Code 2.1.330 through `@agentclientprotocol/claude-agent-acp` 0.109.1, ACP v2, Haiku | `spikes/acp-probe/v2rec.mjs` |
+| `claude-v2/` | Claude Code 2.1.330 through `@agentclientprotocol/claude-agent-acp` 0.109.1, ACP v2, Haiku | `tools/record/v2rec.mjs` |
 | `pi-v2/` | The Pi recordings in `adapters/pi-v1`, as the Pi profile translates them to ACP v2 | the test `recorded_pi_sessions_come_out_as_acp_v2` |
 
 The scenario names and several prompts are taken from or modelled on T3 Code's replay fixtures (MIT, Copyright (c) 2026 T3 Tools Inc.).

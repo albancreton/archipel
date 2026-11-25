@@ -1,6 +1,6 @@
 target/
 node_modules/
-spikes/acp-probe/work/
+tools/record/work/
 .DS_Store
 .build/
 .swiftpm/

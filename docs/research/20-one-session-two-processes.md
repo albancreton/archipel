@@ -1,6 +1,6 @@
 # One session, two Claude processes
 
-_2026-11-22. Probe: `spikes/acp-probe/twoproc.mjs` (three short Haiku turns), plus a read of Claude Code's files on disk. Claude Code 2.1.330._
+_2026-11-22. Probe: `docs/research/spikes/acp-probe/twoproc.mjs` (three short Haiku turns), plus a read of Claude Code's files on disk. Claude Code 2.1.330._
 
 ## The question
 
@@ -42,7 +42,7 @@ Decision from the user: block by default, offer to fork.
 - **The list says so.** `openElsewhere` on each session; `!` in `archipel sessions`.
 - **Fork.** ACP's `session/fork`: the harness makes a new session with the same history, which only the daemon has open. The daemon records it and loads its history like an adopted session. `archipel fork SESSION`, `forkSession()` in TypeScript, `fork()` in Swift. The original is untouched.
 
-Probe of fork on the Claude adapter (`spikes/acp-probe/fork.mjs`, no model call): it works on a session the adapter process never opened, returns a new id, and the copy is titled "… (fork)".
+Probe of fork on the Claude adapter (`docs/research/spikes/acp-probe/fork.mjs`, no model call): it works on a session the adapter process never opened, returns a new id, and the copy is titled "… (fork)".
 
 Live check, with no model call: the daemon listed 116 sessions and marked two as open elsewhere, this conversation's among them. A prompt for it was refused: "open in another process of the agent (pid 60406, busy)". A fork of a small session was created and read back with its history.
 

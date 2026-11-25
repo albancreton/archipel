@@ -336,7 +336,7 @@ crates/       the Rust workspace
 clients/ts    clients/swift
 ui/react      ui/swift
 testdata/     transcripts and reducer vectors
-docs/  spikes/  data/
+docs/  tools/  data/
 ```
 
 Two rules:
@@ -346,7 +346,7 @@ Two rules:
 
 ## 14. Testing
 
-- **Recorded transcripts:** `spikes/acp-probe/logs` is already the format: timestamped inbound and outbound frames. A fake adapter replays them, as T3 does with its fixtures.
+- **Recorded transcripts:** the first probe's logs were already the format: timestamped inbound and outbound frames. A fake adapter replays them, as T3 does with its fixtures.
 - **Scenario catalogue:** T3's scenario names and prompts (simple, approval, interrupt mid-tool, subagent, background wake, steering, compaction, resume after restart and so on) are the checklist. T3's fix history for Claude is a backlog of edge cases.
 - **Conformance matrix:** scenario by agent, generated from the runs, so a new adapter version shows what changed.
 - **Reducer vectors:** `testdata/vectors` holds a readable rendering of the state each transcript ends in, and `testdata/states` the exact state as JSON. The Rust core writes both; the TypeScript and Swift SDKs must reproduce the JSON exactly. `testdata/daemon` does the same for what an app sees through the daemon.
