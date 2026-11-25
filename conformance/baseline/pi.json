@@ -180,5 +180,42 @@
     "toolCallKinds": [
       "other"
     ]
+  },
+  "sessions.concurrent": {
+    "turns": [
+      "ok",
+      "ok",
+      "ok"
+    ],
+    "eachGotItsOwnAnswer": true,
+    "answersCrossed": false,
+    "userMessagesPerSession": [
+      1,
+      1,
+      1
+    ]
+  },
+  "session.mcp_server": {
+    "created": "ok",
+    "toolCalled": false,
+    "answerHasTheToolsText": false,
+    "approvalAsked": false
+  },
+  "session.fork": {
+    "fork": "error -32601"
+  },
+  "attach.late": {
+    "attachedDuringTheTurn": true,
+    "attachedAfterTheTurn": true
+  },
+  "compact.command": {
+    "compactTurn": null,
+    "compactionItems": false,
+    "knowsWhatWasSaidBefore": true
+  },
+  "background.listed": {
+    "listedAfterTheTurn": false,
+    "kinds": [],
+    "clearedWhenTheCommandEnded": null
   }
 }

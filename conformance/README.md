@@ -8,7 +8,7 @@ This is the third test tier of `docs/research/21-second-plan.md`. The recorded s
 cargo build
 cp conformance/config.example.json conformance/config.json     # then fill in the paths
 cd conformance
-node run.ts claude                 # every scenario: about a dozen short Haiku turns, a few cents
+node run.ts claude                 # every scenario: about forty short Haiku turns, a few cents
 node run.ts claude --free          # only the scenarios that spend no model turn
 node run.ts pi                     # free on a local model
 node run.ts claude reopen.keeps_settings turn.interrupt       # some scenarios
@@ -33,5 +33,7 @@ How it is built:
 - For Claude it deletes every session it made from Claude's own history at the end. Pi's adapter cannot delete: the sessions stay in Pi's folder for `conformance/work/pi`.
 
 Addons (`docs/design/addons.md`) run as shipped. A scenario that checks a fix also notes what the harness does with that addon switched off (`t.restartDaemon({ "<id>": false })`): `reopen.keeps_settings.unaided`, and the fact `unknownEffortUnaided`. When one of those shows `CHANGED` towards the right behaviour, upstream has repaired the fault and the addon can be deleted.
+
+`session.mcp_server` gives the session `mcp-marker.mjs`, a small MCP server with one tool, written without a dependency.
 
 Some scenarios also talk to the adapter directly (`session.empty`, `session.options`, `session.rename_delete`, `session.rename_used`), to compare what the harness does with what arrives through the daemon.

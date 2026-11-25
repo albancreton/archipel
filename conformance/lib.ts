@@ -289,24 +289,30 @@ export interface Turn {
 
 /**
  * Sends a message and waits for the turn to end. `during` is called after every change, for
- * scenarios that act or watch while the turn runs. Approvals are allowed once unless `during`
- * handles them.
+ * scenarios that act or watch while the turn runs. Approvals are allowed once, or refused, or
+ * left for the scenario to answer (`leave`).
  */
-export async function turn(session: Session, content: string | Json[], during?: (session: Session) => void): Promise<Turn> {
+export async function turn(
+  session: Session,
+  content: string | Json[],
+  during?: (session: Session) => void,
+  approvals: "allow" | "reject" | "leave" = "allow",
+): Promise<Turn> {
   const text = typeof content === "string" ? content : JSON.stringify(content);
   const started = Date.now();
   let ran = false;
-  let approvals = 0;
+  let asked = 0;
   const answered = new Set<string>();
   const stop = session.subscribe(() => {
     if (session.turnState !== undefined && session.turnState !== "idle") ran = true;
     for (const { requestId, request } of session.pendingRequests()) {
       if (answered.has(requestId) || request.method !== "session/request_permission") continue;
       answered.add(requestId);
-      approvals += 1;
+      asked += 1;
+      if (approvals === "leave") continue;
       const options = ((request.params as JsonObject)["options"] as JsonObject[] | undefined) ?? [];
-      const allow = options.find((option) => String(option["kind"]).startsWith("allow")) ?? options[0];
-      if (allow) session.approve(requestId, String(allow["optionId"]));
+      const chosen = options.find((option) => String(option["kind"]).startsWith(approvals)) ?? options[0];
+      if (chosen) session.approve(requestId, String(chosen["optionId"]));
     }
     during?.(session);
   });
@@ -320,7 +326,7 @@ export async function turn(session: Session, content: string | Json[], during?: 
   const state = session.state.values.get("state") as JsonObject | undefined;
   const usage = session.state.values.get("usage") as JsonObject | undefined;
   const meta = usage?.["_meta"] as JsonObject | undefined;
-  return { ms: Date.now() - started, stopReason: state?.["stopReason"] ?? null, model: meta?.["_claude/model"] ?? null, approvals };
+  return { ms: Date.now() - started, stopReason: state?.["stopReason"] ?? null, model: meta?.["_claude/model"] ?? null, approvals: asked };
 }
 
 /** Everything the agent said in the session, as one string. */

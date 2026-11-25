@@ -3,9 +3,9 @@
 // marker word the prompt asks for.
 
 import { base64Text, RpcError, type Json, type JsonObject, type Session } from "@harness-bridge/client";
-import { writeFileSync } from "node:fs";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { count, current, RpcFailure, said, settingOf, settings, settingsOf, solidPng, turn, within, type Run } from "./lib.ts";
+import { count, current, here, RpcFailure, said, settingOf, settings, settingsOf, solidPng, turn, within, type Run } from "./lib.ts";
 
 export interface Scenario {
   name: string;
@@ -366,6 +366,213 @@ export const scenarios: Scenario[] = [
       t.fact("toolCallKinds", [...new Set(tools.map((tool) => String(tool["kind"] ?? "")))].sort());
       t.info("toolCallTitles", tools.map((tool) => String(tool["title"] ?? "")));
       t.info("said", said(session).slice(0, 300));
+    },
+  },
+  {
+    name: "approval.answered",
+    about: "An approval is refused, then allowed: what happens to the command, and what does the session show?",
+    agents: ["claude"],
+    cost: "turn",
+    async run(t) {
+      const session = await t.session(await t.app());
+      const mode = settingOf(session, "mode");
+      if (mode?.values.includes("default")) await session.setConfigOption(mode.id, "default");
+      const file = (name: string) => path.join(t.work, name);
+      for (const name of ["approval-no.txt", "approval-yes.txt"]) rmSync(file(name), { force: true });
+      const ask = (name: string) => `Run this exact shell command: printf approval > ${name}  Then reply with exactly: done.`;
+      const tools = () => [...(session.state.collections.get("toolCall")?.values() ?? [])] as JsonObject[];
+      const requests = () => [...session.state.requests.values()];
+
+      const refused = await turn(session, ask("approval-no.txt"), undefined, "reject");
+      t.must("an approval was asked", refused.approvals > 0);
+      const options = ((requests()[0]?.params as JsonObject | undefined)?.["options"] as JsonObject[] | undefined) ?? [];
+      t.fact("optionKinds", options.map((option) => String(option["kind"])).sort());
+      t.fact("refused", {
+        commandRan: existsSync(file("approval-no.txt")),
+        toolStatus: tools().map((tool) => String(tool["status"])),
+        stopReason: refused.stopReason,
+        answerShown: ((requests()[0]?.outcome as JsonObject | null)?.["outcome"] as JsonObject | undefined)?.["outcome"] ?? null,
+      });
+
+      const allowed = await turn(session, ask("approval-yes.txt"));
+      t.fact("allowed", {
+        commandRan: existsSync(file("approval-yes.txt")),
+        lastToolStatus: String(tools().at(-1)?.["status"]),
+        stopReason: allowed.stopReason,
+      });
+      t.must("every approval shows its answer", requests().every((request) => request.outcome !== null));
+      for (const name of ["approval-no.txt", "approval-yes.txt"]) rmSync(file(name), { force: true });
+    },
+  },
+  {
+    name: "approval.two_apps",
+    about: "Two apps answer the same approval at the same moment, one yes and one no: does one answer win for both?",
+    agents: ["claude"],
+    cost: "turn",
+    async run(t) {
+      const [first, second] = [await t.app(), await t.app()];
+      const mine = await t.session(first);
+      const mode = settingOf(mine, "mode");
+      if (mode?.values.includes("default")) await mine.setConfigOption(mode.id, "default");
+      const theirs = await second.session(mine.id);
+      const file = path.join(t.work, "approval-race.txt");
+      rmSync(file, { force: true });
+
+      const done = turn(mine, "Run this exact shell command: printf race > approval-race.txt  Then reply with exactly: done.", undefined, "leave");
+      const asked = (session: Session) => session.pendingRequests().some(({ request }) => request.method === "session/request_permission");
+      await within(120_000, "both apps see the approval", Promise.all([mine.until(() => asked(mine)), theirs.until(() => asked(theirs))]));
+      const { requestId, request } = mine.pendingRequests()[0]!;
+      const options = ((request.params as JsonObject)["options"] as JsonObject[]) ?? [];
+      const option = (kind: string) => String(options.find((entry) => String(entry["kind"]).startsWith(kind))?.["optionId"]);
+      // The refusal is sent first, so a daemon that took the last answer would run the command.
+      theirs.approve(requestId, option("reject"));
+      mine.approve(requestId, option("allow"));
+      await done;
+      await theirs.until(() => theirs.turnState === "idle");
+
+      const outcome = (session: Session) => JSON.stringify(session.state.requests.get(requestId)?.outcome ?? null);
+      t.must("both apps show the same answer", outcome(mine) === outcome(theirs));
+      const won = outcome(mine).includes(option("allow")) ? "allow" : outcome(mine).includes(option("reject")) ? "reject" : "neither";
+      t.must("one of the two answers won", won !== "neither");
+      t.must("the command ran exactly when the winning answer allowed it", existsSync(file) === (won === "allow"));
+      t.fact("firstAnswerWon", won === "reject");
+      t.must("both apps end with the same session", JSON.stringify(mine.toJSON()) === JSON.stringify(theirs.toJSON()));
+      rmSync(file, { force: true });
+    },
+  },
+  {
+    name: "sessions.concurrent",
+    about: "Three sessions run a turn at the same time: does each get its own answer?",
+    agents: ["claude", "pi"],
+    cost: "turn",
+    async run(t) {
+      const app = await t.app();
+      const markers = ["FINCH-11", "OTTER-22", "LYNX-33"];
+      const sessions = [];
+      for (const _ of markers) sessions.push(await t.session(app));
+      const started = Date.now();
+      const turns = await Promise.all(sessions.map((session, at) => turn(session, `Reply with exactly: ${markers[at]}`).then(() => "ok", failure)));
+      t.fact("turns", turns);
+      t.fact("eachGotItsOwnAnswer", sessions.every((session, at) => said(session).includes(markers[at]!)));
+      t.fact("answersCrossed", sessions.some((session, at) => markers.some((marker, other) => other !== at && said(session).includes(marker))));
+      t.fact("userMessagesPerSession", sessions.map((session) => count(session, "userMessage")));
+      t.info("ms", Date.now() - started);
+    },
+  },
+  {
+    name: "session.mcp_server",
+    about: "An MCP server given when the session is created: can the agent call its tool?",
+    agents: ["claude", "pi"],
+    cost: "turn",
+    async run(t) {
+      const app = await t.app();
+      const server = { type: "stdio", name: "marker", command: process.execPath, args: [path.join(here, "mcp-marker.mjs")], env: [] };
+      const created = await app.newSession({ cwd: t.work, agentId: t.id, mcpServers: [server] }).then((session) => session, failure);
+      t.fact("created", typeof created === "string" ? created : "ok");
+      if (typeof created === "string") return;
+      t.made.add(created.id);
+      if (t.agent.cheapModel && current(created, "model") !== t.agent.cheapModel) await created.setConfigOption("model", t.agent.cheapModel);
+      const result = await turn(created, "Call the tool conformance_marker of the MCP server named marker (load it first if it is deferred). Then reply with exactly the text it returned, nothing else. If you have no such tool, reply with exactly: NO TOOL.");
+      const tools = [...(created.state.collections.get("toolCall")?.values() ?? [])] as JsonObject[];
+      // By its title: a search for the tool also has its name, in what was searched for.
+      t.fact("toolCalled", tools.some((tool) => String(tool["title"] ?? "").includes("conformance_marker")));
+      t.fact("answerHasTheToolsText", said(created).includes("OKAPI-902"));
+      t.fact("approvalAsked", result.approvals > 0);
+      t.info("toolCallTitles", tools.map((tool) => String(tool["title"] ?? "")));
+      t.info("said", said(created).slice(0, 200));
+    },
+  },
+  {
+    name: "session.fork",
+    about: "A copy of a session: does it know the history, and is the original left alone?",
+    agents: ["claude", "pi"],
+    cost: "turn",
+    async run(t) {
+      const app = await t.app();
+      const original = await t.session(app);
+      await turn(original, "Remember the codeword HERON-55. Reply with exactly: ok");
+      // The original's values may change on their own (Claude names a session a moment after its
+      // first turn). What the copy does must not show up in the original's items.
+      const items = () => JSON.stringify([original.state.timeline, [...original.state.collections].map(([kind, all]) => [kind, [...all]])]);
+      const before = items();
+      const copy = await app.forkSession(original.id).then((session) => session, failure);
+      t.fact("fork", typeof copy === "string" ? copy : "ok");
+      if (typeof copy === "string") return;
+      t.made.add(copy.id);
+      t.must("the copy has its own id", copy.id !== original.id);
+      t.fact("copyShowsTheHistoryBeforeAnyTurn", count(copy, "userMessage") >= 1);
+      await turn(copy, "What is the codeword? Reply with it only.");
+      t.fact("copyKnowsTheHistory", said(copy).includes("HERON-55"));
+      t.fact("originalItemsUnchanged", items() === before);
+      const listed = await app.listSessions({ agentId: t.id, loggedOnly: true });
+      t.fact("bothListed", [original.id, copy.id].every((id) => listed.some((summary) => summary.sessionId === id)));
+    },
+  },
+  {
+    name: "background.listed",
+    about: "A command left running after the turn: does the session list it, and stop listing it when it ends?",
+    agents: ["claude", "pi"],
+    cost: "turn",
+    async run(t) {
+      const session = await t.session(await t.app());
+      const background = () => {
+        const list = (session.state.values.get("state") as JsonObject | undefined)?.["background"];
+        return (Array.isArray(list) ? list : []) as JsonObject[];
+      };
+      let during = 0;
+      await turn(session, "Start this shell command in the background and do not wait for it to finish: sleep 20. Then reply with exactly: started.", () => {
+        during = Math.max(during, background().length);
+      });
+      t.fact("listedAfterTheTurn", background().length > 0);
+      t.fact("kinds", [...new Set(background().flatMap((entry) => Object.keys(entry).filter((key) => key.endsWith("Id"))))].sort());
+      t.info("listedDuringTheTurn", during);
+      t.info("toolCallTitles", [...(session.state.collections.get("toolCall")?.values() ?? [])].map((tool) => String((tool as JsonObject)["title"] ?? "")));
+      const listed = background().length > 0;
+      const cleared = await within(60_000, "the list empties", session.until(() => background().length === 0)).then(() => true, () => false);
+      t.fact("clearedWhenTheCommandEnded", listed ? cleared : null);
+      // Claude answers the command's end with a turn of its own; let it finish before the session is deleted.
+      await within(60_000, "the session is idle", session.until(() => session.turnState === "idle")).catch(() => {});
+      t.info("agentMessages", count(session, "agentMessage"));
+    },
+  },
+  {
+    name: "attach.late",
+    about: "An app that attaches during a turn, and one that attaches after it: do they end with what the first app has?",
+    agents: ["claude", "pi"],
+    cost: "turn",
+    async run(t) {
+      const [first, second, third] = [await t.app(), await t.app(), await t.app()];
+      const live = await t.session(first);
+      let joining: Promise<Session> | null = null;
+      await turn(live, "Run this exact shell command: echo late-attach  Then count from 1 to 20, one number per line.", (now) => {
+        if (!joining && count(now, "toolCall") + count(now, "agentMessage") > 0) joining = second.session(live.id);
+      });
+      t.must("the second app attached while the turn ran", joining !== null);
+      const during = await joining!;
+      const after = await third.session(live.id);
+      await during.until(() => during.turnState === "idle");
+      const same = (other: Session) => JSON.stringify(other.toJSON()) === JSON.stringify(live.toJSON());
+      // The last messages of the turn may still be on their way to the other connections.
+      await within(10_000, "the apps agree", during.until(() => same(during))).catch(() => {});
+      t.fact("attachedDuringTheTurn", same(during));
+      t.fact("attachedAfterTheTurn", same(after));
+      t.info("items", live.state.timeline.length);
+    },
+  },
+  {
+    name: "compact.command",
+    about: "The user asks to compact the conversation: does an item say so, and does the session still know what was said?",
+    agents: ["claude", "pi"],
+    cost: "turn",
+    async run(t) {
+      const session = await t.session(await t.app());
+      await turn(session, "Remember the codeword IBIS-77. Reply with exactly: ok");
+      const result = await turn(session, "/compact").then((done) => done.stopReason, failure);
+      t.fact("compactTurn", result);
+      t.fact("compactionItems", count(session, "compaction") > 0);
+      t.info("agentMessagesAfterCompact", count(session, "agentMessage"));
+      await turn(session, "What is the codeword? Reply with it only.");
+      t.fact("knowsWhatWasSaidBefore", said(session).includes("IBIS-77"));
     },
   },
   {

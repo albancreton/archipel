@@ -145,6 +145,8 @@ Three levels of proof exist today. The lists are by behaviour, not by test.
 
 _Update, same day: the settings, session, turn and shell rows below were run by the first conformance tests. Results in `23-conformance-first-run.md`._
 
+_Update, 2026-11-24: approvals (also two apps at once), several sessions at once, an MCP server, fork, background work, a late app and compaction are now conformance scenarios; the kits are clicked by tests. Results in `36-ui-tests-that-click.md` and `37-more-live-scenarios.md`._
+
 | Area | Behaviour |
 |---|---|
 | Settings | Switching the model on a live session, for Claude and for Pi |

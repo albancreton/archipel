@@ -321,5 +321,71 @@
     "toolCallKinds": [
       "other"
     ]
+  },
+  "approval.answered": {
+    "optionKinds": [
+      "allow_always",
+      "allow_once",
+      "reject_once"
+    ],
+    "refused": {
+      "commandRan": false,
+      "toolStatus": [
+        "failed"
+      ],
+      "stopReason": "end_turn",
+      "answerShown": "selected"
+    },
+    "allowed": {
+      "commandRan": true,
+      "lastToolStatus": "completed",
+      "stopReason": "end_turn"
+    }
+  },
+  "approval.two_apps": {
+    "firstAnswerWon": true
+  },
+  "sessions.concurrent": {
+    "turns": [
+      "ok",
+      "ok",
+      "ok"
+    ],
+    "eachGotItsOwnAnswer": true,
+    "answersCrossed": false,
+    "userMessagesPerSession": [
+      1,
+      1,
+      1
+    ]
+  },
+  "session.mcp_server": {
+    "created": "ok",
+    "toolCalled": true,
+    "answerHasTheToolsText": true,
+    "approvalAsked": false
+  },
+  "session.fork": {
+    "fork": "ok",
+    "copyShowsTheHistoryBeforeAnyTurn": true,
+    "copyKnowsTheHistory": true,
+    "originalItemsUnchanged": true,
+    "bothListed": true
+  },
+  "background.listed": {
+    "listedAfterTheTurn": true,
+    "kinds": [
+      "terminalId"
+    ],
+    "clearedWhenTheCommandEnded": true
+  },
+  "attach.late": {
+    "attachedDuringTheTurn": true,
+    "attachedAfterTheTurn": true
+  },
+  "compact.command": {
+    "compactTurn": "end_turn",
+    "compactionItems": true,
+    "knowsWhatWasSaidBefore": true
   }
 }
