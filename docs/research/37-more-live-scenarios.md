@@ -9,7 +9,7 @@
 | `approval.answered`: refuse, then allow | Refused: the command does not run, the tool call is `failed`, the turn ends normally, the approval shows the answer. Allowed: it runs. Options offered: allow once, allow always, reject once | not run: Pi asks nothing |
 | `approval.two_apps`: two apps answer at the same moment, one no and one yes | The first answer (no) won for both apps, the command did not run, and both apps ended with exactly the same session | not run |
 | `sessions.concurrent`: three sessions, one turn each, at once | Each got its own answer, none crossed (2.4 s) | The same (10 to 15 s) |
-| `session.mcp_server`: an MCP server given at creation | The agent finds the tool (after a tool search) and calls it; its text comes back. No approval was asked | **The session is created without complaint and the server is ignored**: the agent has no such tool |
+| `session.mcp_server`: an MCP server given at creation | The agent finds the tool (after a tool search) and calls it; its text comes back. No approval was asked | **The session is created without complaint and the server is not passed on**: the agent has only the servers of Pi's own `mcp.json` |
 | `session.fork` | The copy shows the history at once and knows it; the original's items are untouched; both are listed | **Not supported** (`-32601`) |
 | `background.listed`: a command left running | Listed after the turn (as a terminal), and no longer listed once it ended | **Not listed**: Pi starts it with `nohup … &` in its shell tool and knows nothing more about it |
 | `attach.late`: one app attaches during the turn, one after | Both end with exactly what the first app has | The same |
@@ -28,7 +28,7 @@ These were all `must` or fact checks on structure; none depends on the wording o
 
 Three differences an app would otherwise find out the hard way:
 
-1. `mcpServers` at session creation are accepted and dropped. Pi has no MCP support of its own; its users add it with an extension. The answer to `session/new` does not say so. An app can know beforehand: Pi's capabilities have no `session.mcp`, Claude's have `session.mcp.stdio`, `http` and `acp`. The daemon could refuse servers for an agent that does not advertise them, so the mistake is loud; **proposed, not built**.
+1. `mcpServers` given at session creation are accepted and dropped. **Pi itself does MCP** (1.6.0, built in): it connects the servers in its own `~/.pi/agent/mcp.json`, and those are there in every session the daemon starts. What is lost is the list an app sends: the adapter `pi-acp` 0.0.35 stores it and never reads it again (checked in its code). The answer to `session/new` does not say so. An app can know beforehand: the Pi agent's capabilities have no `session.mcp`, Claude's have `session.mcp.stdio`, `http` and `acp`. Two things could be built, neither is: the daemon refusing servers for an agent that does not advertise them, so the mistake is loud; and an addon that hands the servers to Pi (Pi lets an extension register servers with `pi.registerMcpServer()`).
 2. No fork (`session.fork` is not in its capabilities either): an app must look before offering it. The React and SwiftUI kits only offer fork in the open-elsewhere notice, which Pi never triggers.
 3. No background list and no compaction item.
 
