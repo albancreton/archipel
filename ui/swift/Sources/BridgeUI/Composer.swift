@@ -228,16 +228,15 @@ public struct Composer: View {
                 TextField(running ? "Add to the running turn…" : "Message the agent…", text: $draft, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1...6)
-                    .onSubmit { if menu.isEmpty { submit() } else { menu[at].pick() } }
-                    .onKeyPress(.downArrow) { move(1, in: menu.count) }
-                    .onKeyPress(.upArrow) { move(-1, in: menu.count) }
-                    .onKeyPress(.tab) {
-                        guard !menu.isEmpty else { return .ignored }
-                        menu[at].pick()
-                        return .handled
-                    }
+                    // These ask for the menu when the key is pressed. The one drawn above may be
+                    // older: the field keeps its handlers until its own text changes, and the
+                    // files to mention arrive later than that.
+                    .onSubmit { if !pickChosen() { submit() } }
+                    .onKeyPress(.downArrow) { move(1, in: self.menu.count) }
+                    .onKeyPress(.upArrow) { move(-1, in: self.menu.count) }
+                    .onKeyPress(.tab) { pickChosen() ? .handled : .ignored }
                     .onKeyPress(.escape) {
-                        guard !menu.isEmpty else { return .ignored }
+                        guard !self.menu.isEmpty else { return .ignored }
                         closed = true
                         return .handled
                     }
@@ -265,6 +264,14 @@ public struct Composer: View {
             attach(urls)
             return true
         }
+    }
+
+    /// Takes the chosen entry of the menu, if a menu is open.
+    private func pickChosen() -> Bool {
+        let menu = menu
+        guard !menu.isEmpty else { return false }
+        menu[min(chosen, menu.count - 1)].pick()
+        return true
     }
 
     private func move(_ by: Int, in count: Int) -> KeyPress.Result {

@@ -26,10 +26,11 @@ check:
     cargo clippy --workspace --all-targets -- -D warnings
     pnpm -r check
 
-# Run all tests: Rust, TypeScript, Swift.
+# Run all tests: Rust, TypeScript, Swift. The browser tests need `npx playwright install chromium-headless-shell` once.
 test:
     cargo test --workspace
     pnpm -r test
+    cd ui/react && pnpm test:browser
     swift test
 
 # Format the code.

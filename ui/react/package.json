@@ -15,7 +15,8 @@
     "check": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.tsx",
     "demo": "node --import tsx demo/render.tsx",
-    "demo:live": "node demo/serve.mjs"
+    "demo:live": "node demo/serve.mjs",
+    "test:browser": "node --import tsx --test test/browser/*.test.ts"
   },
   "dependencies": {
     "@harness-bridge/client": "workspace:*",
@@ -29,6 +30,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "esbuild": "^0.28.2",
+    "playwright": "^1.65.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tsx": "^4.20.0",

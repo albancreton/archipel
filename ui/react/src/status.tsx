@@ -33,7 +33,7 @@ export function AgentStatus({ agents, onRetry }: { agents: Bridge.AgentInfo[]; o
       {problems.map((problem) => (
         <div key={problem.id} className={`hb-notice hb-notice-${problem.tone}`} role={problem.tone === "wait" ? "status" : "alert"}>
           <span>{problem.text}</span>
-          {onRetry && problem.tone !== "wait" && <button type="button" onClick={onRetry}>Try again</button>}
+          {onRetry && problem.tone !== "wait" && <button type="button" onClick={() => onRetry()}>Try again</button>}
         </div>
       ))}
     </div>

@@ -22,8 +22,8 @@ Each of these is small. Copy the one that matches the task. The last column says
 | Add an item kind or a method from a separate program, in any language | `examples/node/extension.ts` | A test runs it and reads its item in an app |
 | Host the daemon inside a Rust program | `examples/embedded-daemon` | Its own test, in-process and through the socket |
 | Change, stop or answer what the harness and the apps say to each other; fix a harness fault | `examples/own-daemon` (an addon) | Its own test |
-| Draw a session in a browser with React | `ui/react/demo/live.tsx` | Type-checked only. The components it uses are tested |
-| Draw a session in a macOS or iOS app with SwiftUI | `ui/swift/Demo/BridgeChatDemo.swift` | Compiled only. The views it uses are tested |
+| Draw a session in a browser with React | `ui/react/demo/live.tsx` | Tests click through it in a real browser against the fake agent |
+| Draw a session in a macOS or iOS app with SwiftUI | `ui/swift/Demo/BridgeChatDemo.swift` | Compiled only. Tests press the views it uses |
 | Run the daemon as a service (launchd, systemd) | `examples/service/` | The launchd file is linted, and was loaded and exercised by hand once. The systemd file was never loaded |
 
 How to run each is at the top of the file, or in the README next to it.
@@ -56,6 +56,7 @@ node examples/node/chat.ts --home /tmp/try --mode default --approve allow-once "
 |---|---|---|
 | Rust | `cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings` | `cargo test --workspace` |
 | TypeScript | `pnpm -r check` | `pnpm -r test` (run `cargo build` first: several tests start `target/debug/bridged`) |
+| React in a browser | | `pnpm test:browser` in `ui/react` (after `cargo build`, and once `npx playwright install chromium-headless-shell`) |
 | Swift | | `swift test` (also after `cargo build`) |
 
 On Linux the build needs the OpenSSL headers and `pkg-config` (`apt install libssl-dev pkg-config` on Debian and Ubuntu); the Rust client uses the system's TLS for `wss://` addresses. macOS needs nothing extra.

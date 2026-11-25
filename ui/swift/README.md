@@ -30,3 +30,5 @@ SessionList(
 - `Demo/` is a small macOS app on both packages: `swift run BridgeChatDemo`.
 
 `swift test` draws recorded sessions off screen and writes the pictures to `.build/bridge-ui-renders`.
+
+It also uses the views as a person would (`Tests/BridgeUITests/ClickTests.swift`): buttons are found by their label and pressed, and text is typed into fields. The helper `Screen.swift` does this inside the test process through accessibility, in a window that is never shown, so it needs no permission. It cannot drive menus (pickers, a row's menu), alerts, the file dialog or drags.

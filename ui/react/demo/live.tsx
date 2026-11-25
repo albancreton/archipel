@@ -5,6 +5,7 @@
 //   open "http://localhost:5173/?ws=ws://127.0.0.1:7890#TOKEN"
 //
 // The token is after the `#`, so the browser does not send it to the page's server.
+// Add `&cwd=/some/folder` to get a "New session" button that starts sessions in that folder.
 
 import { BridgeClient, webSocketTransport, type Bridge, type Session, type SessionSummary } from "@harness-bridge/client";
 import { useEffect, useState } from "react";
@@ -59,6 +60,11 @@ function App() {
       <div className="demo-sessions">
         <Connection client={client} />
         <AgentStatus agents={agents} onRetry={() => void client.listSessions().then(() => client.agents()).then(setAgents)} />
+        {query.get("cwd") && (
+          <button type="button" className="demo-new" onClick={() => void client.newSession({ cwd: query.get("cwd")! }).then(setSession, (error) => setProblem(String(error.message ?? error)))}>
+            New session
+          </button>
+        )}
         <SessionList
           sessions={sessions}
           agents={agents}
