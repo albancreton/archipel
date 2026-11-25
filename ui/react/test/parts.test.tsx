@@ -109,3 +109,57 @@ test("list helpers: a changed session comes first once, a deleted one goes, and 
     ["now", "3h", "2026-09-01", "", ""],
   );
 });
+
+import { Composer, acceptsOf, commandQuery, commandsOf, mentionQuery, promptContent } from "../src/index.ts";
+
+test("the composer knows when a command or a mention is being typed", () => {
+  assert.deepEqual(["/", "/mod", "/model ", "say /model", "", "//"].map(commandQuery), ["", "mod", null, null, null, null]);
+  assert.deepEqual(mentionQuery("look at @src/ma", 15), { start: 8, query: "src/ma" });
+  assert.deepEqual(mentionQuery("@", 1), { start: 0, query: "" });
+  assert.equal(mentionQuery("mail me@example.com", 19), null, "an @ inside a word is not a mention");
+  assert.equal(mentionQuery("look at @src then", 17), null, "the caret has left it");
+  const [, state] = load("claude-v2/simple").root()!;
+  const commands = commandsOf(state.values.get("availableCommands"));
+  assert.ok(commands.length > 3 && commands.every((command) => command.name && !command.name.startsWith("/")));
+  assert.deepEqual(commandsOf([{ type: "command", name: "review", description: "Review", input: { type: "text", hint: "a PR number" } }, { nameless: true }]),
+    [{ name: "review", description: "Review", hint: "a PR number" }]);
+});
+
+test("what is sent: text alone, or blocks with what was attached and mentioned", () => {
+  assert.equal(promptContent("hello"), "hello");
+  const picture = { name: "shot.png", mimeType: "image/png", data: "AAAA" };
+  const notes = { name: "my notes.md", mimeType: "text/markdown", data: Buffer.from("# Hé").toString("base64") };
+  const binary = { name: "a.zip", mimeType: "application/zip", data: "UEs=" };
+  const main = { uri: "file:///work/src/main.ts", name: "src/main.ts" };
+  const gone = { uri: "file:///work/gone.ts", name: "gone.ts" };
+  assert.deepEqual(promptContent("see @src/main.ts please", [picture, notes, binary], [main, gone, main]), [
+    { type: "text", text: "see @src/main.ts please" },
+    { type: "resource_link", uri: "file:///work/src/main.ts", name: "src/main.ts" },
+    { type: "image", mimeType: "image/png", data: "AAAA" },
+    { type: "resource", resource: { uri: "file:///my%20notes.md", mimeType: "text/markdown", text: "# Hé" } },
+    { type: "resource", resource: { uri: "file:///a.zip", mimeType: "application/zip", blob: "UEs=" } },
+  ], "a mention the user deleted from the text is not sent, and one is sent once");
+  assert.deepEqual(promptContent("", [picture]), [{ type: "image", mimeType: "image/png", data: "AAAA" }]);
+  assert.deepEqual(acceptsOf({ capabilities: { session: { prompt: { image: {}, embeddedContext: {} } } } }), { image: true, files: true });
+  assert.deepEqual(acceptsOf({ capabilities: { session: { prompt: { image: {} } } } }), { image: true, files: false });
+  assert.deepEqual(acceptsOf(undefined), { image: false, files: false });
+});
+
+test("attaching is offered only for what the agent takes, and the user's message shows what was sent", () => {
+  assert.doesNotMatch(renderToStaticMarkup(<Composer running={false} />), /Attach/);
+  assert.match(renderToStaticMarkup(<Composer running={false} accepts={{ image: true }} />), /<input type="file" multiple="" hidden="" accept="image\/\*"\/><button type="button" class="hb-attach">Attach/);
+  assert.match(renderToStaticMarkup(<Composer running accepts={{ image: true, files: true }} />), /<input type="file" multiple="" hidden=""\/>.*Stop/);
+
+  const conversation = load("claude-v2/simple");
+  const [, state] = conversation.root()!;
+  state.collections.get("userMessage")!.set("u2", { messageId: "u2", content: [
+    { type: "text", text: "look <b>" },
+    { type: "image", mimeType: "image/png", data: "AAAA" },
+    { type: "image", mimeType: 'image/png" onerror="x', data: "AAAA" },
+    { type: "resource_link", uri: "file:///work/src/main.ts", name: "src/main.ts" },
+    { type: "resource", resource: { uri: "file:///my%20notes.md", text: "# Hi" } },
+  ] });
+  state.timeline.push({ target: "userMessage", id: "u2" });
+  const html = renderToStaticMarkup(<ChatView conversation={conversation} />);
+  assert.match(html, /look &lt;b&gt;<span class="hb-user-attached"><img src="data:image\/png;base64,AAAA" alt="attached picture"\/><span class="hb-chip">image<\/span><span class="hb-chip">src\/main\.ts<\/span><span class="hb-chip">my notes\.md<\/span>/);
+});

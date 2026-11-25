@@ -7,8 +7,9 @@ public struct ChatActions {
     public var approve: (String, String) -> Void = { _, _ in }
     /// Answer a question: request id, and the form's content or nil to skip it.
     public var answer: (String, JSON?) -> Void = { _, _ in }
-    /// Send a message. If it throws, the composer gives the text back.
-    public var prompt: ((String) async throws -> Void)?
+    /// Send a message, as content blocks: its text, and what the user attached or mentioned.
+    /// If it throws, the composer gives everything back.
+    public var prompt: (([JSON]) async throws -> Void)?
     public var cancel: () -> Void = {}
     /// Change a setting of the agent, such as the model. With it the chat draws the settings bar.
     public var setOption: ((String, Setting.Value) async throws -> Void)?
@@ -158,12 +159,15 @@ public struct ChatView: View {
     var openElsewhere: OpenElsewhere?
     /// Something the daemon reported outside any request, such as a log it cannot write.
     var error: String?
-    @State private var draft = ""
-    @State private var problem: String?
+    /// Finds files to mention for what the user typed after `@`. See `Composer`.
+    var mentions: ((String) async -> [Mention])?
+    /// What the agent takes besides text (`Accepts(agent:)` of its entry in `client.agents()`).
+    var accepts = Accepts()
 
     public init(
         conversation: Conversation, sessionId: String? = nil, actions: ChatActions = ChatActions(), custom: ItemViews = [:],
-        openElsewhere: OpenElsewhere? = nil, error: String? = nil
+        openElsewhere: OpenElsewhere? = nil, error: String? = nil, mentions: ((String) async -> [Mention])? = nil,
+        accepts: Accepts = Accepts()
     ) {
         self.conversation = conversation
         self.sessionId = sessionId
@@ -171,6 +175,8 @@ public struct ChatView: View {
         self.custom = custom
         self.openElsewhere = openElsewhere
         self.error = error
+        self.mentions = mentions
+        self.accepts = accepts
     }
 
     public var body: some View {
@@ -196,40 +202,14 @@ public struct ChatView: View {
                 }
                 if let prompt = actions.prompt {
                     Divider()
-                    if let problem {
-                        Text("Not sent: \(problem)").font(.callout).foregroundStyle(.red)
-                            .frame(maxWidth: .infinity, alignment: .leading).padding([.horizontal, .top], 12)
-                    }
-                    HStack(alignment: .bottom) {
-                        TextField(running ? "Add to the running turn…" : "Message the agent…", text: $draft, axis: .vertical)
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(1...6)
-                            .onSubmit { send(prompt) }
-                        Button("Send") { send(prompt) }.buttonStyle(.borderedProminent)
-                        if running { Button("Stop", action: actions.cancel) }
-                    }
-                    .padding(12)
+                    Composer(
+                        running: running, send: prompt, cancel: actions.cancel,
+                        commands: Command.all(from: state.values["availableCommands"]), mentions: mentions, accepts: accepts)
+                        .padding(12)
                 }
             }
         } else {
             Text("No session").foregroundStyle(.secondary)
-        }
-    }
-
-    private func send(_ prompt: @escaping (String) async throws -> Void) {
-        let text = draft
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        draft = ""
-        problem = nil
-        Task {
-            do {
-                try await prompt(text)
-            } catch {
-                // A refused message goes back into the field, unless the user has typed since.
-                if draft.isEmpty { draft = text }
-                // The notice above already says it when the session is open elsewhere.
-                if (error as? RPCError)?.openElsewhere != true { problem = String(describing: error) }
-            }
         }
     }
 }
@@ -241,10 +221,17 @@ public struct LiveChatView: View {
     let session: BridgeSession
     var custom: ItemViews = [:]
     var onFork: ((BridgeSession) -> Void)?
+    var mentions: ((String) async -> [Mention])?
+    var accepts: Accepts
 
-    public init(session: BridgeSession, custom: ItemViews = [:], onFork: ((BridgeSession) -> Void)? = nil) {
+    public init(
+        session: BridgeSession, custom: ItemViews = [:], mentions: ((String) async -> [Mention])? = nil, accepts: Accepts = Accepts(),
+        onFork: ((BridgeSession) -> Void)? = nil
+    ) {
         self.session = session
         self.custom = custom
+        self.mentions = mentions
+        self.accepts = accepts
         self.onFork = onFork
     }
 
@@ -265,6 +252,6 @@ public struct LiveChatView: View {
         if let onFork { actions.fork = { onFork(try await session.fork()) } }
         return ChatView(
             conversation: session.conversation, sessionId: session.id, actions: actions, custom: custom,
-            openElsewhere: session.openElsewhere, error: session.error?.message)
+            openElsewhere: session.openElsewhere, error: session.error?.message, mentions: mentions, accepts: accepts)
     }
 }

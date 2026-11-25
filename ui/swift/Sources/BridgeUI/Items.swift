@@ -72,12 +72,28 @@ public struct UserMessageView: View {
     let item: JSON
     public init(item: JSON) { self.item = item }
     public var body: some View {
+        let blocks = item["content"]?.array ?? item["content"].map { [$0] } ?? []
+        let extras = blocks.filter { $0["type"]?.string != "text" && $0.string == nil }
         HStack {
             Spacer(minLength: 60)
-            Text(contentText(item["content"]))
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .foregroundStyle(.white)
-                .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 14))
+            VStack(alignment: .leading, spacing: 6) {
+                let text = blocks.filter { $0["type"]?.string == "text" || $0.string != nil }.map { contentText($0) }.joined()
+                if !text.isEmpty { Text(text) }
+                // What was attached or mentioned: a picture from its own bytes, anything else by name.
+                ForEach(Array(extras.enumerated()), id: \.offset) { _, block in
+                    if block["type"]?.string == "image", let picture = block["data"]?.string.flatMap({ Data(base64Encoded: $0) }).flatMap(Image.init(data:)) {
+                        picture.resizable().scaledToFit().frame(maxWidth: 220, maxHeight: 160).clipShape(RoundedRectangle(cornerRadius: 8))
+                    } else {
+                        let uri = (block["resource"] ?? block)["uri"]?.string
+                        Text(block["name"]?.string ?? uri.flatMap { URL(string: $0)?.lastPathComponent } ?? block["type"]?.string ?? "attachment")
+                            .font(.caption).padding(.horizontal, 8).padding(.vertical, 2)
+                            .background(.white.opacity(0.2), in: RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .foregroundStyle(.white)
+            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 14))
         }
     }
 }
@@ -337,5 +353,18 @@ public struct FallbackView: View {
     public var body: some View {
         DisclosureGroup(kind, isExpanded: $open) { CodeBlock(text: item.text) }
             .font(.callout).foregroundStyle(.secondary)
+    }
+}
+
+extension Image {
+    /// A picture from its file's bytes, or nil when they are not a picture.
+    init?(data: Data) {
+        #if canImport(AppKit)
+        guard let image = NSImage(data: data) else { return nil }
+        self.init(nsImage: image)
+        #else
+        guard let image = UIImage(data: data) else { return nil }
+        self.init(uiImage: image)
+        #endif
     }
 }

@@ -179,6 +179,53 @@ final class RenderTests: XCTestCase {
         XCTAssertTrue(String(links.characters).contains("raw"))
     }
 
+    func testTheComposerKnowsWhatIsBeingTypedAndWhatToSend() throws {
+        XCTAssertEqual(["/", "/mod", "/model ", "say /model", "", "//"].map(commandQuery), ["", "mod", nil, nil, nil, nil])
+        XCTAssertEqual(mentionQuery("look at @src/ma")?.query, "src/ma")
+        XCTAssertEqual(mentionQuery("@")?.query, "")
+        XCTAssertNil(mentionQuery("mail me@example.com"), "an @ inside a word is not a mention")
+        XCTAssertNil(mentionQuery("look at @src then"), "the user has typed on")
+        let state = try XCTUnwrap(conversation("claude-v2/simple").root)
+        XCTAssertGreaterThan(Command.all(from: state.values["availableCommands"]).count, 3)
+        XCTAssertEqual(
+            Command.all(from: [["type": "command", "name": "review", "description": "Review", "input": ["type": "text", "hint": "a PR number"]], ["nameless": true]]),
+            [Command(name: "review", description: "Review", hint: "a PR number")])
+
+        XCTAssertEqual(promptContent("hello"), [["type": "text", "text": "hello"]])
+        let picture = Attachment(name: "shot.png", mimeType: "image/png", data: Data([0, 0, 0]))
+        let notes = Attachment(name: "my notes.md", mimeType: "text/markdown", data: Data("# Hé".utf8))
+        let binary = Attachment(name: "a.zip", mimeType: "application/zip", data: Data([80, 75]))
+        let main = Mention(uri: "file:///work/src/main.ts", name: "src/main.ts")
+        let gone = Mention(uri: "file:///work/gone.ts", name: "gone.ts")
+        XCTAssertEqual(promptContent("see @src/main.ts please", attachments: [picture, notes, binary], mentions: [main, gone, main]), [
+            ["type": "text", "text": "see @src/main.ts please"],
+            ["type": "resource_link", "uri": "file:///work/src/main.ts", "name": "src/main.ts"],
+            ["type": "image", "mimeType": "image/png", "data": "AAAA"],
+            ["type": "resource", "resource": ["uri": "file:///my%20notes.md", "mimeType": "text/markdown", "text": "# Hé"]],
+            ["type": "resource", "resource": ["uri": "file:///a.zip", "mimeType": "application/zip", "blob": "UEs="]],
+        ], "a mention the user deleted from the text is not sent, and one is sent once")
+        XCTAssertEqual(promptContent("", attachments: []), [])
+        XCTAssertEqual(Accepts(agent: ["capabilities": ["session": ["prompt": ["image": [:]]]]]), Accepts(image: true, files: false))
+        XCTAssertEqual(Accepts(agent: nil), Accepts())
+    }
+
+    func testAMessageWithAttachmentsIsDrawn() throws {
+        // A real picture: one red point, as a PNG.
+        let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
+        let message: JSON = ["messageId": "u1", "content": [
+            ["type": "text", "text": "look at these"],
+            ["type": "image", "mimeType": "image/png", "data": .string(png)],
+            ["type": "resource_link", "uri": "file:///work/src/main.ts", "name": "src/main.ts"],
+            ["type": "resource", "resource": ["uri": "file:///my%20notes.md", "text": "# Hi"]],
+        ]]
+        let view = VStack(spacing: 12) {
+            UserMessageView(item: message)
+            Composer(running: true, send: { _ in }, commands: [], accepts: Accepts(image: true, files: true))
+        }
+        .padding(16).frame(width: 520)
+        XCTAssertGreaterThan(try draw(view, as: "attachments"), 8000, "something was drawn")
+    }
+
     func testTextOfContent() {
         XCTAssertEqual(contentText([["type": "text", "text": "a"], ["type": "text", "text": "b"]]), "ab")
         XCTAssertEqual(contentText(["type": "content", "content": ["type": "text", "text": "inner"]]), "inner")

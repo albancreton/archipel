@@ -3,7 +3,9 @@
 // marker word the prompt asks for.
 
 import { base64Text, RpcError, type Json, type JsonObject, type Session } from "@harness-bridge/client";
-import { count, current, RpcFailure, said, settingOf, settings, settingsOf, turn, within, type Run } from "./lib.ts";
+import { writeFileSync } from "node:fs";
+import path from "node:path";
+import { count, current, RpcFailure, said, settingOf, settings, settingsOf, solidPng, turn, within, type Run } from "./lib.ts";
 
 export interface Scenario {
   name: string;
@@ -313,6 +315,38 @@ export const scenarios: Scenario[] = [
       t.fact("theHarnessListSaysSoAsleep", (await atTheHarness()) === second);
       const reopened = await later.session(session.id);
       t.fact("theReopenedSessionSaysSo", ((reopened.state.values.get("sessionInfo") as JsonObject | undefined)?.["title"] ?? null) === second);
+    },
+  },
+  {
+    name: "prompt.attachments",
+    about: "What does the agent do with a picture, a linked file and a file sent with its content?",
+    agents: ["claude", "pi"],
+    cost: "turn",
+    async run(t) {
+      const app = await t.app();
+      const session = await t.session(app);
+      const takes = ((await app.agents()).find((agent) => agent.agentId === t.id)?.capabilities as { session?: { prompt?: JsonObject } } | undefined)?.session?.prompt ?? {};
+      t.fact("advertised", Object.keys(takes).sort());
+      const answerTo = async (content: Json[]) => {
+        const before = said(session).length;
+        await turn(session, content);
+        return said(session).slice(before).toLowerCase();
+      };
+      const picture = { type: "image", mimeType: "image/png", data: solidPng(255, 0, 0) };
+      t.fact("pictureSeen", (await answerTo([{ type: "text", text: "What colour is this picture? Answer with one word." }, picture])).includes("red"));
+
+      writeFileSync(path.join(t.work, "mention-note.txt"), "The code word is zebra4417.\n");
+      const link = { type: "resource_link", uri: `file://${path.join(t.work, "mention-note.txt")}`, name: "mention-note.txt" };
+      t.fact("linkedFileRead", (await answerTo([{ type: "text", text: "What is the code word in @mention-note.txt? Answer with the word only." }, link])).includes("zebra4417"));
+
+      const embedded = { type: "resource", resource: { uri: "file:///not-on-disk/embedded-note.txt", mimeType: "text/plain", text: "The code word is otter2290." } };
+      const answer = await answerTo([{ type: "text", text: "What is the code word in the attached embedded-note.txt? Answer with the word only." }, embedded]).catch(failure);
+      t.fact("embeddedFileRead", answer.startsWith("error") ? answer : answer.includes("otter2290"));
+
+      // What the log keeps of the user's own messages: an app draws them from this.
+      const kept = [...(session.state.collections.get("userMessage")?.values() ?? [])].map((item) =>
+        ((item as JsonObject)["content"] as JsonObject[] | undefined ?? []).map((block) => `${String(block["type"])}${block["type"] === "image" && typeof block["data"] === "string" && block["data"].length > 0 ? " with its bytes" : ""}`));
+      t.fact("userMessagesKeep", kept);
     },
   },
   {

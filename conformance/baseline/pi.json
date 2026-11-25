@@ -152,5 +152,27 @@
   "session.initial_settings": {
     "settingsBeforeASession": "error -32603",
     "startsWithTheChosenEffort": false
+  },
+  "prompt.attachments": {
+    "advertised": [
+      "image"
+    ],
+    "pictureSeen": true,
+    "linkedFileRead": true,
+    "embeddedFileRead": true,
+    "userMessagesKeep": [
+      [
+        "text",
+        "image with its bytes"
+      ],
+      [
+        "text",
+        "resource_link"
+      ],
+      [
+        "text",
+        "resource"
+      ]
+    ]
   }
 }

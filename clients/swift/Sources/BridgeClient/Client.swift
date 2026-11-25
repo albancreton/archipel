@@ -373,7 +373,13 @@ public final class BridgeSession: Identifiable {
 
     /// Sends a message to the agent. Returns when the agent has taken it, not when it is done.
     public func prompt(_ text: String) async throws {
-        try await act("session/prompt", ["sessionId": .string(id), "prompt": [["type": "text", "text": .string(text)]]])
+        try await prompt([["type": "text", "text": .string(text)]])
+    }
+
+    /// Sends a message as content blocks: text, and pictures (`image`), linked files
+    /// (`resource_link`) or files with their content (`resource`).
+    public func prompt(_ content: [JSON]) async throws {
+        try await act("session/prompt", ["sessionId": .string(id), "prompt": .array(content)])
     }
 
     /// Makes a copy of this session to continue with, and attaches to it. This one is left as it is.

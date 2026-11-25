@@ -1,6 +1,7 @@
 // What the scenarios stand on: a daemon of their own, an app connected to it, a direct line to
 // the adapter, and a way to note what was observed.
 
+import { deflateSync } from "node:zlib";
 import { BridgeClient, unixSocketTransport, type Json, type JsonObject, type Session } from "@harness-bridge/client";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -291,7 +292,8 @@ export interface Turn {
  * scenarios that act or watch while the turn runs. Approvals are allowed once unless `during`
  * handles them.
  */
-export async function turn(session: Session, text: string, during?: (session: Session) => void): Promise<Turn> {
+export async function turn(session: Session, content: string | Json[], during?: (session: Session) => void): Promise<Turn> {
+  const text = typeof content === "string" ? content : JSON.stringify(content);
   const started = Date.now();
   let ran = false;
   let approvals = 0;
@@ -309,7 +311,7 @@ export async function turn(session: Session, text: string, during?: (session: Se
     during?.(session);
   });
   try {
-    await session.prompt(text);
+    await session.prompt(content);
     // The state is `idle` before the turn starts, and again while a sleeping session wakes up.
     await within(240_000, `the turn for "${text.slice(0, 40)}"`, session.until(() => ran && session.turnState === "idle"));
   } finally {
@@ -339,4 +341,33 @@ export const count = (session: Session, target: string): number => session.state
 
 export function readJson(file: string): JsonObject | null {
   return existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as JsonObject) : null;
+}
+
+/** A PNG of one colour, base64: something a model can only describe by looking at it. */
+export function solidPng(red: number, green: number, blue: number, size = 64): string {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (bytes: Buffer) => {
+    let c = 0xffffffff;
+    for (const byte of bytes) c = crcTable[(c ^ byte) & 0xff]! ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const sum = Buffer.alloc(4);
+    sum.writeUInt32BE(crc(body));
+    return Buffer.concat([length, body, sum]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(size, 0);
+  header.writeUInt32BE(size, 4);
+  header.set([8, 2, 0, 0, 0], 8); // 8 bits, RGB
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(size * 3).map((_, at) => [red, green, blue][at % 3]!)]);
+  const pixels = deflateSync(Buffer.concat(Array.from({ length: size }, () => row)));
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", header), chunk("IDAT", pixels), chunk("IEND", Buffer.alloc(0))]).toString("base64");
 }

@@ -9,11 +9,11 @@
 import { BridgeClient, webSocketTransport, type Bridge, type Session, type SessionSummary } from "@harness-bridge/client";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ChatView, SessionList, useSession, withSession, withoutSession } from "../src/index.ts";
+import { ChatView, SessionList, acceptsOf, useSession, withSession, withoutSession, type Accepts } from "../src/index.ts";
 
-function Chat({ session, onFork }: { session: Session; onFork: (copy: Session) => void }) {
+function Chat({ session, accepts, onFork }: { session: Session; accepts: Accepts; onFork: (copy: Session) => void }) {
   const { conversation, actions, openElsewhere, error } = useSession(session, { onFork });
-  return <ChatView conversation={conversation} sessionId={session.id} actions={actions} openElsewhere={openElsewhere} error={error} />;
+  return <ChatView conversation={conversation} sessionId={session.id} actions={actions} openElsewhere={openElsewhere} error={error} accepts={accepts} />;
 }
 
 function App() {
@@ -62,7 +62,7 @@ function App() {
           onDelete={(id) => client.deleteSession(id)}
         />
       </div>
-      {session ? <Chat key={session.id} session={session} onFork={setSession} /> : <p>Choose a session.</p>}
+      {session ? <Chat key={session.id} session={session} accepts={acceptsOf(agents.find((agent) => agent.agentId === sessions.find((summary) => summary.sessionId === session.id)?.agentId))} onFork={setSession} /> : <p>Choose a session.</p>}
     </div>
   );
 }

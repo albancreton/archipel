@@ -2,6 +2,7 @@
 
 import { RpcError, type Conversation, type Json, type JsonObject, type Session, type SessionState } from "@harness-bridge/client";
 import { useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
+import { Composer, commandsOf, type Accepts, type Mention } from "./composer.tsx";
 import { RenderText } from "./markdown.tsx";
 import { SettingsBar, settingsOf } from "./settings.tsx";
 import {
@@ -14,8 +15,11 @@ export interface Actions {
   approve?: (requestId: string, optionId: string) => void;
   /** Answer a question: the form's content, or null to skip it. */
   answer?: (requestId: string, content: JsonObject | null) => void;
-  /** Send a message. If it returns a promise that fails, the composer gives the text back. */
-  prompt?: (text: string) => void | Promise<unknown>;
+  /**
+   * Send a message: its text, or content blocks when the user attached or mentioned something.
+   * If it returns a promise that fails, the composer gives everything back.
+   */
+  prompt?: (content: string | Json[]) => void | Promise<unknown>;
   cancel?: () => void;
   /** Change a setting of the agent, such as the model. With it the chat draws the settings bar. */
   setOption?: (id: string, value: string | boolean) => void | Promise<unknown>;
@@ -174,42 +178,6 @@ export function OpenElsewhere({ holder, onFork }: { holder: Holder; onFork?: () 
   );
 }
 
-/** Where the user types. While a turn runs it also offers to stop it. */
-export function Composer({ running, actions }: { running: boolean; actions?: Actions }) {
-  const [draft, setDraft] = useState("");
-  const [problem, setProblem] = useState("");
-  const send = () => {
-    const text = draft;
-    if (!text.trim()) return;
-    setDraft("");
-    setProblem("");
-    // A refused message goes back into the field, unless the user has typed something since.
-    Promise.resolve(actions?.prompt?.(text)).catch((error: unknown) => {
-      setDraft((now) => now || text);
-      // The notice above the composer already says it when the session is open elsewhere.
-      if (!(error instanceof RpcError && error.openElsewhere)) setProblem(reason(error));
-    });
-  };
-  return (
-    <form className="hb-composer" onSubmit={(event) => { event.preventDefault(); send(); }}>
-      <textarea
-        value={draft}
-        placeholder={running ? "Add to the running turn…" : "Message the agent…"}
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-            send();
-          }
-        }}
-      />
-      <button type="submit">Send</button>
-      {running && <button type="button" onClick={() => actions?.cancel?.()}>Stop</button>}
-      {problem && <div className="hb-problem">Not sent: {problem}</div>}
-    </form>
-  );
-}
-
 export interface ChatViewProps {
   conversation: Conversation;
   /** The session the user talks to. The default is the conversation's first. */
@@ -224,10 +192,14 @@ export interface ChatViewProps {
   renderText?: (text: string) => ReactNode;
   /** See `Timeline`. */
   pageSize?: number;
+  /** Finds files to mention for what the user typed after `@`. See `Composer`. */
+  mentions?: (query: string) => Mention[] | Promise<Mention[]>;
+  /** What the agent takes besides text (`acceptsOf` of its entry in `client.agents()`). */
+  accepts?: Accepts;
 }
 
 /** A simple chat: status, the items, and a composer. Assemble your own from the parts if it does not fit. */
-export function ChatView({ conversation, sessionId, actions, components, openElsewhere, error, renderText, pageSize }: ChatViewProps) {
+export function ChatView({ conversation, sessionId, actions, components, openElsewhere, error, renderText, pageSize, mentions, accepts }: ChatViewProps) {
   const state = sessionId ? conversation.sessions.get(sessionId) : conversation.root()?.[1];
   if (!state) return <div className="hb-chat hb-empty">No session</div>;
   const turn = state.values.get("state") as JsonObject | undefined;
@@ -240,7 +212,12 @@ export function ChatView({ conversation, sessionId, actions, components, openEls
       {openElsewhere && <OpenElsewhere holder={openElsewhere} onFork={actions?.fork} />}
       {error && <div className="hb-problem hb-session-error" role="alert">{error}</div>}
       {actions?.setOption && <SettingsBar settings={settingsOf(state.values.get("configOptions"))} onChange={actions.setOption} />}
-      {actions?.prompt && <Composer running={running} actions={actions} />}
+      {actions?.prompt && (
+        <Composer
+          running={running} onSend={actions.prompt} onCancel={actions.cancel}
+          commands={commandsOf(state.values.get("availableCommands"))} mentions={mentions} accepts={accepts}
+        />
+      )}
     </div>
   );
 }
@@ -272,7 +249,7 @@ export function useSession(
       approve: (requestId, optionId) => session.approve(requestId, optionId),
       answer: (requestId, content) =>
         session.answer(requestId, content === null ? { action: "decline" } : { action: "accept", content }),
-      prompt: (text) => session.prompt(text),
+      prompt: (content) => session.prompt(content),
       cancel: () => session.cancel(),
       setOption: (id, value) => session.setConfigOption(id, value),
       fork: onFork && (async () => onFork(await session.fork())),

@@ -93,3 +93,17 @@
 /* Rows off screen are not laid out or painted until they are scrolled to. */
 .hb-row { content-visibility: auto; contain-intrinsic-size: auto 60px; }
 .hb-chat .hb-earlier { align-self: center; background: var(--hb-bg); border-color: var(--hb-line); color: var(--hb-muted); font-size: 12px; }
+.hb-composer { position: relative; }
+.hb-menu { position: absolute; left: 0; right: 0; bottom: 100%; margin: 0 0 4px; padding: 4px; list-style: none; max-height: 260px; overflow: auto; border: 1px solid var(--hb-line); border-radius: 10px; background: var(--hb-bg); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18); z-index: 1; }
+.hb-menu li { display: flex; gap: 10px; align-items: baseline; padding: 4px 8px; border-radius: 6px; cursor: pointer; }
+.hb-menu li.hb-chosen { background: var(--hb-soft); }
+.hb-menu-label { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; white-space: nowrap; }
+.hb-menu-detail { flex: 1; min-width: 0; color: var(--hb-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-attachments { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.hb-attachments li, .hb-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 8px; border: 1px solid var(--hb-line); background: var(--hb-soft); font-size: 12px; }
+.hb-attachments img { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; }
+.hb-chat .hb-attachments button { padding: 0 4px; border: 0; background: none; color: var(--hb-muted); }
+.hb-chat .hb-composer .hb-attach { background: var(--hb-bg); border-color: var(--hb-line); color: var(--hb-fg); }
+.hb-user-attached { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.hb-user-attached img { max-width: 220px; max-height: 160px; border-radius: 8px; }
+.hb-user .hb-chip { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 255, 255, 0.35); color: inherit; }

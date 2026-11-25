@@ -292,5 +292,28 @@
   "session.initial_settings": {
     "settingsBeforeASession": "ok",
     "startsWithTheChosenEffort": true
+  },
+  "prompt.attachments": {
+    "advertised": [
+      "embeddedContext",
+      "image"
+    ],
+    "pictureSeen": true,
+    "linkedFileRead": true,
+    "embeddedFileRead": true,
+    "userMessagesKeep": [
+      [
+        "text",
+        "image with its bytes"
+      ],
+      [
+        "text",
+        "resource_link"
+      ],
+      [
+        "text",
+        "resource"
+      ]
+    ]
   }
 }

@@ -28,8 +28,29 @@ export function contentText(content: Json | undefined): string {
   return "";
 }
 
+/** What the user sent: the text as written, and what was attached or mentioned. */
 export function UserMessage({ item }: { item: Json }) {
-  return <div className="hb-item hb-user">{contentText(isObject(item) ? item["content"] : undefined)}</div>;
+  const content = isObject(item) ? item["content"] : undefined;
+  const blocks = (Array.isArray(content) ? content : [content]).filter(isObject);
+  const extras = blocks.filter((block) => block["type"] !== "text");
+  return (
+    <div className="hb-item hb-user">
+      {blocks.filter((block) => block["type"] === "text").map((block) => text(block, "text")).join("") || (typeof content === "string" ? content : "")}
+      {extras.length > 0 && (
+        <span className="hb-user-attached">
+          {extras.map((block, at) => {
+            // Only a picture the user sent themselves is shown, and only from its own bytes.
+            if (block["type"] === "image" && text(block, "data") && /^image\/[\w.+-]+$/.test(text(block, "mimeType"))) {
+              return <img key={at} src={`data:${text(block, "mimeType")};base64,${text(block, "data")}`} alt="attached picture" />;
+            }
+            const resource = isObject(block["resource"]) ? block["resource"] : block;
+            const name = text(block, "name") || decodeURIComponent(text(resource, "uri").split("/").pop() ?? "") || text(block, "type");
+            return <span key={at} className="hb-chip">{name}</span>;
+          })}
+        </span>
+      )}
+    </div>
+  );
 }
 
 /** What the agent said, drawn as Markdown unless `RenderText` says otherwise. */

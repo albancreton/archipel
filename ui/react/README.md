@@ -50,6 +50,16 @@ await client.newSession({ cwd, agentId, configOptions: initial });
 - Delete asks first: the agent removes the session from its own history too, and that cannot be undone. The daemon wants the `admin` scope for it.
 - `SessionRow`, `byFolder` and `ago` are exported for a list of your own.
 
+## Composer
+
+`ChatView` draws `Composer` when `actions.prompt` is there. Beyond text it has three things:
+
+- **Commands.** Typing `/` lists the agent's commands (from the session's `availableCommands`), filtered as the user types. Arrows move, Enter or Tab chooses, Escape closes.
+- **Mentions.** Give `mentions={(query) => files}` and typing `@` lists what your function returns. The kit has no file list of its own: which files exist is the app's knowledge. A chosen mention is written as `@name` and sent to the agent as a link to the file.
+- **Attachments.** Give `accepts={acceptsOf(agent)}` (an entry of `client.agents()`) and the composer offers "Attach", and takes pasted and dropped files: pictures when the agent takes pictures, other files when it takes files. The limit is 5 MB each (`maxBytes`).
+
+With any of these, `actions.prompt` receives content blocks instead of a string; `session.prompt` takes both. The user's message in the timeline shows the picture and the names of the files. Checked live (`prompt.attachments`): Claude and Pi both read a picture, a linked file and a file sent with its content. Pi says it only takes pictures, so `acceptsOf` offers only those for Pi.
+
 ## The rest
 
 - Each component takes an item and, where the user can act, a callback. Nothing else.
