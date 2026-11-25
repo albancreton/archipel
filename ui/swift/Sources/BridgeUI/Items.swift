@@ -21,12 +21,14 @@ public func contentText(_ content: JSON?) -> String {
 
 struct Badge: View {
     let text: String
+    /// Set to choose the colour; otherwise it follows the text.
+    var tint: Color?
     var body: some View {
-        let color: Color = switch text {
+        let color: Color = if let tint { tint } else { switch text {
         case "completed", "idle", "exit 0": .green
         case "failed", "cancelled": .red
         default: text.hasPrefix("exit") ? .red : .orange
-        }
+        } }
         Text(text.replacingOccurrences(of: "_", with: " "))
             .font(.caption2)
             .padding(.horizontal, 7).padding(.vertical, 1)

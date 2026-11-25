@@ -1,13 +1,13 @@
 /* Default look for @harness-bridge/react. Every class starts with `hb-`; override freely. */
-.hb-chat {
+.hb-chat, .hb-sessions, .hb-settings {
   --hb-fg: #1c1c1e; --hb-muted: #6b6b70; --hb-bg: #ffffff; --hb-soft: #f4f4f6; --hb-line: #e2e2e7;
   --hb-accent: #2f6feb; --hb-ok: #1a7f4b; --hb-bad: #c2362b; --hb-run: #9a6700;
-  display: flex; flex-direction: column; gap: 12px; max-width: 760px; margin: 0 auto; padding: 16px;
   color: var(--hb-fg); background: var(--hb-bg);
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
+.hb-chat { display: flex; flex-direction: column; gap: 12px; max-width: 760px; margin: 0 auto; padding: 16px; }
 @media (prefers-color-scheme: dark) {
-  .hb-chat { --hb-fg: #ececf1; --hb-muted: #9a9aa3; --hb-bg: #1b1b1f; --hb-soft: #26262c; --hb-line: #36363e; --hb-accent: #6ea0ff; --hb-ok: #4cc38a; --hb-bad: #ff7b72; --hb-run: #e3b341; }
+  .hb-chat, .hb-sessions, .hb-settings { --hb-fg: #ececf1; --hb-muted: #9a9aa3; --hb-bg: #1b1b1f; --hb-soft: #26262c; --hb-line: #36363e; --hb-accent: #6ea0ff; --hb-ok: #4cc38a; --hb-bad: #ff7b72; --hb-run: #e3b341; }
 }
 .hb-status { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--hb-line); }
 .hb-status-title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -37,7 +37,7 @@
 .hb-pending { border-color: var(--hb-run); }
 .hb-request-title { font-weight: 600; margin: 2px 0 6px; }
 .hb-options { display: flex; flex-wrap: wrap; gap: 6px; }
-.hb-chat button { font: inherit; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--hb-line); background: var(--hb-bg); color: var(--hb-fg); cursor: pointer; }
+.hb-chat button, .hb-sessions button { font: inherit; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--hb-line); background: var(--hb-bg); color: var(--hb-fg); cursor: pointer; }
 .hb-chat button:first-child, .hb-composer button[type="submit"], .hb-elsewhere button { background: var(--hb-accent); border-color: var(--hb-accent); color: #fff; }
 .hb-answer { color: var(--hb-muted); }
 .hb-field { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
@@ -45,9 +45,31 @@
 .hb-composer { display: flex; gap: 8px; align-items: flex-end; padding-top: 10px; border-top: 1px solid var(--hb-line); }
 .hb-composer textarea { flex: 1; min-height: 40px; resize: vertical; }
 .hb-composer { flex-wrap: wrap; }
-.hb-chat button:disabled { opacity: 0.6; cursor: default; }
+.hb-chat button:disabled, .hb-sessions button:disabled { opacity: 0.6; cursor: default; }
 .hb-elsewhere { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--hb-run); border-radius: 10px; background: var(--hb-soft); }
 .hb-elsewhere-text { flex: 1; }
 .hb-elsewhere button { white-space: nowrap; }
 .hb-problem { flex-basis: 100%; margin-top: 4px; color: var(--hb-bad); font-size: 13px; }
 .hb-session-error { margin: 0; padding: 8px 12px; }
+.hb-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 13px; }
+.hb-setting { display: flex; align-items: center; gap: 6px; }
+.hb-setting select { font: inherit; max-width: 220px; padding: 3px 6px; border-radius: 8px; border: 1px solid var(--hb-line); background: var(--hb-bg); color: var(--hb-fg); }
+.hb-sessions { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+.hb-sessions ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.hb-sessions h3 { margin: 0 0 4px; font-weight: 600; }
+.hb-session { border-radius: 8px; }
+.hb-session.hb-selected { background: var(--hb-soft); }
+.hb-session-line, .hb-session-rename, .hb-session-confirm { display: flex; align-items: center; gap: 6px; }
+.hb-sessions .hb-session-open { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 2px; text-align: left; border-color: transparent; background: transparent; }
+.hb-session-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-session-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--hb-muted); }
+.hb-session-meta time { margin-left: auto; }
+.hb-session-line { position: relative; }
+.hb-session-actions { position: absolute; top: 4px; right: 4px; display: flex; gap: 4px; opacity: 0; }
+.hb-session:hover .hb-session-actions, .hb-session:focus-within .hb-session-actions { opacity: 1; }
+.hb-sessions .hb-session-action { padding: 2px 8px; font-size: 12px; }
+.hb-session-rename input { flex: 1; min-width: 0; font: inherit; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--hb-line); background: var(--hb-bg); color: var(--hb-fg); }
+.hb-session-confirm { flex-wrap: wrap; padding: 6px 12px 8px; font-size: 13px; }
+.hb-session-confirm span { flex-basis: 100%; }
+.hb-sessions .hb-danger { background: var(--hb-bad); border-color: var(--hb-bad); color: #fff; }
+.hb-empty { color: var(--hb-muted); }

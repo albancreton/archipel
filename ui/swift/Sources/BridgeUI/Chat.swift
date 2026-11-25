@@ -10,6 +10,8 @@ public struct ChatActions {
     /// Send a message. If it throws, the composer gives the text back.
     public var prompt: ((String) async throws -> Void)?
     public var cancel: () -> Void = {}
+    /// Change a setting of the agent, such as the model. With it the chat draws the settings bar.
+    public var setOption: ((String, Setting.Value) async throws -> Void)?
     /// Continue on a copy of the session, when another process has this one open. The app
     /// shows the copy once this returns; if it throws, the notice says why.
     public var fork: (() async throws -> Void)?
@@ -186,6 +188,10 @@ public struct ChatView: View {
                     Text(error).font(.callout).foregroundStyle(.red)
                         .frame(maxWidth: .infinity, alignment: .leading).padding([.horizontal, .bottom], 12)
                 }
+                if let setOption = actions.setOption {
+                    SettingsBar(settings: Setting.all(from: state.values["configOptions"]), change: setOption)
+                        .padding([.horizontal, .bottom], 12)
+                }
                 if let prompt = actions.prompt {
                     Divider()
                     if let problem {
@@ -248,6 +254,12 @@ public struct LiveChatView: View {
         }
         actions.prompt = { try await session.prompt($0) }
         actions.cancel = { session.cancel() }
+        actions.setOption = { id, value in
+            switch value {
+            case .choice(let choice): try await session.setConfigOption(id, value: choice)
+            case .on(let on): try await session.setConfigOption(id, on: on)
+            }
+        }
         if let onFork { actions.fork = { onFork(try await session.fork()) } }
         return ChatView(
             conversation: session.conversation, sessionId: session.id, actions: actions, custom: custom,

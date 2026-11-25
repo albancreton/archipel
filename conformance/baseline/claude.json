@@ -288,5 +288,9 @@
     "theDaemonsListSaysSoAsleep": true,
     "theHarnessListSaysSoAsleep": true,
     "theReopenedSessionSaysSo": true
+  },
+  "session.initial_settings": {
+    "settingsBeforeASession": "ok",
+    "startsWithTheChosenEffort": true
   }
 }

@@ -189,8 +189,24 @@ export class BridgeClient {
   }
 
   /** Creates a session and attaches to it. */
-  async newSession(options: { cwd: string; agentId?: string; mcpServers?: Json[] }): Promise<Session> {
+  async newSession(options: {
+    cwd: string;
+    agentId?: string;
+    mcpServers?: Json[];
+    /**
+     * Settings to start with, such as `{ configId: "model", value: "haiku" }`. Only for an agent
+     * whose capabilities have `session.options`. One the agent does not know is ignored, not refused.
+     */
+    configOptions?: { configId: string; value: string | boolean }[];
+  }): Promise<Session> {
     const params: JsonObject = { cwd: options.cwd, mcpServers: options.mcpServers ?? [] };
+    if (options.configOptions?.length) {
+      params["configOptions"] = options.configOptions.map(({ configId, value }) => ({
+        configId,
+        type: typeof value === "boolean" ? "boolean" : "id",
+        value,
+      }));
+    }
     if (options.agentId) params["_meta"] = { bridge: { agentId: options.agentId } };
     const created = await this.call("session/new", params);
     const sessionId = get(created, "sessionId");
@@ -417,9 +433,10 @@ export class Session {
     this.connection().notify("session/cancel", { sessionId: this.id });
   }
 
-  /** Changes a setting, such as `mode` or `model`. */
-  async setConfigOption(configId: string, value: string): Promise<void> {
-    await this.act("session/set_config_option", { sessionId: this.id, configId, type: "id", value });
+  /** Changes a setting: one of its values, such as `mode` to `plan`, or a switch on or off. */
+  async setConfigOption(configId: string, value: string | boolean): Promise<void> {
+    const type = typeof value === "boolean" ? "boolean" : "id";
+    await this.act("session/set_config_option", { sessionId: this.id, configId, type, value });
   }
 
   /** Internal: the daemon reported an error that belongs to no request. */

@@ -148,5 +148,9 @@
     "theDaemonsListSaysSoAsleep": false,
     "theHarnessListSaysSoAsleep": false,
     "theReopenedSessionSaysSo": false
+  },
+  "session.initial_settings": {
+    "settingsBeforeASession": "error -32603",
+    "startsWithTheChosenEffort": false
   }
 }

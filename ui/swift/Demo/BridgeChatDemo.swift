@@ -11,6 +11,7 @@ import SwiftUI
 struct BridgeChatDemo: App {
     @State private var client: BridgeClient
     @State private var session: BridgeSession?
+    @State private var agents: [JSON] = []
     @State private var failure: String?
 
     init() {
@@ -26,13 +27,10 @@ struct BridgeChatDemo: App {
     var body: some Scene {
         WindowGroup("Bridge") {
             NavigationSplitView {
-                List(client.sessions, selection: Binding(get: { session?.id }, set: { open($0) })) { summary in
-                    VStack(alignment: .leading) {
-                        Text(summary.title ?? "Untitled").lineLimit(1)
-                        Text("\(summary.agentId) · \(summary.state ?? (summary.logged ? "" : "in the harness only"))\(summary.openElsewhere ? " · open elsewhere" : "")")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }
+                SessionList(
+                    sessions: client.sessions, selection: Binding(get: { session?.id }, set: { open($0) }), agents: agents,
+                    rename: { id, title in _ = try await client.setTitle(id, to: title) },
+                    delete: { try await client.deleteSession($0) })
                 .overlay { if !client.connected { ContentUnavailableView("Not connected", systemImage: "bolt.slash", description: Text(failure ?? "Waiting for the daemon…")) } }
             } detail: {
                 if let session, !session.removed {
@@ -45,6 +43,8 @@ struct BridgeChatDemo: App {
                 do {
                     try await client.connect()
                     try await client.refreshSessions()
+                    // Listing started the agents, so they now say what they can do.
+                    agents = try await client.agents()
                 } catch {
                     failure = String(describing: error)
                 }

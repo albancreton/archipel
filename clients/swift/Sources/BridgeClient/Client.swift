@@ -53,7 +53,8 @@ public struct SessionSummary: Identifiable, Equatable, Sendable {
     public var headSeq: Int
     public var updatedAt: String?
 
-    init?(_ json: JSON) {
+    /// From the daemon's JSON, as in `_bridge/sessions/list`.
+    public init?(_ json: JSON) {
         guard let id = json["sessionId"]?.string else { return nil }
         self.id = id
         agentId = json["agentId"]?.string ?? ""
@@ -233,8 +234,18 @@ public final class BridgeClient {
     }
 
     /// Creates a session and attaches to it.
-    public func newSession(cwd: String, agentId: String? = nil) async throws -> BridgeSession {
+    ///
+    /// `configOptions` are settings to start with, by id: a value of a choice (`.string`) or a
+    /// switch (`.bool`). Only for an agent whose capabilities have `session.options`. One the
+    /// agent does not know is ignored, not refused.
+    public func newSession(cwd: String, agentId: String? = nil, configOptions: [String: JSON] = [:]) async throws -> BridgeSession {
         var params: JSON = ["cwd": .string(cwd), "mcpServers": []]
+        if !configOptions.isEmpty {
+            params.set("configOptions", to: .array(configOptions.sorted { $0.key < $1.key }.map { id, value in
+                let isSwitch = if case .bool = value { true } else { false }
+                return ["configId": .string(id), "type": isSwitch ? "boolean" : "id", "value": value]
+            }))
+        }
         if let agentId { params.set("_meta.bridge.agentId", to: .string(agentId)) }
         let created = try await call("session/new", params)
         guard let id = created["sessionId"]?.string else { throw RPCError(code: 0, message: "the agent did not return a session id") }
@@ -397,10 +408,16 @@ public final class BridgeSession: Identifiable {
         client?.send(["jsonrpc": "2.0", "method": "session/cancel", "params": ["sessionId": .string(id)]])
     }
 
-    /// Changes a setting, such as `mode` or `model`.
+    /// Changes a setting to one of its values, such as `mode` to `plan`.
     public func setConfigOption(_ configId: String, value: String) async throws {
         try await act("session/set_config_option",
             ["sessionId": .string(id), "configId": .string(configId), "type": "id", "value": .string(value)])
+    }
+
+    /// Switches an on/off setting.
+    public func setConfigOption(_ configId: String, on: Bool) async throws {
+        try await act("session/set_config_option",
+            ["sessionId": .string(id), "configId": .string(configId), "type": "boolean", "value": .bool(on)])
     }
 
     /// Returns when `done()` is true, checking after every change. Also returns when the

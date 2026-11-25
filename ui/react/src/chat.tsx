@@ -2,6 +2,7 @@
 
 import { RpcError, type Conversation, type Json, type JsonObject, type Session, type SessionState } from "@harness-bridge/client";
 import { useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
+import { SettingsBar, settingsOf } from "./settings.tsx";
 import {
   Approval, AssistantMessage, Compaction, Fallback, Plan, Question, SessionMessage, Subagent, Terminal, Thought, ToolCall, UserMessage,
 } from "./items.tsx";
@@ -15,6 +16,8 @@ export interface Actions {
   /** Send a message. If it returns a promise that fails, the composer gives the text back. */
   prompt?: (text: string) => void | Promise<unknown>;
   cancel?: () => void;
+  /** Change a setting of the agent, such as the model. With it the chat draws the settings bar. */
+  setOption?: (id: string, value: string | boolean) => void | Promise<unknown>;
   /**
    * Continue on a copy of the session, when another process has this one open. The app shows
    * the copy once the promise resolves; if it fails, the notice says why.
@@ -217,6 +220,7 @@ export function ChatView({ conversation, sessionId, actions, components, openEls
       <Timeline conversation={conversation} state={state} actions={actions} components={components} />
       {openElsewhere && <OpenElsewhere holder={openElsewhere} onFork={actions?.fork} />}
       {error && <div className="hb-problem hb-session-error" role="alert">{error}</div>}
+      {actions?.setOption && <SettingsBar settings={settingsOf(state.values.get("configOptions"))} onChange={actions.setOption} />}
       {actions?.prompt && <Composer running={running} actions={actions} />}
     </div>
   );
@@ -251,6 +255,7 @@ export function useSession(
         session.answer(requestId, content === null ? { action: "decline" } : { action: "accept", content }),
       prompt: (text) => session.prompt(text),
       cancel: () => session.cancel(),
+      setOption: (id, value) => session.setConfigOption(id, value),
       fork: onFork && (async () => onFork(await session.fork())),
     },
   };

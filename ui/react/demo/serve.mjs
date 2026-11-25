@@ -19,8 +19,7 @@ const bundle = await build({
 const script = bundle.outputFiles[0].text;
 const css = readFileSync(path.join(here, "../src/styles.css"), "utf8");
 const page = `<!doctype html><meta charset="utf-8"><title>harness-bridge</title>
-<style>body{margin:0;font:14px -apple-system,sans-serif}.demo{display:flex}.demo-sessions{list-style:none;margin:0;padding:8px;width:240px;flex:none}
-.demo-sessions button{all:unset;cursor:pointer;display:block;padding:6px 8px;border-radius:6px}.demo-sessions small{display:block;color:#888}
+<style>body{margin:0;font:14px -apple-system,sans-serif}.demo{display:flex}.demo-sessions{width:300px;flex:none}
 .demo .hb-chat{flex:1}${css}</style><div id="root"></div><script type="module" src="/live.js"></script>`;
 const port = Number(process.env.PORT ?? 5173);
 createServer((request, response) => {

@@ -229,6 +229,26 @@ export const scenarios: Scenario[] = [
     },
   },
   {
+    name: "session.initial_settings",
+    about: "Does a new session start with the settings chosen before it existed (`configOptions` of `session/new`)?",
+    agents: ["claude", "pi"],
+    cost: "free",
+    async run(t) {
+      const app = await t.app();
+      const offered = await app.sessionOptions({ cwd: t.work, agentId: t.id }).catch(failure);
+      t.fact("settingsBeforeASession", typeof offered === "string" ? offered : "ok");
+      // An agent that cannot say its settings beforehand: a first session shows what they are.
+      const known = typeof offered === "string" ? (await t.session(app)).state.values.get("configOptions") : (offered as JsonObject)["configOptions"];
+      const effort = [...settingsOf(known ?? null).values()].find((setting) => setting.category === "thought_level");
+      const other = effort?.values.find((value) => value !== effort.current);
+      if (!effort || other === undefined) return t.fact("startsWithTheChosenEffort", "no effort setting with a second value");
+      const session = await app.newSession({ cwd: t.work, agentId: t.id, configOptions: [{ configId: effort.id, value: other }] });
+      t.made.add(session.id);
+      const started = settingsOf(session.state.values.get("configOptions") ?? null).get(effort.id)?.current;
+      t.fact("startsWithTheChosenEffort", started === other);
+    },
+  },
+  {
     name: "session.rename_delete",
     about: "Can a session be renamed and deleted, at the adapter and through the daemon?",
     agents: ["claude"],
