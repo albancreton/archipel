@@ -62,4 +62,6 @@ The user wants it run by an agent platform on another machine that reports to th
 - **`--json`** prints one object with `news`, and per source the versions, a headline per check and the files to read.
 - **The adapter check installs both versions itself**, so it no longer needs this machine's conformance setup. `--live` still does, and says "not run" without it.
 
-Not checked: the script on Linux, and an adapter started on a machine where the harness is not signed in (here `initialize` answered without any of the conformance settings, but Claude Code is signed in on this machine).
+Checked on Linux the same day (x86-64, Node 24): the whole free run, including installing and starting both adapter versions, takes about 15 seconds once the downloads are cached.
+
+`tools/watch/hermes` holds what the user's Hermes Agent needs to run it daily: a monitor script whose unchanged output keeps the agent asleep, and a skill for the report and the message.

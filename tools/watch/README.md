@@ -56,6 +56,8 @@ node watch.ts --json            # prints one JSON object and nothing else
 
 `--live` also needs the daemon built (`cargo build`), the harness installed and signed in, and `conformance/config.json`. On a machine without those it says "not run" and goes on.
 
+**With Hermes Agent**, `hermes/` here has a monitor script, a skill and the command that creates the daily job.
+
 **Two ways to get the report from an agent of yours.** Let the script start it (`--report --agent="your-agent …"`: it gets the brief on its standard input and its output becomes the report). Or run the script with `--json` from the agent, and have the agent follow `brief.md` on the `files` of each source with news; then the agent can also send the result wherever it sends things.
 
 Nothing personal leaves the machine: the requests name the packages and carry a generic client name.
