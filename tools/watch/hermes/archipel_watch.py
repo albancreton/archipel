@@ -16,7 +16,8 @@ A failure (no network, a registry down) exits with an error, which Hermes report
 run and never counts as a change.
 
 The repository is at ~/Dev/archipel unless ARCHIPEL_REPO says otherwise. It is updated first
-(`git pull --ff-only`), so the versions "in use" follow what the repository says.
+(`git pull --ff-only`), so the versions "in use" follow what the repository says. A pull that
+fails is an error too.
 """
 
 import glob
@@ -33,8 +34,12 @@ nodes = sorted(glob.glob(os.path.expanduser("~/.nvm/versions/node/*/bin")))
 if nodes:
     env["PATH"] = nodes[-1] + os.pathsep + env.get("PATH", "")
 
-# Not being able to update is not a reason to stop: the watch still says what is new.
-subprocess.run(["git", "-C", repo, "pull", "--ff-only", "--quiet"], env=env, capture_output=True, timeout=120)
+# Update the repository first: the versions "in use" are the ones its newest commit names.
+# If that fails, stop: a stale copy would report as new what the library already took in.
+pull = subprocess.run(["git", "-C", repo, "pull", "--ff-only", "--quiet"], env=env, capture_output=True, text=True, timeout=120)
+if pull.returncode != 0:
+    sys.stderr.write("could not update %s (git pull --ff-only):\n%s" % (repo, (pull.stderr or pull.stdout)[-1000:]))
+    sys.exit(1)
 
 run = subprocess.run(["node", "watch.ts", "--json"], cwd=os.path.join(repo, "tools/watch"), env=env, capture_output=True, text=True, timeout=1800)
 try:
