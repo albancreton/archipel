@@ -5,14 +5,14 @@
 //
 // Free, against a fake agent that replays a recorded session (after `cargo build`):
 //
-//   target/debug/bridged --home /tmp/chat-home --fake testdata/transcripts/claude-v2/approval_command.ndjson &
+//   target/debug/archipeld --home /tmp/chat-home --fake testdata/transcripts/claude-v2/approval_command.ndjson &
 //   node examples/node/chat.ts --home /tmp/chat-home --mode default --approve allow-once "anything"
 //
 // The parts an app needs are all here: connect, make or open a session, follow its items,
 // send a message, answer what the agent asks. A UI replaces `print` with drawing: the React
 // and SwiftUI kits do exactly that (`ui/react/demo/live.tsx`, `ui/swift/Demo`).
 
-import { BridgeClient, unixSocketTransport, type Json, type Session } from "@harness-bridge/client";
+import { ArchipelClient, unixSocketTransport, type Json, type Session } from "@archipel/client";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -50,7 +50,7 @@ function describe(target: string, item: Json): string {
 /** Runs one turn and resolves with the session when the agent is done. */
 export async function chat(options: ChatOptions): Promise<Session> {
   const print = options.print ?? console.log;
-  const client = await BridgeClient.connect({
+  const client = await ArchipelClient.connect({
     open: () => unixSocketTransport(options.socket),
     name: "example-chat",
   });
@@ -105,7 +105,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const at = args.indexOf(name);
     return at < 0 ? undefined : args.splice(at, 2)[1];
   };
-  const home = option("--home") ?? path.join(process.env["HOME"] ?? "", ".harness-bridge");
+  const home = option("--home") ?? path.join(process.env["HOME"] ?? "", ".archipel");
   const cwd = option("--cwd") ?? process.cwd();
   const [mode, approve] = [option("--mode"), option("--approve")];
   const message = args.join(" ");

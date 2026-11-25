@@ -1,6 +1,6 @@
 // The agent's text as Markdown, and a long session drawn in pages.
 
-import { Conversation } from "@harness-bridge/client";
+import { Conversation } from "@archipel/client";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -23,7 +23,7 @@ test("Markdown is drawn as elements", () => {
   assert.match(html, /<th>a<\/th><th style="text-align:center">b<\/th>/);
   assert.match(html, /<pre data-language="ts"><code>const a = 1 &lt; 2 &amp;&amp; true;<\/code><\/pre>/);
   assert.match(html, /<hr\/>/);
-  assert.equal(draw("a &amp; b < c, `x && y`"), '<div class="hb-md"><p>a &amp; b &lt; c, <code>x &amp;&amp; y</code></p></div>', "characters are neither lost nor doubled");
+  assert.equal(draw("a &amp; b < c, `x && y`"), '<div class="arc-md"><p>a &amp; b &lt; c, <code>x &amp;&amp; y</code></p></div>', "characters are neither lost nor doubled");
 });
 
 test("text that is still arriving is drawn up to where it ends", () => {
@@ -59,12 +59,12 @@ test("a long session draws its newest items and offers the earlier ones", () => 
   const conversation = long(450);
   const total = conversation.root()![1].timeline.length;
   const html = renderToStaticMarkup(<ChatView conversation={conversation} />);
-  assert.equal(html.match(/class="hb-row"/g)?.length, 200);
+  assert.equal(html.match(/class="arc-row"/g)?.length, 200);
   assert.match(html, new RegExp(`Show earlier \\(${total - 200} more\\)`));
   assert.match(html, /number 449/);
   assert.doesNotMatch(html, /number 0</);
   const all = renderToStaticMarkup(<ChatView conversation={conversation} pageSize={Infinity} />);
-  assert.equal(all.match(/class="hb-row"/g)?.length, total);
+  assert.equal(all.match(/class="arc-row"/g)?.length, total);
   assert.doesNotMatch(all, /Show earlier/);
   assert.doesNotMatch(renderToStaticMarkup(<ChatView conversation={long(3)} />), /Show earlier/);
 });

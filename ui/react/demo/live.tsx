@@ -1,13 +1,13 @@
 // A page that follows the daemon's sessions live, in a browser.
 //
-//   bridged --ws 127.0.0.1:7890 --ws-origin http://localhost:5173
+//   archipeld --ws 127.0.0.1:7890 --ws-origin http://localhost:5173
 //   pnpm demo:live                      (in ui/react; serves http://localhost:5173)
 //   open "http://localhost:5173/?ws=ws://127.0.0.1:7890#TOKEN"
 //
 // The token is after the `#`, so the browser does not send it to the page's server.
 // Add `&cwd=/some/folder` to get a "New session" button that starts sessions in that folder.
 
-import { BridgeClient, webSocketTransport, type Bridge, type Session, type SessionSummary } from "@harness-bridge/client";
+import { ArchipelClient, webSocketTransport, type Archipel, type Session, type SessionSummary } from "@archipel/client";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AgentStatus, ChatView, ConnectionStatus, SessionList, acceptsOf, useConnected, useSession, withSession, withoutSession, type Accepts } from "../src/index.ts";
@@ -17,22 +17,22 @@ function Chat({ session, accepts, onFork }: { session: Session; accepts: Accepts
   return <ChatView conversation={conversation} sessionId={session.id} actions={actions} openElsewhere={openElsewhere} error={error} accepts={accepts} />;
 }
 
-function Connection({ client }: { client: BridgeClient }) {
+function Connection({ client }: { client: ArchipelClient }) {
   return <ConnectionStatus connected={useConnected(client)} />;
 }
 
 function App() {
   const query = new URLSearchParams(location.search);
-  const [client, setClient] = useState<BridgeClient | null>(null);
+  const [client, setClient] = useState<ArchipelClient | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
-  const [agents, setAgents] = useState<Bridge.AgentInfo[]>([]);
+  const [agents, setAgents] = useState<Archipel.AgentInfo[]>([]);
   const [session, setSession] = useState<Session | null>(null);
   const [problem, setProblem] = useState("");
 
   useEffect(() => {
     const url = query.get("ws") ?? "ws://127.0.0.1:7890";
     const token = location.hash.slice(1);
-    BridgeClient.connect({
+    ArchipelClient.connect({
       // A page cannot set the Authorization header, so the token goes as a subprotocol.
       open: () => webSocketTransport(url, { token, subprotocol: true }),
       name: "react-demo",

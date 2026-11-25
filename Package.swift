@@ -6,25 +6,25 @@
 import PackageDescription
 
 let package = Package(
-    name: "HarnessBridge",
+    name: "Archipel",
     platforms: [.macOS(.v14), .iOS(.v17)],
     products: [
-        .library(name: "BridgeClient", targets: ["BridgeClient"]),
-        .library(name: "BridgeUI", targets: ["BridgeUI"]),
+        .library(name: "ArchipelClient", targets: ["ArchipelClient"]),
+        .library(name: "ArchipelUI", targets: ["ArchipelUI"]),
     ],
     targets: [
         .target(
-            name: "BridgeClient",
-            path: "clients/swift/Sources/BridgeClient",
+            name: "ArchipelClient",
+            path: "clients/swift/Sources/ArchipelClient",
             resources: [.copy("Resources/state-rules.json")]
         ),
-        .target(name: "BridgeUI", dependencies: ["BridgeClient"], path: "ui/swift/Sources/BridgeUI"),
-        .executableTarget(name: "BridgeChatDemo", dependencies: ["BridgeClient", "BridgeUI"], path: "ui/swift/Demo"),
+        .target(name: "ArchipelUI", dependencies: ["ArchipelClient"], path: "ui/swift/Sources/ArchipelUI"),
+        .executableTarget(name: "ArchipelChatDemo", dependencies: ["ArchipelClient", "ArchipelUI"], path: "ui/swift/Demo"),
         // An example to copy, kept compiling and tested: start the daemon from a macOS app.
-        .target(name: "DaemonExample", dependencies: ["BridgeClient"], path: "examples/swift", exclude: ["Tests"]),
-        .testTarget(name: "ExamplesTests", dependencies: ["DaemonExample", "BridgeClient"], path: "examples/swift/Tests"),
-        .testTarget(name: "BridgeClientTests", dependencies: ["BridgeClient"], path: "clients/swift/Tests/BridgeClientTests"),
-        .testTarget(name: "BridgeUITests", dependencies: ["BridgeUI"], path: "ui/swift/Tests/BridgeUITests"),
+        .target(name: "DaemonExample", dependencies: ["ArchipelClient"], path: "examples/swift", exclude: ["Tests"]),
+        .testTarget(name: "ExamplesTests", dependencies: ["DaemonExample", "ArchipelClient"], path: "examples/swift/Tests"),
+        .testTarget(name: "ArchipelClientTests", dependencies: ["ArchipelClient"], path: "clients/swift/Tests/ArchipelClientTests"),
+        .testTarget(name: "ArchipelUITests", dependencies: ["ArchipelUI"], path: "ui/swift/Tests/ArchipelUITests"),
     ],
     swiftLanguageModes: [.v5]
 )

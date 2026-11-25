@@ -63,7 +63,7 @@ const stateFile = flag("state")?.split("=").slice(1).join("=") || path.join(root
 const seen: Record<string, string> = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, "utf8")) : {};
 
 // A generic name: registries ask automated clients to say who they are, not who runs them.
-const headers = { "user-agent": "harness-bridge-watch" };
+const headers = { "user-agent": "archipel-watch" };
 async function fetchJson(url: string): Promise<Json> {
   const response = await fetch(url, { headers });
   if (!response.ok) throw new Error(`${url}: ${response.status}`);

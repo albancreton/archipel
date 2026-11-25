@@ -1,12 +1,12 @@
 # TypeScript client SDK
 
-`@harness-bridge/client`: everything an app needs to follow and drive sessions on the daemon. For Node, Electron and React Native. No runtime dependency; the source runs as TypeScript on Node 22.18 or later.
+`@archipel/client`: everything an app needs to follow and drive sessions on the daemon. For Node, Electron and React Native. No runtime dependency; the source runs as TypeScript on Node 22.18 or later.
 
 ```ts
-import { BridgeClient, unixSocketTransport } from "@harness-bridge/client";
+import { ArchipelClient, unixSocketTransport } from "@archipel/client";
 
-const client = await BridgeClient.connect({
-  open: () => unixSocketTransport(`${process.env.HOME}/.harness-bridge/daemon.sock`),
+const client = await ArchipelClient.connect({
+  open: () => unixSocketTransport(`${process.env.HOME}/.archipel/daemon.sock`),
   name: "my-app",
 });
 const sessions = await client.listSessions();          // the daemon's and the harness's own
@@ -20,7 +20,7 @@ for (const { requestId } of session.pendingRequests()) session.approve(requestId
 |---|---|
 | `src/state.ts` | The reducer: applies ACP v2 messages by following the state rules. A port of the Rust core |
 | `src/mirror.ts` | What a client of the daemon holds, and the daemon's additions (sequence numbers, answered requests) |
-| `src/client.ts` | `BridgeClient` and `Session`: attach, reconnect, prompt, answer |
+| `src/client.ts` | `ArchipelClient` and `Session`: attach, reconnect, prompt, answer |
 | `src/transports.ts` | The daemon's WebSocket and its local socket |
 | `src/generated/` | The state rules and the types of the daemon's extensions, written by `just gen` |
 

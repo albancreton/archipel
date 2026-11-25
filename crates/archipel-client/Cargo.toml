@@ -1,0 +1,31 @@
+[package]
+name = "archipel-client"
+description = "A client for the daemon: the connection, and the `archipel` command-line tool."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "archipel"
+path = "src/bin/archipel.rs"
+
+[[bin]]
+name = "archipel-demo-checkpoints"
+path = "src/bin/demo_checkpoints.rs"
+
+[dependencies]
+base64 = "0.23.1"
+archipel-core = { path = "../archipel-core" }
+archipel-schema = { path = "../archipel-schema" }
+archipel-transport = { path = "../archipel-transport" }
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+tokio = { version = "1.54.1", features = ["rt", "macros", "time", "io-util", "io-std", "process"] }
+
+[dev-dependencies]
+archipel-agents = { path = "../archipel-agents" }
+archipel-server = { path = "../archipel-server" }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "process"] }
+
+[lints]
+workspace = true

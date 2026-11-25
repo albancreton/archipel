@@ -1,6 +1,6 @@
 //! A daemon with an addon of one's own.
 //!
-//! It is `bridged` in every way (same command line, same files) plus one addon written here.
+//! It is `archipeld` in every way (same command line, same files) plus one addon written here.
 //! This is how to add a feature or a quick fix without forking the library and without
 //! waiting for a release: write the addon in your own crate and build your own daemon.
 //!
@@ -12,13 +12,13 @@
 //! The addon below uses one hook. There are more: an addon can also change answers, answer
 //! approvals in the user's place, send requests of its own, add updates to a session and
 //! serve methods. `docs/design/addons.md` lists them, and
-//! `crates/bridge-server/tests/addons.rs` has a short test for each.
+//! `crates/archipel-server/tests/addons.rs` has a short test for each.
 //!
 //! The addon below is a house rule, not a fix: sessions may not be switched to the mode that
 //! skips every approval. It is a `Feature`, so it is off until `config.json` says
 //! `{"addons": {"example.no-bypass": true}}`.
 
-use bridge_addon_api::{Addon, Agent, Cx, Info, Kind, Request, Verdict};
+use archipel_addon_api::{Addon, Agent, Cx, Info, Kind, Request, Verdict};
 use serde_json::Value;
 
 struct NoBypass;
@@ -63,15 +63,15 @@ impl Addon for NoBypass {
 
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
-    let mut addons = bridge_addons::all();
+    let mut addons = archipel_addons::all();
     addons.push(Box::new(NoBypass));
-    bridged::main(addons).await
+    archipeld::main(addons).await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bridge_addon_api::Sessions;
+    use archipel_addon_api::Sessions;
     use serde_json::json;
 
     struct NoLog;
@@ -94,7 +94,7 @@ mod tests {
         let mut request = Request {
             id: 1,
             agent,
-            from: bridge_addon_api::Origin::App { name: None },
+            from: archipel_addon_api::Origin::App { name: None },
             method,
             params: &mut params,
         };

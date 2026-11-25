@@ -28,7 +28,7 @@ On Pi there is nothing to choose before a session, so the kit's own flow never s
 
 ## Tests
 
-React: 5 new tests (38 in all), drawing to HTML. Swift: 2 new, including pictures of the bar and of the rows in `.build/bridge-ui-renders`. A SwiftUI `List` draws nothing off screen, so its rows are drawn stacked; the dialogs are not exercised. Neither kit has tests that click yet: that is step 5.
+React: 5 new tests (38 in all), drawing to HTML. Swift: 2 new, including pictures of the bar and of the rows in `.build/archipel-ui-renders`. A SwiftUI `List` draws nothing off screen, so its rows are drawn stacked; the dialogs are not exercised. Neither kit has tests that click yet: that is step 5.
 
 ## Left of section A
 

@@ -31,7 +31,7 @@ export function webSocketTransport(url: string, options: WebSocketOptions): Prom
   const headers = { Authorization: `Bearer ${options.token}` };
   // Node takes `{headers}` as the second argument, React Native as the third.
   const socket = options.subprotocol
-    ? new Socket(url, [`bridge.token.${options.token}`, "bridge"])
+    ? new Socket(url, [`archipel.token.${options.token}`, "archipel"])
     : new Socket(url, { headers } as unknown, { headers } as unknown);
   return new Promise((resolve, reject) => {
     const transport: Transport = {
@@ -95,7 +95,7 @@ export async function unixSocketTransport(path: string): Promise<Transport> {
 
 /**
  * Carries the connection on a command's stdin and stdout, such as
- * `ssh host bridge connect --stdio`. Node only.
+ * `ssh host archipel connect --stdio`. Node only.
  */
 export async function commandTransport(command: string, args: string[] = []): Promise<Transport> {
   const { spawn } = await import("node:child_process");
@@ -129,7 +129,7 @@ export async function commandTransport(command: string, args: string[] = []): Pr
 }
 
 /**
- * Exchanges a one-time code from `bridged pair` for a token of the app's own. Keep the token
+ * Exchanges a one-time code from `archipeld pair` for a token of the app's own. Keep the token
  * somewhere safe (the platform's keychain) and use it with `webSocketTransport` from then on.
  */
 export async function pair(
@@ -147,6 +147,6 @@ export async function pair(
       if (answer.result) resolve(answer.result);
       else reject(new Error(answer.error?.message ?? "pairing failed"));
     };
-    transport.send({ jsonrpc: "2.0", id: 1, method: "_bridge/pair", params: options.name ? { name: options.name } : {} });
+    transport.send({ jsonrpc: "2.0", id: 1, method: "_archipel/pair", params: options.name ? { name: options.name } : {} });
   });
 }

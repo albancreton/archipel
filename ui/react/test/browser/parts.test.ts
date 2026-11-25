@@ -30,7 +30,7 @@ test("a session is opened, renamed and deleted from its row", async () => {
   assert.deepEqual(await called(page, 1), [["open", "a"]]);
 
   // Rename: the field starts with the title; Escape leaves it as it was.
-  const row = page.locator("li.hb-session").first();
+  const row = page.locator("li.arc-session").first();
   await row.getByRole("button", { name: "Rename" }).click();
   const field = page.getByLabel("Session title");
   assert.equal(await field.inputValue(), "Fix the parser");
@@ -88,7 +88,7 @@ test("the composer sends on Enter, offers commands after / and files after @", a
   // Commands: names that start with what was typed come first; arrows move, Enter takes.
   await field.pressSequentially("/re");
   const menu = page.getByRole("listbox", { name: "Commands" });
-  assert.deepEqual(await menu.getByRole("option").locator(".hb-menu-label").allTextContents(), ["/review", "/rewind", "/deep-research"]);
+  assert.deepEqual(await menu.getByRole("option").locator(".arc-menu-label").allTextContents(), ["/review", "/rewind", "/deep-research"]);
   assert.equal(await menu.locator('[aria-selected="true"]').textContent(), "/reviewReview the changes");
   await field.press("ArrowDown");
   assert.match((await menu.locator('[aria-selected="true"]').textContent())!, /^\/rewind/);
@@ -116,7 +116,7 @@ test("the composer sends on Enter, offers commands after / and files after @", a
   // Mentions: the file is named in the text and sent as a link.
   await field.pressSequentially("look at @ma");
   const mentions = page.getByRole("listbox", { name: "Mentions" });
-  assert.deepEqual(await mentions.getByRole("option").locator(".hb-menu-label").allTextContents(), ["@main.rs", "@Makefile"]);
+  assert.deepEqual(await mentions.getByRole("option").locator(".arc-menu-label").allTextContents(), ["@main.rs", "@Makefile"]);
   await field.press("Tab");
   assert.equal(await field.inputValue(), "look at @main.rs ");
   await field.pressSequentially("please");
@@ -131,7 +131,7 @@ test("the composer sends on Enter, offers commands after / and files after @", a
 test("files are attached by choosing, pasting and dropping, and a refused message comes back", async () => {
   const page = await part("composer");
   const field = page.getByPlaceholder("Message the agent…");
-  const chips = page.locator(".hb-attachments li");
+  const chips = page.locator(".arc-attachments li");
 
   // The Attach button opens the file chooser.
   const choosing = page.waitForEvent("filechooser");
@@ -222,14 +222,14 @@ test("a setting is changed from its menu, and a refusal puts it back", async () 
 
 test("an approval is answered with one click, a question with its form", async () => {
   const approval = await part("approval");
-  assert.deepEqual(await approval.locator(".hb-pending button").allTextContents().then((all) => [all[0], all.at(-1)]), ["Yes", "No"]);
+  assert.deepEqual(await approval.locator(".arc-pending button").allTextContents().then((all) => [all[0], all.at(-1)]), ["Yes", "No"]);
   await approval.getByRole("button", { name: "No", exact: true }).click();
   const [, , option] = (await called(approval, 1))[0]!;
   assert.equal(option, "reject");
   await approval.close();
 
   const question = await part("question");
-  await question.locator(".hb-pending .hb-request-title", { hasText: "Which colour do you prefer?" }).waitFor();
+  await question.locator(".arc-pending .arc-request-title", { hasText: "Which colour do you prefer?" }).waitFor();
   await question.getByLabel("Colour").selectOption("Blue");
   await question.getByLabel("Other").fill("or teal");
   await question.getByRole("button", { name: "Answer" }).click();
@@ -241,7 +241,7 @@ test("an approval is answered with one click, a question with its form", async (
 
 test("a long session shows its end first and earlier messages on request, keeping the place", async () => {
   const page = await part("long");
-  const rows = page.locator(".hb-row");
+  const rows = page.locator(".arc-row");
   assert.equal(await rows.count(), 200);
   assert.equal(await rows.first().textContent(), "message 251");
   const earlier = page.getByRole("button", { name: "Show earlier (250 more)" });
@@ -255,7 +255,7 @@ test("a long session shows its end first and earlier messages on request, keepin
 
 test("folded parts open: thinking, unchanged lines of a diff", async () => {
   const thinking = await part("thinking");
-  const thought = thinking.locator("details.hb-thought").first();
+  const thought = thinking.locator("details.arc-thought").first();
   assert.equal(await thought.evaluate((details: HTMLDetailsElement) => details.open), false);
   await thought.locator("summary").click();
   assert.equal(await thought.evaluate((details: HTMLDetailsElement) => details.open), true);

@@ -1,86 +1,86 @@
 {
- "simple": {
-  "prompts": [
-   "Respond with the following text: fixture simple ok"
-  ]
- },
- "approval_write": {
-  "prompts": [
-   "Run this exact shell command: printf 'approval fixture' > probe-write.txt  Then reply with exactly: done."
-  ],
-  "mode": "default"
- },
- "files": {
-  "prompts": [
-   "Read package.json, then use the Grep tool to search for the word strict in this directory, then use the Edit tool to change the version in package.json to 1.0.1. Then reply with exactly: done."
-  ],
-  "mode": "default"
- },
- "todo": {
-  "prompts": [
-   "Create three tasks with your task tools (TaskCreate): alpha, beta, gamma. Then mark alpha completed with TaskUpdate. Reply with exactly: done."
-  ],
-  "mode": "default"
- },
- "question": {
-  "prompts": [
-   "Use the AskUserQuestion tool to ask me one question: which colour I prefer, with options Red and Blue. Then reply with exactly the option I chose."
-  ],
-  "mode": "default"
- },
- "subagent": {
-  "prompts": [
-   "Spawn one subagent whose only task is to read package.json and reply with its name field. Wait for it to finish, then reply with exactly what it said."
-  ],
-  "mode": "default",
-  "lingerMs": 15000
- },
- "plan": {
-  "mode": "plan",
-  "prompts": [
-   "Plan how to add a README.md with a one-line description to this directory. Keep the plan to three bullet points and present it for approval."
-  ]
- },
- "web": {
-  "prompts": [
-   "Search the web for the current stable Node.js LTS version, then answer in one short sentence."
-  ],
-  "mode": "default"
- },
- "interrupt": {
-  "cancelOnTool": true,
-  "prompts": [
-   "Run this exact local command: node -e \"console.log('interrupt fixture tool started'); setTimeout(() => {}, 30000)\"  Do not answer until it completes."
-  ],
-  "mode": "default"
- },
- "background": {
-  "lingerMs": 20000,
-  "prompts": [
-   "Start this command as a background task (run_in_background): node -e \"setTimeout(() => console.log('background-done'), 8000)\"  As soon as it is launched, reply exactly: launched  and end your turn without waiting."
-  ],
-  "mode": "default"
- },
- "steer": {
-  "steer": "Also mention the word STEERED in your final reply.",
-  "prompts": [
-   "Run this exact command: node -e \"setTimeout(() => console.log('A'), 10000)\"  then reply DONE_A."
-  ],
-  "mode": "default",
-  "lingerMs": 15000
- },
- "compact": {
-  "prompts": [
-   "Remember the codeword PAPAYA. Reply OK.",
-   "/compact",
-   "What was the codeword? One word."
-  ],
-  "mode": "default"
- },
- "stream": {
-  "prompts": [
-   "Run this exact shell command in the foreground: for i in 1 2 3 4; do echo stream line $i; sleep 1; done  Then reply with exactly: done."
-  ],
-  "mode": "default"
- }
+  "simple": {
+    "prompts": [
+      "Respond with the following text: fixture simple ok"
+    ]
+  },
+  "approval_write": {
+    "prompts": [
+      "Run this exact shell command: printf 'approval fixture' > probe-write.txt  Then reply with exactly: done."
+    ],
+    "mode": "default"
+  },
+  "files": {
+    "prompts": [
+      "Read package.json, then use the Grep tool to search for the word strict in this directory, then use the Edit tool to change the version in package.json to 1.0.1. Then reply with exactly: done."
+    ],
+    "mode": "default"
+  },
+  "todo": {
+    "prompts": [
+      "Create three tasks with your task tools (TaskCreate): alpha, beta, gamma. Then mark alpha completed with TaskUpdate. Reply with exactly: done."
+    ],
+    "mode": "default"
+  },
+  "question": {
+    "prompts": [
+      "Use the AskUserQuestion tool to ask me one question: which colour I prefer, with options Red and Blue. Then reply with exactly the option I chose."
+    ],
+    "mode": "default"
+  },
+  "subagent": {
+    "prompts": [
+      "Spawn one subagent whose only task is to read package.json and reply with its name field. Wait for it to finish, then reply with exactly what it said."
+    ],
+    "mode": "default",
+    "lingerMs": 15000
+  },
+  "plan": {
+    "mode": "plan",
+    "prompts": [
+      "Plan how to add a README.md with a one-line description to this directory. Keep the plan to three bullet points and present it for approval."
+    ]
+  },
+  "web": {
+    "prompts": [
+      "Search the web for the current stable Node.js LTS version, then answer in one short sentence."
+    ],
+    "mode": "default"
+  },
+  "interrupt": {
+    "cancelOnTool": true,
+    "prompts": [
+      "Run this exact local command: node -e \"console.log('interrupt fixture tool started'); setTimeout(() => {}, 30000)\"  Do not answer until it completes."
+    ],
+    "mode": "default"
+  },
+  "background": {
+    "lingerMs": 20000,
+    "prompts": [
+      "Start this command as a background task (run_in_background): node -e \"setTimeout(() => console.log('background-done'), 8000)\"  As soon as it is launched, reply exactly: launched  and end your turn without waiting."
+    ],
+    "mode": "default"
+  },
+  "steer": {
+    "steer": "Also mention the word STEERED in your final reply.",
+    "prompts": [
+      "Run this exact command: node -e \"setTimeout(() => console.log('A'), 10000)\"  then reply DONE_A."
+    ],
+    "mode": "default",
+    "lingerMs": 15000
+  },
+  "compact": {
+    "prompts": [
+      "Remember the codeword PAPAYA. Reply OK.",
+      "/compact",
+      "What was the codeword? One word."
+    ],
+    "mode": "default"
+  },
+  "stream": {
+    "prompts": [
+      "Run this exact shell command in the foreground: for i in 1 2 3 4; do echo stream line $i; sleep 1; done  Then reply with exactly: done."
+    ],
+    "mode": "default"
+  }
 }

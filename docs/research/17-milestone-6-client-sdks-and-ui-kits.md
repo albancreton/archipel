@@ -6,10 +6,10 @@ _2026-11-22. Checked by `cargo test --workspace` (41), `pnpm -r test` (77) and `
 
 | Package | Where | For |
 |---|---|---|
-| `@harness-bridge/client` | `clients/ts` | Node, Electron, React Native |
-| `@harness-bridge/react` | `ui/react` | React |
-| `BridgeClient` | `clients/swift` | macOS, iOS |
-| `BridgeUI` | `ui/swift` | SwiftUI |
+| `@archipel/client` | `clients/ts` | Node, Electron, React Native |
+| `@archipel/react` | `ui/react` | React |
+| `ArchipelClient` | `clients/swift` | macOS, iOS |
+| `ArchipelUI` | `ui/swift` | SwiftUI |
 
 Each SDK has the reducer, the mirror, two transports (the daemon's WebSocket and its local socket), and a client whose sessions stay in step with the daemon and re-attach from their last sequence number after a disconnect. Each UI kit has one component per kind of item, a chat view assembled from them, and a way to plug in a component for an extension's kind.
 

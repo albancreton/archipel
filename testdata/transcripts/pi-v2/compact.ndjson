@@ -1,4 +1,4 @@
-{"transcript":1,"scenario":"compact","agent":"pi","harness":"pi 1.6.0","adapter":"pi-acp@0.0.35 through the bridge Pi profile","protocol":2,"model":"local/Qwen3.8-27B-BF16-DFLASH2","prompts":["Remember the codeword PAPAYA. Reply OK.","/compact"],"recordedAt":"2026-11-22"}
+{"transcript":1,"scenario":"compact","agent":"pi","harness":"pi 1.6.0","adapter":"pi-acp@0.0.35 through the archipel Pi profile","protocol":2,"model":"local/Qwen3.8-27B-BF16-DFLASH2","prompts":["Remember the codeword PAPAYA. Reply OK.","/compact"],"recordedAt":"2026-11-22"}
 {"dir":"out","t":0,"m":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":2}}}
 {"dir":"in","t":0,"m":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":2,"info":{"name":"pi-acp","title":"pi ACP adapter","version":"0.0.35"},"capabilities":{"session":{"prompt":{"image":{}}}},"authMethods":[]}}}
 {"dir":"out","t":1,"m":{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"/private/tmp/claude-501/-work-t3code/dcaa0ec8-03b9-47a6-bdbe-90e81d7a6b80/scratchpad/acp/work","mcpServers":[]}}}

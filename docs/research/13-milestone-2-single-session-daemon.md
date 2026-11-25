@@ -6,14 +6,14 @@ _2026-11-22. Checked by `cargo test --workspace` (34 tests) and by one live run 
 
 Two programs and five more crates with real code.
 
-- **`bridged`**, the daemon. It listens on a local socket (and on a WebSocket when asked), starts adapters, keeps the session log in SQLite.
-- **`bridge`**, a command-line client: `agents`, `sessions`, `new`, `prompt`, `watch`, `show`, `answer`, `cancel`, `set`.
-- **`bridge-transport`**: one codec for lines over a byte stream, a Unix socket and a WebSocket.
-- **`bridge-store-sqlite`**: sessions and log entries in one file.
-- **`bridge-agents`**: starting adapters, the Claude profile, and a fake adapter that replays recorded sessions.
-- **`bridge-server`**: the daemon as a library.
-- **`bridge-client`**: the connection a client needs, and the `bridge` program.
-- **`bridge-core`** gained log records for requests, a store interface, and the client-side "mirror".
+- **`archipeld`**, the daemon. It listens on a local socket (and on a WebSocket when asked), starts adapters, keeps the session log in SQLite.
+- **`archipel`**, a command-line client: `agents`, `sessions`, `new`, `prompt`, `watch`, `show`, `answer`, `cancel`, `set`.
+- **`archipel-transport`**: one codec for lines over a byte stream, a Unix socket and a WebSocket.
+- **`archipel-store-sqlite`**: sessions and log entries in one file.
+- **`archipel-agents`**: starting adapters, the Claude profile, and a fake adapter that replays recorded sessions.
+- **`archipel-server`**: the daemon as a library.
+- **`archipel-client`**: the connection a client needs, and the `archipel` program.
+- **`archipel-core`** gained log records for requests, a store interface, and the client-side "mirror".
 
 Release builds: the daemon is 4.8 MB, the client 2.2 MB, with no runtime to install.
 
@@ -38,8 +38,8 @@ The fake adapter replays a recorded session at the recorded pace:
 
 ```
 cargo build
-target/debug/bridged --home /tmp/bridge-demo --fake testdata/transcripts/claude-v2/approval_command.ndjson &
-alias b='target/debug/bridge --home /tmp/bridge-demo'
+target/debug/archipeld --home /tmp/archipel-demo --fake testdata/transcripts/claude-v2/approval_command.ndjson &
+alias b='target/debug/archipel --home /tmp/archipel-demo'
 b new --mode default            # prints the session id; the first characters are enough afterwards
 b prompt <id> hello --watch     # stops when the agent asks for approval
 b answer <id> allow-once
@@ -51,10 +51,10 @@ The fake follows the recording, so the commands have to come in the recorded ord
 
 ## The live run
 
-Claude Code 2.1.330, Haiku, `claude-agent-acp` 0.109.1, through `bridged` with a `config.json` pointing at the adapter. Three short turns.
+Claude Code 2.1.330, Haiku, `claude-agent-acp` 0.109.1, through `archipeld` with a `config.json` pointing at the adapter. Three short turns.
 
-1. `bridge new --mode default`, then a WebSocket `bridge watch` left running in the background.
-2. A prompt that runs a shell command. `prompt --watch` stopped at the approval; `bridge answer … allow-once` from a second connection; the turn finished and the file was written.
+1. `archipel new --mode default`, then a WebSocket `archipel watch` left running in the background.
+2. A prompt that runs a shell command. `prompt --watch` stopped at the approval; `archipel answer … allow-once` from a second connection; the turn finished and the file was written.
 3. A second such prompt. While its approval was open, the daemon was stopped with Ctrl-C.
 4. The daemon was started again. The watcher reconnected by itself and received exactly what it had missed.
 5. A third prompt. The daemon started the adapter, resumed the session, and Claude answered with the earlier turns in context.
@@ -88,19 +88,19 @@ Also seen in that run:
 
 **The JSON-RPC layer is ours, not the `agent-client-protocol` crate's.** The design had "to verify: the connection layer must preserve unknown kinds". The daemon forwards messages it must not interpret; a typed connection would drop kinds and fields its types do not know. A line reader and writer over JSON values is about 60 lines and preserves everything. The official types are still used to check shapes in tests.
 
-**One task owns all state.** Messages from apps, messages from adapters and closed connections arrive as events on one queue and are handled one at a time. There are no locks. The file `crates/bridge-server/src/daemon.rs` starts with a table of what happens for each kind of message.
+**One task owns all state.** Messages from apps, messages from adapters and closed connections arrive as events on one queue and are handled one at a time. There are no locks. The file `crates/archipel-server/src/daemon.rs` starts with a table of what happens for each kind of message.
 
 **Requests are in the log.** The ACP state rules let a permission request create its tool call, so a replay without requests could show different items than the live session. The log therefore has three kinds of entry: update, request, answer.
 
 - A request that can still be answered is sent as a real JSON-RPC request, with a stable id (`<session id>#<sequence number>`).
-- In a replay, an answered request cannot be asked again. It is sent as one `_bridge/request/resolved` notification carrying the question and the answer, at the request's place in the order.
+- In a replay, an answered request cannot be asked again. It is sent as one `_archipel/request/resolved` notification carrying the question and the answer, at the request's place in the order.
 - This pulled "first answer wins" forward from milestone 3: it falls out of the same code.
 
-**Setup values are written into the log.** `configOptions` and `availableCommands` arrive in the response to `session/new`, not as updates. The daemon writes them as `config_option_update` and `available_commands_update` entries, marked `_meta.bridge.origin = "daemon"`, so the log alone rebuilds a session.
+**Setup values are written into the log.** `configOptions` and `availableCommands` arrive in the response to `session/new`, not as updates. The daemon writes them as `config_option_update` and `available_commands_update` entries, marked `_meta.archipel.origin = "daemon"`, so the log alone rebuilds a session.
 
 **Attach answers first, then sends the catch-up.** The app has to know whether a replay or a delta follows before it applies anything. `session/resume`, which the daemon also accepts so that a plain ACP v2 client works, follows ACP's order instead: replay, current state, then the response.
 
-**`_meta.bridge.rootSessionId`.** Sequence numbers count per conversation, and a subagent's messages carry the child session's id. This field says which log a message belongs to.
+**`_meta.archipel.rootSessionId`.** Sequence numbers count per conversation, and a subagent's messages carry the child session's id. This field says which log a message belongs to.
 
 **SQLite for the log**, as recommended in the design. Write-ahead log with `synchronous = NORMAL`: a crash of the daemon loses nothing; a power cut may lose the last moments, which the harness still has. The daemon only sees a `Store` trait, so this stays easy to change.
 
@@ -125,7 +125,7 @@ Gaps found while building:
 - **`mcpServers` are not remembered.** A session woken after a restart is resumed with an empty list.
 - **Settings after a wake-up were not checked.** Whether Claude resumes in the mode that was set before, or in the user's default, is unknown.
 - **A tool call that was waiting when a turn was cut off stays `pending`** in the item list. The turn state says `idle`, so a client can tell, but the item itself is stale.
-- **Agent readiness is coarse.** `_bridge/agents/list` says `ready` unless the last start failed. Login state is not read.
+- **Agent readiness is coarse.** `_archipel/agents/list` says `ready` unless the last start failed. Login state is not read.
 - **Storage errors drop the event** with a line on stderr. There is no retry and no signal to apps.
 - **SQLite writes happen on the daemon's task.** Fine at this scale; move to a writer thread if a slow disk ever shows.
 - **Stopping an adapter is abrupt** (closed pipes and a kill). No process was left behind in the live run; a gentler shutdown is not implemented.

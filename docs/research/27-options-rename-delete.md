@@ -22,9 +22,9 @@ So renaming needed nothing in the daemon: it wakes the session like any other re
 
 ## What was changed
 
-**`session/options` now goes to the right agent and wakes nothing.** Before, a call without a session always went to the first agent, so the settings of a second one (Pi, next to Claude) could not be read; and a call with a session went down the general path, which resumes the session first and refuses one that is open elsewhere. The protocol says this call must not resume anything. It now goes to the session's agent when a session is named, to the agent under `_meta.bridge.agentId` otherwise (the same field `session/new` uses), else to the first, and is passed straight on.
+**`session/options` now goes to the right agent and wakes nothing.** Before, a call without a session always went to the first agent, so the settings of a second one (Pi, next to Claude) could not be read; and a call with a session went down the general path, which resumes the session first and refuses one that is open elsewhere. The protocol says this call must not resume anything. It now goes to the session's agent when a session is named, to the agent under `_meta.archipel.agentId` otherwise (the same field `session/new` uses), else to the first, and is passed straight on.
 
-**The agent list says what each agent can do.** `_bridge/agents/list` gains `capabilities`: what the agent answered to `initialize`, once it has been started. Without it an app cannot know that Pi has no rename, and would only find out from a failed call. `initialize` on the daemon still gives the first agent's capabilities, as before.
+**The agent list says what each agent can do.** `_archipel/agents/list` gains `capabilities`: what the agent answered to `initialize`, once it has been started. Without it an app cannot know that Pi has no rename, and would only find out from a failed call. `initialize` on the daemon still gives the first agent's capabilities, as before.
 
 **The SDKs have the three calls**, in TypeScript and Swift: `sessionOptions`, `setTitle` (returns the title the harness stored), `deleteSession` (also stops following the session; Swift also takes it out of its list). Swift gains `agents()`, which it lacked.
 

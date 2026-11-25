@@ -1,6 +1,6 @@
 // The list of sessions: grouped by folder, with each session's state, and rename and delete.
 
-import type { Bridge, SessionSummary } from "@harness-bridge/client";
+import type { Archipel, SessionSummary } from "@archipel/client";
 import { useState, type FormEvent } from "react";
 
 /** The list after the daemon said a session appeared or changed: that session first, once. */
@@ -52,7 +52,7 @@ export interface SessionListProps {
    * `client.agents()`: an agent that does not say it can rename or delete gets no such control.
    * An agent says so once it has been started. Without this, every session gets the controls.
    */
-  agents?: Bridge.AgentInfo[];
+  agents?: Archipel.AgentInfo[];
   /** One list under folder headings (the default), or one flat list. */
   groupBy?: "folder" | "none";
   /** There are more sessions (`nextCursor` of `client.sessionsPage`): draws "Show more". */
@@ -83,19 +83,19 @@ export function SessionList({ sessions, selected, onOpen, onRename, onDelete, ag
     />
   );
   return (
-    <div className="hb-sessions">
-      {sessions.length === 0 && <div className="hb-empty">No sessions</div>}
+    <div className="arc-sessions">
+      {sessions.length === 0 && <div className="arc-empty">No sessions</div>}
       {groupBy === "none" ? (
         <ul>{sessions.map(row)}</ul>
       ) : (
         byFolder(sessions).map((folder) => (
           <section key={folder.cwd}>
-            <h3 className="hb-label" title={folder.cwd}>{folderName(folder.cwd)}</h3>
+            <h3 className="arc-label" title={folder.cwd}>{folderName(folder.cwd)}</h3>
             <ul>{folder.sessions.map(row)}</ul>
           </section>
         ))
       )}
-      {onMore && <button type="button" className="hb-more" onClick={() => void onMore()}>Show more</button>}
+      {onMore && <button type="button" className="arc-more" onClick={() => void onMore()}>Show more</button>}
     </div>
   );
 }
@@ -132,9 +132,9 @@ export function SessionRow({ session, selected, now = new Date(), onOpen, onRena
   // What needs the user comes first; a session nobody is running says nothing.
   const state = session.state === "requires_action" ? "needs you" : session.state === "running" ? "running" : "";
   return (
-    <li className={`hb-session${selected ? " hb-selected" : ""}`}>
+    <li className={`arc-session${selected ? " arc-selected" : ""}`}>
       {mode === "renaming" ? (
-        <form className="hb-session-rename" onSubmit={rename}>
+        <form className="arc-session-rename" onSubmit={rename}>
           <input
             autoFocus
             value={draft}
@@ -146,37 +146,37 @@ export function SessionRow({ session, selected, now = new Date(), onOpen, onRena
           <button type="button" onClick={() => setMode("shown")}>Cancel</button>
         </form>
       ) : (
-        <div className="hb-session-line">
-          <button type="button" className="hb-session-open" aria-current={selected ? "true" : undefined} onClick={() => onOpen?.(session.sessionId)}>
-            <span className="hb-session-title">{title}</span>
-            <span className="hb-session-meta">
-              {state && <span className={`hb-badge hb-${state === "running" ? "running" : "failed"}`}>{state}</span>}
-              {session.openElsewhere && <span className="hb-badge hb-running" title="Another window of the agent has this session open. Fork it to continue here.">open elsewhere</span>}
-              {!session.logged && <span className="hb-session-harness" title="Started outside this app. Opening it loads its history from the agent.">from {session.agentId}</span>}
-              <span className="hb-session-agent">{session.logged ? session.agentId : ""}</span>
+        <div className="arc-session-line">
+          <button type="button" className="arc-session-open" aria-current={selected ? "true" : undefined} onClick={() => onOpen?.(session.sessionId)}>
+            <span className="arc-session-title">{title}</span>
+            <span className="arc-session-meta">
+              {state && <span className={`arc-badge arc-${state === "running" ? "running" : "failed"}`}>{state}</span>}
+              {session.openElsewhere && <span className="arc-badge arc-running" title="Another window of the agent has this session open. Fork it to continue here.">open elsewhere</span>}
+              {!session.logged && <span className="arc-session-harness" title="Started outside this app. Opening it loads its history from the agent.">from {session.agentId}</span>}
+              <span className="arc-session-agent">{session.logged ? session.agentId : ""}</span>
               <time dateTime={session.updatedAt ?? undefined}>{ago(session.updatedAt, now)}</time>
             </span>
           </button>
-          <span className="hb-session-actions">
+          <span className="arc-session-actions">
             {onRename && (
-              <button type="button" className="hb-session-action" disabled={mode === "busy"} onClick={() => { setDraft(session.title ?? ""); setMode("renaming"); }}>
+              <button type="button" className="arc-session-action" disabled={mode === "busy"} onClick={() => { setDraft(session.title ?? ""); setMode("renaming"); }}>
                 Rename
               </button>
             )}
             {onDelete && (
-              <button type="button" className="hb-session-action" disabled={mode === "busy"} onClick={() => setMode("deleting")}>Delete</button>
+              <button type="button" className="arc-session-action" disabled={mode === "busy"} onClick={() => setMode("deleting")}>Delete</button>
             )}
           </span>
         </div>
       )}
       {mode === "deleting" && (
-        <div className="hb-session-confirm" role="alertdialog" aria-label={`Delete ${title}`}>
+        <div className="arc-session-confirm" role="alertdialog" aria-label={`Delete ${title}`}>
           <span>Delete “{title}”? It is removed from {session.agentId}’s own history too. This cannot be undone.</span>
-          <button type="button" className="hb-danger" onClick={() => run("Not deleted", () => onDelete?.(session.sessionId))}>Delete</button>
+          <button type="button" className="arc-danger" onClick={() => run("Not deleted", () => onDelete?.(session.sessionId))}>Delete</button>
           <button type="button" onClick={() => setMode("shown")}>Cancel</button>
         </div>
       )}
-      {problem && <div className="hb-problem" role="alert">{problem}</div>}
+      {problem && <div className="arc-problem" role="alert">{problem}</div>}
     </li>
   );
 }

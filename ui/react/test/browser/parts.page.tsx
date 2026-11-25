@@ -2,7 +2,7 @@
 // part asks its app to do is noted in `window.calls`; while `window.refuse` is set the app
 // says no, as a daemon would.
 
-import { Conversation, type Json, type SessionSummary } from "@harness-bridge/client";
+import { Conversation, type Json, type SessionSummary } from "@archipel/client";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import denied from "../../../../testdata/states/claude-v2/approval_denied.json" with { type: "json" };

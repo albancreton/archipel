@@ -1,6 +1,6 @@
 // A chat view assembled from the item components, and the hook that keeps it current.
 
-import { RpcError, type Conversation, type Json, type JsonObject, type Session, type SessionState } from "@harness-bridge/client";
+import { RpcError, type Conversation, type Json, type JsonObject, type Session, type SessionState } from "@archipel/client";
 import { useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
 import { Composer, commandsOf, type Accepts, type Mention } from "./composer.tsx";
 import { RenderText } from "./markdown.tsx";
@@ -90,7 +90,7 @@ export function Timeline({ conversation, state, actions, components, pageSize = 
       case "agentMessage": return <AssistantMessage item={item} />;
       case "agentThought": return <Thought item={item} />;
       case "toolCall": return <ToolCall item={item} terminal={terminal} />;
-      case "terminal": return inline.has(id) ? null : <div className="hb-item"><Terminal item={item} /></div>;
+      case "terminal": return inline.has(id) ? null : <div className="arc-item"><Terminal item={item} /></div>;
       case "plan": return <Plan item={item} />;
       case "sessionMessage": return <SessionMessage item={item} />;
       case "compaction": return <Compaction item={item} />;
@@ -109,15 +109,15 @@ export function Timeline({ conversation, state, actions, components, pageSize = 
   };
 
   return (
-    <div className="hb-timeline">
+    <div className="arc-timeline">
       {first > 0 && (
-        <button type="button" className="hb-earlier" onClick={() => setShown(shown + pageSize)}>
+        <button type="button" className="arc-earlier" onClick={() => setShown(shown + pageSize)}>
           Show earlier ({first} more)
         </button>
       )}
       {state.timeline.slice(first).map((ref) => {
         const drawn = draw(ref.target, ref.id);
-        return drawn && <div key={`${ref.target}:${ref.id}`} className="hb-row">{drawn}</div>;
+        return drawn && <div key={`${ref.target}:${ref.id}`} className="arc-row">{drawn}</div>;
       })}
     </div>
   );
@@ -129,11 +129,11 @@ export function StatusBar({ state }: { state: SessionState }) {
   const info = state.values.get("sessionInfo") as JsonObject | undefined;
   const turnState = typeof turn?.["state"] === "string" ? turn["state"] : "";
   return (
-    <div className="hb-status">
-      <span className="hb-status-title">{typeof info?.["title"] === "string" ? info["title"] : "New session"}</span>
+    <div className="arc-status">
+      <span className="arc-status-title">{typeof info?.["title"] === "string" ? info["title"] : "New session"}</span>
       <Usage state={state} />
       {turnState && (
-        <span className={`hb-badge hb-${turnState === "idle" ? "ok" : "running"}`}>{turnState.replace("_", " ")}</span>
+        <span className={`arc-badge arc-${turnState === "idle" ? "ok" : "running"}`}>{turnState.replace("_", " ")}</span>
       )}
     </div>
   );
@@ -160,12 +160,12 @@ export function OpenElsewhere({ holder, onFork }: { holder: Holder; onFork?: () 
   };
   const who = [holder.pid ? `pid ${holder.pid}` : "", holder.status ?? ""].filter(Boolean).join(", ");
   return (
-    <div className="hb-elsewhere" role="status">
-      <div className="hb-elsewhere-text">
+    <div className="arc-elsewhere" role="status">
+      <div className="arc-elsewhere-text">
         <strong>This session is open in another window of the agent{who && ` (${who})`}.</strong>{" "}
         Messages from here are refused so the two do not overwrite each other. Close it there and send again
         {onFork ? ", or continue here on a copy." : "."}
-        {problem && <div className="hb-problem">Could not fork: {problem}</div>}
+        {problem && <div className="arc-problem">Could not fork: {problem}</div>}
       </div>
       {onFork && (
         <button type="button" disabled={forking} onClick={() => void fork()}>
@@ -199,17 +199,17 @@ export interface ChatViewProps {
 /** A simple chat: status, the items, and a composer. Assemble your own from the parts if it does not fit. */
 export function ChatView({ conversation, sessionId, actions, components, openElsewhere, error, renderText, pageSize, mentions, accepts }: ChatViewProps) {
   const state = sessionId ? conversation.sessions.get(sessionId) : conversation.root()?.[1];
-  if (!state) return <div className="hb-chat hb-empty">No session</div>;
+  if (!state) return <div className="arc-chat arc-empty">No session</div>;
   const turn = state.values.get("state") as JsonObject | undefined;
   const running = turn !== undefined && turn["state"] !== "idle";
   const timeline = <Timeline conversation={conversation} state={state} actions={actions} components={components} pageSize={pageSize} />;
   return (
-    <div className="hb-chat">
+    <div className="arc-chat">
       <StatusBar state={state} />
       {renderText ? <RenderText value={renderText}>{timeline}</RenderText> : timeline}
       <Activity state={state} />
       {openElsewhere && <OpenElsewhere holder={openElsewhere} onFork={actions?.fork} />}
-      {error && <div className="hb-problem hb-session-error" role="alert">{error}</div>}
+      {error && <div className="arc-problem arc-session-error" role="alert">{error}</div>}
       {actions?.setOption && <SettingsBar settings={settingsOf(state.values.get("configOptions"))} onChange={actions.setOption} />}
       {actions?.prompt && (
         <Composer

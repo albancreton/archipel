@@ -22,18 +22,18 @@ OUT=target/addon-coverage
 rm -rf "$OUT" && mkdir -p "$OUT"
 RUSTFLAGS="-C instrument-coverage" LLVM_PROFILE_FILE="$PWD/$OUT/%p-%m.profraw" \
   CARGO_TARGET_DIR=target/coverage-build \
-  cargo test -q -p bridge-addon-api -p bridge-addons -p bridge-server >"$OUT/tests.log" 2>&1 \
+  cargo test -q -p archipel-addon-api -p archipel-addons -p archipel-server >"$OUT/tests.log" 2>&1 \
   || { cat "$OUT/tests.log"; exit 1; }
 "$TOOLS/llvm-profdata" merge -sparse "$OUT"/*.profraw -o "$OUT/all.profdata"
 
 OBJECTS=()
-for file in target/coverage-build/debug/deps/{addons,app_side,daemon,delete,bridge_addons,bridge_addon_api}-*; do
+for file in target/coverage-build/debug/deps/{addons,app_side,daemon,delete,archipel_addons,archipel_addon_api}-*; do
   case "$file" in *.d | *.o | *.rmeta | *.rlib | *.dSYM) ;; *) OBJECTS+=(-object "$file") ;; esac
 done
 SOURCES=(
-  "$PWD/crates/bridge-addon-api/src"
-  "$PWD/crates/bridge-addons/src"
-  "$PWD/crates/bridge-server/src/daemon.rs"
+  "$PWD/crates/archipel-addon-api/src"
+  "$PWD/crates/archipel-addons/src"
+  "$PWD/crates/archipel-server/src/daemon.rs"
 )
 "$TOOLS/llvm-cov" report "${OBJECTS[@]}" -instr-profile="$OUT/all.profdata" -sources "${SOURCES[@]}" 2>/dev/null |
   awk 'NR > 2 && /\.rs|TOTAL/ {printf "%-50s lines %7s   regions %7s\n", $1, $10, $4}'

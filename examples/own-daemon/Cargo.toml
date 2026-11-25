@@ -8,11 +8,11 @@ publish = false
 
 [dependencies]
 # An addon needs only this.
-bridge-addon-api = { path = "../../crates/bridge-addon-api" }
+archipel-addon-api = { path = "../../crates/archipel-addon-api" }
 serde_json = "1.0.154"
 # The program around it.
-bridge-addons = { path = "../../crates/bridge-addons" }
-bridged = { path = "../../crates/bridged" }
+archipel-addons = { path = "../../crates/archipel-addons" }
+archipeld = { path = "../../crates/archipeld" }
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros"] }
 
 [lints]

@@ -13,8 +13,8 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-DAEMON = ROOT / "crates/bridge-server/src/daemon.rs"
-TESTS = "cargo test -q -p bridge-server --test addons --test app_side 2>&1 | tail -40"
+DAEMON = ROOT / "crates/archipel-server/src/daemon.rs"
+TESTS = "cargo test -q -p archipel-server --test addons --test app_side 2>&1 | tail -40"
 
 # (the rule that is broken, the text in the daemon, what it becomes)
 MUTATIONS = [

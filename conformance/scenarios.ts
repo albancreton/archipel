@@ -2,7 +2,7 @@
 // what it saw. The wording of a model's answer varies, so nothing here depends on it beyond a
 // marker word the prompt asks for.
 
-import { base64Text, RpcError, type Json, type JsonObject, type Session } from "@harness-bridge/client";
+import { base64Text, RpcError, type Json, type JsonObject, type Session } from "@archipel/client";
 import { existsSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { count, current, here, RpcFailure, said, settingOf, settings, settingsOf, solidPng, turn, within, type Run } from "./lib.ts";

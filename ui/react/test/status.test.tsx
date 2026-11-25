@@ -1,6 +1,6 @@
 // Agent and connection status, usage, and what goes on in the background.
 
-import { Conversation, type Bridge, type Json } from "@harness-bridge/client";
+import { Conversation, type Archipel, type Json } from "@archipel/client";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -10,7 +10,7 @@ import { Activity, AgentStatus, ChatView, ConnectionStatus, agentProblem, backgr
 
 const states = path.join(import.meta.dirname, "../../../testdata/states");
 const load = (name: string) => Conversation.fromJSON(JSON.parse(readFileSync(path.join(states, `${name}.json`), "utf8")));
-const agent = (readiness: Bridge.AgentReadiness, detail?: string): Bridge.AgentInfo => ({ agentId: "claude", name: "Claude", readiness, detail });
+const agent = (readiness: Archipel.AgentReadiness, detail?: string): Archipel.AgentInfo => ({ agentId: "claude", name: "Claude", readiness, detail });
 
 test("an agent that cannot be used is named with the reason, and one that can is not mentioned", () => {
   assert.equal(agentProblem(agent("ready")), null);
@@ -37,10 +37,10 @@ test("usage shows how full the context is, and the cost when the agent gives one
   assert.equal(usage.cost, "$0.0031");
   assert.ok((usage.turnTokens ?? 0) > 0);
   const html = renderToStaticMarkup(<ChatView conversation={load("claude-v2/simple")} />);
-  assert.match(html, /role="meter" aria-valuenow="3".*?3% of context<span class="hb-cost">\$0\.0031<\/span>/);
+  assert.match(html, /role="meter" aria-valuenow="3".*?3% of context<span class="arc-cost">\$0\.0031<\/span>/);
   const [, pi] = load("pi-v2/simple").root()!;
   assert.equal(usageOf(pi).cost, undefined, "Pi gives no cost");
-  assert.doesNotMatch(renderToStaticMarkup(<ChatView conversation={load("pi-v2/simple")} />), /hb-cost/);
+  assert.doesNotMatch(renderToStaticMarkup(<ChatView conversation={load("pi-v2/simple")} />), /arc-cost/);
   pi.values.set("usage", { used: 9000, size: 10000, cost: { amount: 12.5, currency: "EUR" } });
   assert.deepEqual([usageOf(pi).percent, usageOf(pi).cost], [90, "12.50 EUR"]);
   pi.values.delete("usage");
@@ -68,6 +68,6 @@ test("what runs in the background and the agent's todo list stay in view", () =>
   ]));
   assert.deepEqual(todosOf(state)!.map((todo) => todo.content), ["alpha", "beta", "gamma"], "the newest plan that is a list");
   const html = renderToStaticMarkup(<ChatView conversation={conversation} />);
-  assert.match(html, /Tasks<\/span> 1 of 3 done<span class="hb-todo-now"> · beta<\/span>/);
-  assert.match(html, /Running in the background<\/span><span class="hb-chip" title="command">/);
+  assert.match(html, /Tasks<\/span> 1 of 3 done<span class="arc-todo-now"> · beta<\/span>/);
+  assert.match(html, /Running in the background<\/span><span class="arc-chip" title="command">/);
 });

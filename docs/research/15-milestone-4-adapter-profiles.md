@@ -7,7 +7,7 @@ _2026-11-22. Checked by `cargo test --workspace` (40 tests) and a live run with 
 A profile is whatever it takes for an adapter to look, to the daemon, like an ACP v2 adapter that hosts many sessions.
 
 - **Claude:** almost nothing. Its adapter already is one. The profile sets one environment variable so reasoning is sent.
-- **Pi:** a translator in `crates/bridge-agents/src/pi.rs`. It sits between the daemon and `pi-acp`, changes ACP v1 into v2, and runs one `pi-acp` process per session behind a single connection.
+- **Pi:** a translator in `crates/archipel-agents/src/pi.rs`. It sits between the daemon and `pi-acp`, changes ACP v1 into v2, and runs one `pi-acp` process per session behind a single connection.
 
 The daemon has no Pi-specific code. Everything that differs is at the adapter boundary.
 
@@ -53,10 +53,10 @@ A second test stops an idle session's process and checks that the next prompt st
 
 One daemon with both agents configured.
 
-- `bridge new --agent pi`, then a prompt that reads a file and runs a command. Reasoning, both tool calls and the command's output streamed, ending `idle · end_turn`.
+- `archipel new --agent pi`, then a prompt that reads a file and runs a command. Reasoning, both tool calls and the command's output streamed, ending `idle · end_turn`.
 - After 32 seconds without a turn (`idleSeconds: 20`): no `pi-acp` process left. The session list still showed the session as live.
 - The next prompt ("What did the echo command print?") started a process and Pi answered `hello-from-pi`: the context survived.
-- `bridge sessions` listed 139 sessions: 25 from Pi, 114 from Claude.
+- `archipel sessions` listed 139 sessions: 25 from Pi, 114 from Claude.
 - A Pi session from an earlier probe, never seen by this daemon, was adopted and rendered with its three turns.
 - No process left after stopping the daemon.
 

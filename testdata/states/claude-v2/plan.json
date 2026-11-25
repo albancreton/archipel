@@ -64,11 +64,11 @@
             "toolCallId": "toolu_012o8xPTPP8JbnsqNukz6ykc",
             "name": "Bash",
             "rawInput": {
-              "command": "ls -la /work/probe; ls /work/harness-bridge/spikes/acp-probe",
+              "command": "ls -la /work/probe; ls /work/archipel/spikes/acp-probe",
               "description": "List work directory contents"
             },
             "status": "completed",
-            "title": "ls -la /work/probe; ls /work/harness-bridge/spikes/acp-probe",
+            "title": "ls -la /work/probe; ls /work/archipel/spikes/acp-probe",
             "kind": "execute",
             "content": [
               {
@@ -168,11 +168,11 @@
             "toolCallId": "toolu_01H3EppjDFgdERRzo1mqgAKb",
             "name": "Bash",
             "rawInput": {
-              "command": "cat /work/probe/NOTES.md; git -C /work/harness-bridge status --short -- spikes/acp-probe/work",
+              "command": "cat /work/probe/NOTES.md; git -C /work/archipel status --short -- spikes/acp-probe/work",
               "description": "Show NOTES.md and its git status"
             },
             "status": "completed",
-            "title": "cat /work/probe/NOTES.md; git -C /work/harness-bridge status --short -- spikes/acp-probe/work",
+            "title": "cat /work/probe/NOTES.md; git -C /work/archipel status --short -- spikes/acp-probe/work",
             "kind": "execute",
             "content": [
               {
@@ -185,7 +185,7 @@
         "terminal": {
           "toolu_012o8xPTPP8JbnsqNukz6ykc": {
             "terminalId": "toolu_012o8xPTPP8JbnsqNukz6ykc",
-            "command": "ls -la /work/probe; ls /work/harness-bridge/spikes/acp-probe",
+            "command": "ls -la /work/probe; ls /work/archipel/spikes/acp-probe",
             "output": {
               "data": "dG90YWwgNDANCmRyd3hyLXhyLXhAICA3IGRldiAgc3RhZmYgIDIyNCBOb3YgMjIgMTg6NTAgLg0KZHJ3eHIteHIteEAgMTMgZGV2ICBzdGFmZiAgNDE2IE5vdiAyMiAxODo1MCAuLg0KLXJ3LXItLXItLUAgIDEgZGV2ICBzdGFmZiAgIDM5IE5vdiAyMiAxODo1MSBwYWNrYWdlLmpzb24NCi1ydy1yLS1yLS1AICAxIGRldiAgc3RhZmYgICAgNiBOb3YgMjIgMTg6MDMgcGVybS13YWl0LnR4dA0KLXJ3LXItLXItLUAgIDEgZGV2ICBzdGFmZiAgIDE2IE5vdiAyMiAxODo1MCBwcm9iZS13cml0ZS50eHQNCi1ydy1yLS1yLS1AICAxIGRldiAgc3RhZmYgICAzNiBOb3YgMjIgMTc6NTcgdHNjb25maWcuanNvbg0KLXJ3LXItLXItLUAgIDEgZGV2ICBzdGFmZiAgICAyIE5vdiAyMiAxODowMyB2Mi1wcm9iZS50eHQNCmNsaWVudC5tanMNCmxvZ3MNCm0wLm1qcw0KbTBwaS5zaA0Kbm9kZV9tb2R1bGVzDQpwYWNrYWdlLWxvY2suanNvbg0KcGFja2FnZS5qc29uDQpydW5waS5zaA0Kc2NlbmFyaW9zLmpzb24NCnYycmVjLm1qcw0Kd29yaw=="
             },
@@ -195,7 +195,7 @@
           },
           "toolu_01H3EppjDFgdERRzo1mqgAKb": {
             "terminalId": "toolu_01H3EppjDFgdERRzo1mqgAKb",
-            "command": "cat /work/probe/NOTES.md; git -C /work/harness-bridge status --short -- spikes/acp-probe/work",
+            "command": "cat /work/probe/NOTES.md; git -C /work/archipel status --short -- spikes/acp-probe/work",
             "output": {
               "data": "U2NyYXRjaCB3b3JraW5nIGRpcmVjdG9yeSBmb3IgQUNQIHByb2JlIGV4cGVyaW1lbnRzIChwZXJtaXNzaW9uIGFuZCB3cml0ZSBwcm9iZXMpLg=="
             },
@@ -1040,17 +1040,17 @@
           "method": "session/request_permission",
           "params": {
             "sessionId": "d3ba26c6-56d0-451a-9d63-73e765577a8c",
-            "title": "cat /work/probe/NOTES.md; git -C /work/harness-bridge status --short -- spikes/acp-probe/work",
+            "title": "cat /work/probe/NOTES.md; git -C /work/archipel status --short -- spikes/acp-probe/work",
             "subject": {
               "type": "tool_call",
               "toolCall": {
                 "toolCallId": "toolu_01H3EppjDFgdERRzo1mqgAKb",
                 "name": "Bash",
                 "rawInput": {
-                  "command": "cat /work/probe/NOTES.md; git -C /work/harness-bridge status --short -- spikes/acp-probe/work",
+                  "command": "cat /work/probe/NOTES.md; git -C /work/archipel status --short -- spikes/acp-probe/work",
                   "description": "Show NOTES.md and its git status"
                 },
-                "title": "cat /work/probe/NOTES.md; git -C /work/harness-bridge status --short -- spikes/acp-probe/work",
+                "title": "cat /work/probe/NOTES.md; git -C /work/archipel status --short -- spikes/acp-probe/work",
                 "kind": "execute",
                 "content": [
                   {

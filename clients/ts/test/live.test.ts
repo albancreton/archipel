@@ -1,5 +1,5 @@
 // Runs the client against the real daemon program, with a fake agent that replays a recording.
-// Needs `cargo build` first: it starts `target/debug/bridged`.
+// Needs `cargo build` first: it starts `target/debug/archipeld`.
 
 import assert from "node:assert/strict";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
@@ -7,15 +7,15 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { BridgeClient, commandTransport, pair, RpcError, unixSocketTransport, webSocketTransport, type SessionSummary } from "../src/index.ts";
+import { ArchipelClient, commandTransport, pair, RpcError, unixSocketTransport, webSocketTransport, type SessionSummary } from "../src/index.ts";
 
 const root = path.join(import.meta.dirname, "../../..");
-const bridged = path.join(root, "target/debug/bridged");
+const archipeld = path.join(root, "target/debug/archipeld");
 
 /** Starts a daemon in a fresh directory and resolves with its WebSocket address. */
 async function daemon(home: string, scenario: string): Promise<{ process: ChildProcess; ws: string }> {
   const recording = path.join(root, `testdata/transcripts/${scenario}.ndjson`);
-  const child = spawn(bridged, ["--home", home, "--ws", "127.0.0.1:0", "--fake", recording, "--fake-speed", "0"], {
+  const child = spawn(archipeld, ["--home", home, "--ws", "127.0.0.1:0", "--fake", recording, "--fake-speed", "0"], {
     stdio: ["ignore", "ignore", "pipe"],
   });
   let log = "";
@@ -25,24 +25,24 @@ async function daemon(home: string, scenario: string): Promise<{ process: ChildP
       const ws = /listening on (ws:\/\/\S+) \(token/.exec(log);
       if (ws) resolve({ process: child, ws: ws[1]! });
     });
-    child.once("exit", (code) => reject(new Error(`bridged exited with ${code}: ${log}`)));
+    child.once("exit", (code) => reject(new Error(`archipeld exited with ${code}: ${log}`)));
   });
 }
 
 const plain = (value: unknown): unknown => JSON.parse(JSON.stringify(value));
 
-test("a session driven through the real daemon ends in the reference state", { skip: !existsSync(bridged) }, async () => {
-  const home = mkdtempSync(path.join(os.tmpdir(), "bridge-ts-"));
+test("a session driven through the real daemon ends in the reference state", { skip: !existsSync(archipeld) }, async () => {
+  const home = mkdtempSync(path.join(os.tmpdir(), "archipel-ts-"));
   const { process: child, ws } = await daemon(home, "claude-v2/approval_denied");
   try {
     const updates: SessionSummary[] = [];
-    const app = await BridgeClient.connect({
+    const app = await ArchipelClient.connect({
       open: () => unixSocketTransport(path.join(home, "daemon.sock")),
       name: "ts-test",
       onSessionUpdated: (session) => updates.push(session),
       retryMs: 0,
     });
-    assert.equal((app.welcome as { _meta: { bridge: { scope: string } } })._meta.bridge.scope, "admin");
+    assert.equal((app.welcome as { _meta: { archipel: { scope: string } } })._meta.archipel.scope, "admin");
 
     // The steps of the recording: new session, default mode, a prompt, then "No" to the approval.
     const session = await app.newSession({ cwd: "/work/probe" });
@@ -62,7 +62,7 @@ test("a session driven through the real daemon ends in the reference state", { s
 
     // A second app, over the WebSocket, gets the same from the log.
     const token = readFileSync(path.join(home, "ws-token"), "utf8").trim();
-    const other = await BridgeClient.connect({ open: () => webSocketTransport(ws, { token }), name: "ts-test-2", retryMs: 0 });
+    const other = await ArchipelClient.connect({ open: () => webSocketTransport(ws, { token }), name: "ts-test-2", retryMs: 0 });
     const listed = await other.listSessions({ loggedOnly: true });
     assert.equal(listed.length, 1);
     assert.equal(listed[0]!.sessionId, session.id);
@@ -71,10 +71,10 @@ test("a session driven through the real daemon ends in the reference state", { s
     assert.equal(replayed.seq, session.seq);
 
     // A third app pairs with a one-time code, gets a token of its own, and may only observe.
-    const code = execFileSync(bridged, ["--home", home, "pair", "--scope", "observe", "--name", "tablet"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    const code = execFileSync(archipeld, ["--home", home, "pair", "--scope", "observe", "--name", "tablet"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
     const paired = await pair(ws, code);
     assert.deepStrictEqual([paired.scope, paired.name], ["observe", "tablet"]);
-    const tablet = await BridgeClient.connect({ open: () => webSocketTransport(ws, { token: paired.token }), name: "tablet", retryMs: 0 });
+    const tablet = await ArchipelClient.connect({ open: () => webSocketTransport(ws, { token: paired.token }), name: "tablet", retryMs: 0 });
     const watched = await tablet.session(session.id);
     assert.deepStrictEqual(plain(watched), expected);
     await assert.rejects(watched.prompt("may I?"), RpcError);
@@ -82,9 +82,9 @@ test("a session driven through the real daemon ends in the reference state", { s
     tablet.close();
 
     // The same session through a command that carries the connection, as SSH would.
-    const bridge = path.join(root, "target/debug/bridge");
-    const carried = await BridgeClient.connect({
-      open: () => commandTransport(bridge, ["--home", home, "connect", "--stdio"]),
+    const archipel = path.join(root, "target/debug/archipel");
+    const carried = await ArchipelClient.connect({
+      open: () => commandTransport(archipel, ["--home", home, "connect", "--stdio"]),
       name: "ts-test-3",
       retryMs: 0,
     });
@@ -92,7 +92,7 @@ test("a session driven through the real daemon ends in the reference state", { s
     carried.close();
 
     // A wrong token is refused, and so is an unknown session.
-    await assert.rejects(BridgeClient.connect({ open: () => webSocketTransport(ws, { token: "wrong" }), name: "x", retryMs: 0 }));
+    await assert.rejects(ArchipelClient.connect({ open: () => webSocketTransport(ws, { token: "wrong" }), name: "x", retryMs: 0 }));
     await assert.rejects(other.session("no-such-session"), RpcError);
     app.close();
     other.close();
@@ -103,12 +103,12 @@ test("a session driven through the real daemon ends in the reference state", { s
   }
 });
 
-test("a client that loses the daemon reconnects and continues from where it was", { skip: !existsSync(bridged) }, async () => {
-  const home = mkdtempSync(path.join(os.tmpdir(), "bridge-ts-"));
+test("a client that loses the daemon reconnects and continues from where it was", { skip: !existsSync(archipeld) }, async () => {
+  const home = mkdtempSync(path.join(os.tmpdir(), "archipel-ts-"));
   let running = await daemon(home, "claude-v2/simple");
   try {
     const connection: boolean[] = [];
-    const app = await BridgeClient.connect({
+    const app = await ArchipelClient.connect({
       open: () => unixSocketTransport(path.join(home, "daemon.sock")),
       name: "ts-test",
       onConnection: (connected) => connection.push(connected),

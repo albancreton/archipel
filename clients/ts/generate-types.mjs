@@ -1,4 +1,4 @@
-// Writes src/generated/bridge.ts from schema/bridge.schema.json. Run by `just gen`.
+// Writes src/generated/archipel.ts from schema/archipel.schema.json. Run by `just gen`.
 //
 // Only the daemon's own additions are generated. The generator cannot read the ACP v2 schema
 // (it trips over that schema's extension keywords), and the reducer does not need ACP types:
@@ -7,10 +7,10 @@ import { compileFromFile } from "json-schema-to-typescript";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 
-const types = await compileFromFile(path.join(import.meta.dirname, "../../schema/bridge.schema.json"), {
+const types = await compileFromFile(path.join(import.meta.dirname, "../../schema/archipel.schema.json"), {
   bannerComment: "",
   additionalProperties: false,
   unreachableDefinitions: true,
 });
-const banner = "// Generated from schema/bridge.schema.json by `just gen`. Do not edit.\n\n";
-writeFileSync(path.join(import.meta.dirname, "src/generated/bridge.ts"), banner + types);
+const banner = "// Generated from schema/archipel.schema.json by `just gen`. Do not edit.\n\n";
+writeFileSync(path.join(import.meta.dirname, "src/generated/archipel.ts"), banner + types);

@@ -14,7 +14,7 @@ The rule the tests hold the daemon to: **whatever fails, an app that asked somet
 
 ## What was added
 
-`crates/bridge-server/tests/faults.rs`, with adapters scripted by the test:
+`crates/archipel-server/tests/faults.rs`, with adapters scripted by the test:
 
 | Test | What fails | What must hold |
 |---|---|---|
@@ -24,7 +24,7 @@ The rule the tests hold the daemon to: **whatever fails, an app that asked somet
 | An app stops reading | More updates than its queue holds (4096) | It is disconnected, an app that does read gets everything, and the slow one gets exactly the rest in order when it returns |
 | The store fails | Every write fails for a while | Requests are still passed on and answered, what could not be stored is not shown to any app, and numbering continues without a gap when the store works again |
 
-`crates/bridged/tests/killed.rs`, with the real program:
+`crates/archipeld/tests/killed.rs`, with the real program:
 
 | Test | What fails | What must hold |
 |---|---|---|

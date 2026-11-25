@@ -20,7 +20,7 @@ Decisions:
 - **No code highlighting.** A highlighter is a large dependency with its own choices; an app adds one through the swap point.
 - The parse is redone when a message's text changes, so once per chunk for the message that is streaming, not for the others.
 
-Checked with a real Haiku answer in a browser (heading, inline styles, a link, nested and numbered lists, a table, a quote, a code block, literal `<b>`): all drawn right. The SwiftUI view is checked by its block outline and a picture (`.build/bridge-ui-renders/markdown.png`).
+Checked with a real Haiku answer in a browser (heading, inline styles, a link, nested and numbered lists, a table, a quote, a code block, literal `<b>`): all drawn right. The SwiftUI view is checked by its block outline and a picture (`.build/archipel-ui-renders/markdown.png`).
 
 Left out: footnotes, definition lists, nested block quotes inside lists in SwiftUI (they come out flat), task-list boxes in SwiftUI.
 

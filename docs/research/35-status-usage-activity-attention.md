@@ -17,7 +17,7 @@ The daemon's report was too coarse to draw: an agent it had never started was `r
 
 This is a change to the daemon's core, and it is ours to make: it is our report, not a harness fault. `AgentStatus` draws a line per agent that cannot be used and nothing otherwise. Seen in a browser with a deliberately missing adapter.
 
-Not covered: Claude Code itself missing while its adapter is installed (the adapter starts, then fails later), and a wrong Node version. Both arrive as `error` with whatever the adapter printed. `bridged setup` (B1 of the plan) is where those would be detected properly.
+Not covered: Claude Code itself missing while its adapter is installed (the adapter starts, then fails later), and a wrong Node version. Both arrive as `error` with whatever the adapter printed. `archipeld setup` (B1 of the plan) is where those would be detected properly.
 
 ## Connection status (A10)
 

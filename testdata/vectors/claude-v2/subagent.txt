@@ -3,13 +3,13 @@
 
 [user] Spawn one subagent whose only task is to read package.json and reply with its name field. Do not run it in the background: wait for its result, then reply with exactly what it said.
 [subagent idle] Read package.json name field
-    [message 5f1c5e -> 737675] Read the package.json file in the current working directory (/work/probe) and reply with only the value of its "name" field, exactly as it appears in the file… (+25 chars)
+    [message 5f1c5e -> 737675] Read the package.json file in the current working directory (/work/probe) and reply with only the value of its "name" field, exactly as it appears in the file. Do not modify anything.
     [tool read completed] Read package.json
         = ```⏎1	{"name":"acp-probe","version":"1.0.0"}⏎2	⏎```
     [thought] I'm checking the name value, which the user wants and nothing more. The result reads "acp-probe", so I'll reply with just that.⏎⏎
     [assistant] acp-probe
     -- state: idle end_turn background=0
-[message 5f1c5e -> 737675] Read the package.json file in the current working directory (/work/probe) and reply with only the value of its "name" field, exactly as it appears in the file… (+25 chars)
+[message 5f1c5e -> 737675] Read the package.json file in the current working directory (/work/probe) and reply with only the value of its "name" field, exactly as it appears in the file. Do not modify anything.
 [message 737675 -> 5f1c5e] <tools-used-before-summary>Read</tools-used-before-summary>⏎acp-probe
 [thought] I'm checking the subagent's report, which is just "acp-probe", so I'll reply with exactly that.⏎⏎
 [assistant] acp-probe

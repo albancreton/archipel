@@ -3,20 +3,20 @@
 
 [user] Spawn two subagents in parallel: one reads package.json and replies with its name field, the other reads tsconfig.json and replies whether strict is true. Wait for both, then reply with one line per s… (+8 chars)
 [subagent idle] Read package.json name field
-    [message 153e8e -> 072c29] Read the file package.json in the current working directory (/work/probe). Reply with only the value of its "name" field, nothing else. If the file does not e… (+80 chars)
+    [message 153e8e -> 072c29] Read the file package.json in the current working directory (/work/probe). Reply with only the value of its "name" field, nothing else. If the file does not exist or has no name field, reply with exac… (+38 chars)
     [tool read completed] Read package.json
         = ```⏎1	{"name":"acp-probe","version":"1.0.0"}⏎2	⏎```
     [thought] I've got the file read back, and the name field is "acp-probe". The user only wants that value, so I'll reply with just that.⏎⏎
     [assistant] acp-probe
     -- state: idle end_turn background=0
-[message 153e8e -> 072c29] Read the file package.json in the current working directory (/work/probe). Reply with only the value of its "name" field, nothing else. If the file does not e… (+80 chars)
+[message 153e8e -> 072c29] Read the file package.json in the current working directory (/work/probe). Reply with only the value of its "name" field, nothing else. If the file does not exist or has no name field, reply with exac… (+38 chars)
 [subagent idle] Check tsconfig strict flag
-    [message 153e8e -> 35bc70] Read the file tsconfig.json in the current working directory (/work/probe). Reply with one line stating whether compilerOptions.strict is true (e.g. "strict: … (+128 chars)
+    [message 153e8e -> 35bc70] Read the file tsconfig.json in the current working directory (/work/probe). Reply with one line stating whether compilerOptions.strict is true (e.g. "strict: true", "strict: false", or "strict: not se… (+86 chars)
     [tool read completed] Read tsconfig.json
         = ```⏎1	{"compilerOptions":{"strict":true}}⏎2	⏎```
     [assistant] strict: true
     -- state: idle end_turn background=0
-[message 153e8e -> 35bc70] Read the file tsconfig.json in the current working directory (/work/probe). Reply with one line stating whether compilerOptions.strict is true (e.g. "strict: … (+128 chars)
+[message 153e8e -> 35bc70] Read the file tsconfig.json in the current working directory (/work/probe). Reply with one line stating whether compilerOptions.strict is true (e.g. "strict: true", "strict: false", or "strict: not se… (+86 chars)
 [message 35bc70 -> 153e8e] <tools-used-before-summary>Read</tools-used-before-summary>⏎strict: true
 [message 072c29 -> 153e8e] <tools-used-before-summary>Read</tools-used-before-summary>⏎acp-probe
 [thought] Both subagents have reported back, and the first one gave "acp-probe" as its name. I need to send one line back for each subagent, so I'll keep that in mind. The first result had some stray text aroun… (+37 chars)

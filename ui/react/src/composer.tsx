@@ -1,6 +1,6 @@
 // Where the user types: text, attachments, the agent's commands after `/`, and files after `@`.
 
-import { RpcError, type Json, type JsonObject } from "@harness-bridge/client";
+import { RpcError, type Json, type JsonObject } from "@archipel/client";
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from "react";
 
 /** A slash command the agent offers (`state.values.get("availableCommands")`). */
@@ -243,20 +243,20 @@ export function Composer({ running, onSend, onCancel, commands = [], mentions, a
   };
 
   return (
-    <form className="hb-composer" onSubmit={(event) => { event.preventDefault(); send(); }} onDrop={onDrop} onDragOver={(event) => canAttach && event.preventDefault()}>
+    <form className="arc-composer" onSubmit={(event) => { event.preventDefault(); send(); }} onDrop={onDrop} onDragOver={(event) => canAttach && event.preventDefault()}>
       {menu.length > 0 && (
-        <ul className="hb-menu" role="listbox" aria-label={command !== null ? "Commands" : "Mentions"}>
+        <ul className="arc-menu" role="listbox" aria-label={command !== null ? "Commands" : "Mentions"}>
           {menu.map((entry, index) => (
-            <li key={entry.key} role="option" aria-selected={index === at} className={index === at ? "hb-chosen" : undefined}
+            <li key={entry.key} role="option" aria-selected={index === at} className={index === at ? "arc-chosen" : undefined}
               onMouseDown={(event) => { event.preventDefault(); entry.pick(); }}>
-              <span className="hb-menu-label">{entry.label}</span>
-              {entry.detail && <span className="hb-menu-detail">{entry.detail}</span>}
+              <span className="arc-menu-label">{entry.label}</span>
+              {entry.detail && <span className="arc-menu-detail">{entry.detail}</span>}
             </li>
           ))}
         </ul>
       )}
       {attached.length > 0 && (
-        <ul className="hb-attachments">
+        <ul className="arc-attachments">
           {attached.map((file, index) => (
             <li key={index}>
               {file.mimeType.startsWith("image/") && <img src={`data:${file.mimeType};base64,${file.data}`} alt="" />}
@@ -279,12 +279,12 @@ export function Composer({ running, onSend, onCancel, commands = [], mentions, a
         <>
           <input ref={picker} type="file" multiple hidden accept={accepts.files ? undefined : "image/*"}
             onChange={(event) => { void attach(event.target.files ?? []); event.target.value = ""; }} />
-          <button type="button" className="hb-attach" onClick={() => picker.current?.click()}>Attach</button>
+          <button type="button" className="arc-attach" onClick={() => picker.current?.click()}>Attach</button>
         </>
       )}
       <button type="submit">Send</button>
       {running && <button type="button" onClick={() => onCancel?.()}>Stop</button>}
-      {problem && <div className="hb-problem" role="alert">{problem}</div>}
+      {problem && <div className="arc-problem" role="alert">{problem}</div>}
     </form>
   );
 }

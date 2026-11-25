@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BridgeClient, RpcError, type Json, type JsonObject, type Transport } from "../src/index.ts";
+import { ArchipelClient, RpcError, type Json, type JsonObject, type Transport } from "../src/index.ts";
 
 /** A daemon with one session, `s1`, that `holder` has open while it is set. */
 function standIn(daemon: { holder: JsonObject | null }): Transport {
@@ -17,7 +17,7 @@ function standIn(daemon: { holder: JsonObject | null }): Transport {
       const sessionId = params["sessionId"] as string;
       const say = (frame: JsonObject) => queueMicrotask(() => transport.onMessage?.({ jsonrpc: "2.0", ...frame }));
       const held = sessionId === "s1" ? daemon.holder : null;
-      if (method === "_bridge/session/attach") {
+      if (method === "_archipel/session/attach") {
         say({ id, result: { catchUp: "replay", headSeq: 0, ...(held ? { openElsewhere: held } : {}) } });
         const update: Json = { sessionUpdate: "replay_complete" };
         say({ method: "session/update", params: { sessionId, update } });
@@ -35,7 +35,7 @@ function standIn(daemon: { holder: JsonObject | null }): Transport {
 
 test("a session says who else has it open, and its fork is free to use", async () => {
   const daemon = { holder: { sessionId: "s1", pid: 4242, status: "busy" } as JsonObject | null };
-  const app = await BridgeClient.connect({ open: async () => standIn(daemon), name: "test", retryMs: 0 });
+  const app = await ArchipelClient.connect({ open: async () => standIn(daemon), name: "test", retryMs: 0 });
   const session = await app.session("s1");
   assert.equal(session.openElsewhere?.pid, 4242, "known from the attach");
 

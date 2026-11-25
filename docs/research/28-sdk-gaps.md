@@ -4,13 +4,13 @@
 
 ## A session deleted by someone else
 
-The daemon has told every app about a deleted session since 2026-11-23 (`_bridge/sessions/removed`). Neither SDK did anything with it: the session stayed in Swift's list, and a `Session` object an app held went on looking alive.
+The daemon has told every app about a deleted session since 2026-11-23 (`_archipel/sessions/removed`). Neither SDK did anything with it: the session stayed in Swift's list, and a `Session` object an app held went on looking alive.
 
 Looking at it turned up a real fault next to the gap. **A session deleted while the connection was down stopped the client from ever coming back.** After a disconnect both SDKs attach again to every session they follow. The daemon refuses one it no longer knows, the SDKs treated any refusal as "not back yet", and tried again for ever. In Swift each try also opened a new connection.
 
 What the SDKs do now, the same in TypeScript and Swift:
 
-- On `_bridge/sessions/removed`: the session gets `removed = true`, its listeners are called once, it is no longer followed, and the app is told (`onSessionRemoved` in TypeScript; in Swift the session also leaves the observable `sessions` list).
+- On `_archipel/sessions/removed`: the session gets `removed = true`, its listeners are called once, it is no longer followed, and the app is told (`onSessionRemoved` in TypeScript; in Swift the session also leaves the observable `sessions` list).
 - A wait with `until` ends. Nothing will change after a delete, so a wait would never return. The caller checks `removed`. It ends rather than fails so that Swift's `until`, which cannot throw, and TypeScript's behave the same.
 - What the session held stays readable. Acting on it fails at the daemon ("unknown session").
 - On reconnect, a session the daemon refuses as unknown (code -32602) is treated as removed, and the others are attached as before.
@@ -35,4 +35,4 @@ Two things differ from Node:
 - Swift, `SessionsTests.swift`: the same two.
 - Swift, `examples/swift/Tests`: a daemon is started with the fake agent and answers an app; a second call finds it and starts nothing; a start that fails says why, with the program's last words.
 
-Not checked against the real daemon end to end: the SDK tests use a stand-in. The daemon's side (it sends the notification, it refuses an unknown session with -32602) is in `crates/bridge-server/tests/delete.rs`.
+Not checked against the real daemon end to end: the SDK tests use a stand-in. The daemon's side (it sends the notification, it refuses an unknown session with -32602) is in `crates/archipel-server/tests/delete.rs`.

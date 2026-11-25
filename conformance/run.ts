@@ -6,7 +6,7 @@
 // --update  write what was seen as the new baseline (review the diff before committing)
 // --config=FILE  another config than config.json: the watch script runs a new adapter this way
 
-import type { Json, JsonObject } from "@harness-bridge/client";
+import type { Json, JsonObject } from "@archipel/client";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Adapter, Daemon, here, readJson, Run, within, type AgentConfig, type Outcome } from "./lib.ts";

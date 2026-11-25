@@ -1,6 +1,6 @@
 # Daemon design
 
-Draft 12, 2026-11-22: based on ACP v2; all seven milestones done (`docs/research/11` to `18`). What is still open is collected in `docs/research/19`. The daemon runs Claude and Pi side by side. "bridge" stands for the project's temporary name. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
+Draft 12, 2026-11-22: based on ACP v2; all seven milestones done (`docs/research/11` to `18`). What is still open is collected in `docs/research/19`. The daemon runs Claude and Pi side by side. The project was called archipel until 2026-11-24. It rests on the live runs in `docs/research/09`, `10` and `11`. Items marked **to verify** have not been tested.
 
 ## 1. What the daemon is for
 
@@ -26,7 +26,7 @@ Principles:
 
 ```
  Swift app ─┐                                   ┌─ claude-agent-acp ── claude
- RN app    ─┼─ bridge protocol ──  DAEMON  ── ACP v2 or v1 (stdio) ─┼─ pi-acp ─────────── pi
+ RN app    ─┼─ archipel protocol ─ DAEMON  ── ACP v2 or v1 (stdio) ─┼─ pi-acp ─────────── pi
  Electron  ─┘  (ACP v2 + extensions)    │           └─ any other ACP agent
                                      └─ event log (one file)
 ```
@@ -80,16 +80,16 @@ ACP reserves `_`-prefixed methods and `_meta` for this.
 
 | Addition | Purpose |
 |---|---|
-| `_bridge/agents/list` | Which agents the daemon can start, with version and readiness: `not_started` (nothing known yet), `starting`, `ready`, `needs_login`, `not_installed` (its program was not found), `error`. The list never starts an agent; the first request that needs one does |
-| `_bridge/sessions/list` | Sessions across all agents: the daemon's own, and those each harness reports (`logged: false`). Opening one of the latter adopts it (section 4). With `limit` it answers in pages, newest first: `nextCursor` of one answer is the `cursor` of the next request. Each page still asks every harness for its whole list, so pages make answers smaller, not cheaper |
-| `_bridge/sessions/updated` (notification) | A session appeared, or its title, turn state or liveness changed. Sent to every connected app |
-| `_bridge/session/attach {sessionId, afterSeq?}` | Subscribe to a session another app may already be using. The response says whether a delta or a full replay follows, and `openElsewhere` when another process of the harness has the session open |
-| `_bridge/session/detach` | Unsubscribe without closing the session |
-| `_meta.bridge.seq` on every logged message | Position in the session log, for catching up |
-| `_meta.bridge.rootSessionId` | On a subagent's messages: the session whose log (and sequence numbers) they belong to |
-| `_bridge/request/resolved` (notification) | A pending approval or question was answered, and by whom. In a replay it also carries the question |
-| `_meta.bridge.agentId` on `session/new` | Which agent to create the session with |
-| `_meta.bridge.origin = "daemon"` in an update | The daemon wrote this update itself (section 4) |
+| `_archipel/agents/list` | Which agents the daemon can start, with version and readiness: `not_started` (nothing known yet), `starting`, `ready`, `needs_login`, `not_installed` (its program was not found), `error`. The list never starts an agent; the first request that needs one does |
+| `_archipel/sessions/list` | Sessions across all agents: the daemon's own, and those each harness reports (`logged: false`). Opening one of the latter adopts it (section 4). With `limit` it answers in pages, newest first: `nextCursor` of one answer is the `cursor` of the next request. Each page still asks every harness for its whole list, so pages make answers smaller, not cheaper |
+| `_archipel/sessions/updated` (notification) | A session appeared, or its title, turn state or liveness changed. Sent to every connected app |
+| `_archipel/session/attach {sessionId, afterSeq?}` | Subscribe to a session another app may already be using. The response says whether a delta or a full replay follows, and `openElsewhere` when another process of the harness has the session open |
+| `_archipel/session/detach` | Unsubscribe without closing the session |
+| `_meta.archipel.seq` on every logged message | Position in the session log, for catching up |
+| `_meta.archipel.rootSessionId` | On a subagent's messages: the session whose log (and sequence numbers) they belong to |
+| `_archipel/request/resolved` (notification) | A pending approval or question was answered, and by whom. In a replay it also carries the question |
+| `_meta.archipel.agentId` on `session/new` | Which agent to create the session with |
+| `_meta.archipel.origin = "daemon"` in an update | The daemon wrote this update itself (section 4) |
 
 Extensions by other products use their own namespace (section 11).
 
@@ -104,11 +104,11 @@ Every canonical (v2) update, every request from the agent and every answer gets 
 - **Three kinds of entry:** update, request, answer. Requests have to be there because the state rules let a permission request create its tool call; a replay without them could show different items.
 - **Attach with `afterSeq`:** the daemon sends the entries after it, then live ones.
 - **Attach without it, or with a position beyond the log's end:** the daemon replays the session from its log in v2's own replay form, ending with `replay_complete`. There is no separate snapshot format: a snapshot is a condensed replay.
-- **Requests in a replay:** one that can still be answered is sent as a real request. One that was answered cannot be asked again; it is sent as a single `_bridge/request/resolved` with the question and the answer, at the request's place.
+- **Requests in a replay:** one that can still be answered is sent as a real request. One that was answered cannot be asked again; it is sent as a single `_archipel/request/resolved` with the question and the answer, at the request's place.
 - **Setup values:** `configOptions` and `availableCommands` arrive in the response to `session/new`, not as updates. The daemon writes them into the log as updates marked `origin = "daemon"`, so the log alone rebuilds a session.
 - **Condensing:** chunk runs for the same id are merged when replaying, so a replay grows with content, not with token count. Stored entries are not merged yet (to do with retention).
 - **Storage:** one SQLite file, one row per entry, keyed by session and sequence. Write-ahead log with `synchronous = NORMAL`.
-- **When the log cannot be written** (a full disk): a `session/prompt` is refused with error `-32005` and does not reach the agent, since the daemon tries a write first. Updates that arrive meanwhile are dropped and sent to no app, so no app ever holds more than the log; the attached apps get one `_bridge/session/error` with the same code when the first write fails. Nothing else is stopped: the turn goes on in the harness, and numbering continues without a gap when writes work again.
+- **When the log cannot be written** (a full disk): a `session/prompt` is refused with error `-32005` and does not reach the agent, since the daemon tries a write first. Updates that arrive meanwhile are dropped and sent to no app, so no app ever holds more than the log; the attached apps get one `_archipel/session/error` with the same code when the first write fails. Nothing else is stopped: the turn goes on in the harness, and numbering continues without a gap when writes work again.
 - **The log is a cache.** The harness owns the transcript of record. A lost log is rebuilt from the adapter: Claude replays everything including subagent child sessions; Pi replays messages and tools but not reasoning (tested).
 - **Adoption:** a session the daemon has never seen (started in the harness's own UI) is listed with `logged: false`. The first app that opens it makes the daemon call `session/resume` with a replay; the replayed updates become its log. A harness replay has no approvals or questions, so an adopted session shows less than one watched live (`docs/research/14`).
 - **Retention:** by age (`retentionDays`); pruned sessions stay listed because the harness still has them, and are adopted again when opened. By size: not implemented.
@@ -119,7 +119,7 @@ SQLite revises the earlier "no database" note. That note was about not owning a 
 
 The ACP v2 schema says, for each message, how it changes client state (`x-state` annotations). For example: `agent_message_chunk` appends `content` to the `agentMessage` with id `messageId`; `tool_call_update` upserts the `toolCall` with id `toolCallId`; `state_update` replaces `state`.
 
-`just gen` extracts these into `schema/state-rules.json`, and the reducer in `bridge-core` interprets them. There is no per-message code:
+`just gen` extracts these into `schema/state-rules.json`, and the reducer in `archipel-core` interprets them. There is no per-message code:
 
 - Four actions: append, upsert, replace, remove.
 - A target is a collection keyed by an id (messages, thoughts, tool calls, terminals, plans, subagents, compactions) or a single value (state, usage, config options, session info).
@@ -155,13 +155,13 @@ Driven over v2, so little translation is needed.
 
 - Set `CLAUDE_CODE_THINKING_DISPLAY=summarized`; without it no reasoning is sent (tested).
 - One adapter process hosts many sessions (tested).
-- Strip account details from `auth/status_update` before logging; expose readiness through `_bridge/agents/list`.
+- Strip account details from `auth/status_update` before logging; expose readiness through `_archipel/agents/list`.
 - The session starts in the user's own permission mode (`auto` on the test machine). Report it; the app chooses.
 - Todo lists: the adapter maps them to plan entries, but this could not be tested because the installed Claude Code has no todo tool.
 
 ### Pi (`pi-acp`, v1)
 
-Translated up to v2 by a translator that sits between the daemon and `pi-acp` (`crates/bridge-agents/src/pi.rs`). It also runs one `pi-acp` per session behind one connection (section 8). Tested on twelve recordings and live.
+Translated up to v2 by a translator that sits between the daemon and `pi-acp` (`crates/archipel-agents/src/pi.rs`). It also runs one `pi-acp` per session behind one connection (section 8). Tested on twelve recordings and live.
 
 | v1 behaviour | Canonical form |
 |---|---|
@@ -182,11 +182,11 @@ A second option for Pi is to drop `pi-acp` and have the daemon speak Pi's own RP
 
 - Every attached app receives every event. Done.
 - Any app with the `interact` scope may prompt, cancel, or answer. An observer's requests to act are refused (`-32003`); its answers and cancels are ignored. Done.
-- A pending approval or question is shown to all, and `state_update` reports `requires_action`; the first answer wins and every app receives `_bridge/request/resolved`. Done.
+- A pending approval or question is shown to all, and `state_update` reports `requires_action`; the first answer wins and every app receives `_archipel/request/resolved`. Done.
 - A pending request survives all apps disconnecting, and is sent again to every app that attaches, since an app can only answer on its current connection. Done. Tested on Claude: still valid after 150 seconds, no timeout seen.
 - Prompts are handed to the adapter in the order the daemon receives them; the adapter queues or steers.
 - A session that another process of the harness has open (its own terminal UI, an editor extension) is not acted on: the two would not see each other's turns. Requests are refused with `-32004`; the app can read the session, or fork it (`session/fork`) and continue on the copy. Detection is per agent profile; Claude's reads Claude Code's registry of running processes (`docs/research/20`).
-- Errors are JSON-RPC errors: `code`, `message`, and `data` where the code defines it. The daemon's own codes are `-32003` (the connection's scope does not allow it), `-32004` (the session is open in another process; `data` says which) and `-32005` (the session log cannot be written). An agent's errors are passed on unchanged. An error that belongs to no request is sent as `_bridge/session/error` with the same `code` and `message`.
+- Errors are JSON-RPC errors: `code`, `message`, and `data` where the code defines it. The daemon's own codes are `-32003` (the connection's scope does not allow it), `-32004` (the session is open in another process; `data` says which) and `-32005` (the session log cannot be written). An agent's errors are passed on unchanged. An error that belongs to no request is sent as `_archipel/session/error` with the same `code` and `message`.
 - An app that reads too slowly (4096 messages behind) is disconnected instead of buffered without limit. It catches up when it attaches again.
 
 ## 8. Adapter processes
@@ -210,14 +210,14 @@ The daemon can run commands as the user. Anything that can talk to it has that p
 | Path | Transport | Authentication |
 |---|---|---|
 | Same machine | Unix socket (named pipe on Windows) | File permissions, owner only |
-| Remote, over SSH | `bridge connect --stdio` run through SSH, same frames (done; `docs/remote.md`) | SSH |
+| Remote, over SSH | `archipel connect --stdio` run through SSH, same frames (done; `docs/remote.md`) | SSH |
 | Remote, direct | WebSocket, off unless asked for | Bearer token; TLS from Tailscale serve or a reverse proxy |
 
 All three carry the same JSON-RPC messages (one per line, or one per WebSocket text frame), so the daemon and clients have one codec.
 
 Implemented in milestone 2: the Unix socket (owner-only file in an owner-only directory) and the WebSocket. The WebSocket requires `Authorization: Bearer <token>`, with the token in a file only the owner can read, and refuses any request that has an `Origin` header: any web page may try to open a WebSocket to a local port, so binding to loopback is not a protection by itself. Browser clients therefore cannot connect yet.
 
-- **Pairing:** `bridged pair` prints a one-time code; the app exchanges it for a long-lived token of its own, to keep in the platform keychain. Tokens are listed and revocable while the daemon runs, and only their hashes are stored. `bridged token add` makes one by hand. Done.
+- **Pairing:** `archipeld pair` prints a one-time code; the app exchanges it for a long-lived token of its own, to keep in the platform keychain. Tokens are listed and revocable while the daemon runs, and only their hashes are stored. `archipeld token add` makes one by hand. Done.
 - **Scopes:** `observe` (list and read), `interact` (also create, prompt, answer, cancel, adopt), `admin` (also delete a session, which cannot be undone; later pair and configure). A wall display gets `observe`. The local socket always has every right: whoever can open it is the user. Done.
 - **Browser clients:** origin allow-list on the WebSocket (`--ws-origin`); the token travels as a WebSocket subprotocol because a page cannot set headers; no cookies. Done.
 - **Logs:** account details and environment values are stripped before storage.
@@ -233,11 +233,11 @@ The contract lives in `schema/`:
 |---|---|
 | `acp-v2.schema.json` | The pinned ACP v2 schema, vendored unmodified |
 | `state-rules.json` | How each message changes client state, extracted from the pinned schema |
-| `bridge.schema.json` | The daemon's extensions (section 3) |
+| `archipel.schema.json` | The daemon's extensions (section 3) |
 
 - **ACP:** the pinned file is the reference. Rust types come from the official `agent-client-protocol-schema` crate, which is the schema's upstream source. A test parses every recorded update with those types, so the file and the crate cannot drift apart unnoticed.
-- **Extensions:** the Rust types in `bridge-schema` are the source, and the schema file is generated from them. This is how ACP itself is produced.
-- **Clients:** the TypeScript and Swift SDKs carry a copy of `state-rules.json` and interpret it. TypeScript types for the extensions are generated from `bridge.schema.json`. ACP's own types are not generated (the generator cannot read that schema, and the reducer does not need them).
+- **Extensions:** the Rust types in `archipel-schema` are the source, and the schema file is generated from them. This is how ACP itself is produced.
+- **Clients:** the TypeScript and Swift SDKs carry a copy of `state-rules.json` and interpret it. TypeScript types for the extensions are generated from `archipel.schema.json`. ACP's own types are not generated (the generator cannot read that schema, and the reducer does not need them).
 
 `just gen` regenerates the two derived files, and CI fails if they are stale. Capability negotiation at `initialize` tells each side what the other supports, as in ACP.
 
@@ -247,12 +247,12 @@ The requirement: a product such as T3 Code can add checkpoints or handoffs witho
 
 Two mechanisms, both independent of the server's language. Done; see `docs/research/16`.
 
-**Namespaced content.** Update kinds `x.<namespace>.<name>` and methods `_x/<namespace>/<name>`. The server stores, sequences, replays and fans them out without understanding the payload. An extension's update carries its own state rule (`_meta.bridge.state`, in the form of ACP's rules), so every client's reducer places and updates the item correctly without knowing the extension. A UI that has no component for a kind skips it or shows a generic fallback.
+**Namespaced content.** Update kinds `x.<namespace>.<name>` and methods `_x/<namespace>/<name>`. The server stores, sequences, replays and fans them out without understanding the payload. An extension's update carries its own state rule (`_meta.archipel.state`, in the form of ACP's rules), so every client's reducer places and updates the item correctly without knowing the extension. A UI that has no component for a kind skips it or shows a generic fallback.
 
-**Extension peers.** An extension is a separate process that connects to the server like an app, with the `extend` scope, and registers its namespace (`_bridge/extension/register`). It can:
+**Extension peers.** An extension is a separate process that connects to the server like an app, with the `extend` scope, and registers its namespace (`_archipel/extension/register`). It can:
 
 - observe session events,
-- append and update items in its namespace (`_bridge/session/append`),
+- append and update items in its namespace (`_archipel/session/append`),
 - serve methods in its namespace; the server routes app calls to it and returns the answer.
 
 Example: a checkpoint extension observes a turn ending, captures a git ref, and appends an `x.t3.checkpoint` item. The app calls `_x/t3/checkpoint/restore`; the server routes it to the extension. The server knows nothing about git.
@@ -280,28 +280,28 @@ A correction to draft 1: it is not true that every setup already needs Node. Pi 
 
 | Crate | Contents | Depends on IO |
 |---|---|---|
-| `bridge-schema` | Schema files and generated types | no |
-| `bridge-core` | Reducer, log records and condensing, the store trait, the client mirror, transcripts | no |
-| `bridge-store-sqlite` | The session log on SQLite | yes |
-| `bridge-agents` | Starting adapters, profiles (Claude so far), the fake adapter | yes |
-| `bridge-transport` | The message codec over lines, a Unix socket and a WebSocket | yes |
-| `bridge-server` | The daemon as a library, behind a builder | yes |
-| `bridge-addon-api` | What an addon is: the trait and the types its hooks receive | no |
-| `bridge-addons` | The addons the library ships | no |
-| `bridged` | The daemon program, as a library with a five-line binary: config, listeners | yes |
-| `bridge-client` | A client's connection, and the `bridge` command-line tool | yes |
-| `bridge-ffi` | C interface for embedding in native apps | later |
+| `archipel-schema` | Schema files and generated types | no |
+| `archipel-core` | Reducer, log records and condensing, the store trait, the client mirror, transcripts | no |
+| `archipel-store-sqlite` | The session log on SQLite | yes |
+| `archipel-agents` | Starting adapters, profiles (Claude so far), the fake adapter | yes |
+| `archipel-transport` | The message codec over lines, a Unix socket and a WebSocket | yes |
+| `archipel-server` | The daemon as a library, behind a builder | yes |
+| `archipel-addon-api` | What an addon is: the trait and the types its hooks receive | no |
+| `archipel-addons` | The addons the library ships | no |
+| `archipeld` | The daemon program, as a library with a five-line binary: config, listeners | yes |
+| `archipel-client` | A client's connection, and the `archipel` command-line tool | yes |
+| `archipel-ffi` | C interface for embedding in native apps | later |
 
-`bridge-core` holds no IO so it can be tested with recorded transcripts alone, and so the reducer can later be shipped to clients (FFI or WebAssembly) if hand-written reducers drift.
+`archipel-core` holds no IO so it can be tested with recorded transcripts alone, and so the reducer can later be shipped to clients (FFI or WebAssembly) if hand-written reducers drift.
 
-Adding a harness means: an ACP adapter (any language, its own process) and a profile in `bridge-agents`. A profile is mostly data (how to start the adapter, which capabilities to declare) plus the normalising rules for that adapter.
+Adding a harness means: an ACP adapter (any language, its own process) and a profile in `archipel-agents`. A profile is mostly data (how to start the adapter, which capabilities to declare) plus the normalising rules for that adapter.
 
 In use: `agent-client-protocol-schema` for the ACP types, serde, schemars, tokio, rusqlite (SQLite compiled in), tokio-tungstenite.
 
 Two choices made in milestone 2:
 
 - **The connection layer is ours.** The daemon forwards messages it must not interpret, and the `agent-client-protocol` crate's typed connection would drop kinds and fields its types do not know. Reading and writing JSON values line by line is about 60 lines. The official types check shapes in tests.
-- **One task owns all state.** Messages from apps, messages from adapters and closed connections are events on one queue, handled one at a time. No locks; the order of events is the only thing to reason about. `crates/bridge-server/src/daemon.rs` opens with a table of what each message causes.
+- **One task owns all state.** Messages from apps, messages from adapters and closed connections are events on one queue, handled one at a time. No locks; the order of events is the only thing to reason about. `crates/archipel-server/src/daemon.rs` opens with a table of what each message causes.
 
 ### Client side
 
@@ -368,6 +368,6 @@ Two rules:
 1. **Windows local transport:** a named pipe only the owner can open needs the Windows API directly. Allow one audited `unsafe` block, or a small dependency, and test on a Windows machine.
 2. **Pi integration, later:** whether to replace `pi-acp` with a direct Pi RPC bridge (section 8, option 3). The first version keeps `pi-acp`, one process per session, with idle sessions stopped and reloaded.
 3. **How far to go for Pi subagents and Claude command output** in the first version, or accept the adapters' current behaviour.
-4. **Name.** "harness-bridge" is temporary; the copyright line in `LICENSE-MIT` follows it.
+4. **Name.** "archipel" is temporary; the copyright line in `LICENSE-MIT` follows it.
 
 Decided (2026-11-22): the daemon lists and adopts the harness's own sessions. SQLite for the log, behind a trait. ACP v2 as the canonical form and the protocol apps speak. Rust for the server. Dual licence, MIT OR Apache-2.0: the Rust convention, compatible with every dependency (ACP and its adapters are Apache-2.0; Pi, pi-acp and T3 Code are MIT), and it gives adopters a patent grant or MIT's simplicity as they prefer. Copyleft was ruled out because it would deter embedding the server in commercial apps.

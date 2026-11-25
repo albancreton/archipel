@@ -1,5 +1,5 @@
 {
-  "name": "@harness-bridge/react",
+  "name": "@archipel/react",
   "version": "0.0.0",
   "description": "React components for a coding agent's session: one per kind of item, and a chat view assembled from them.",
   "license": "MIT OR Apache-2.0",
@@ -19,7 +19,7 @@
     "test:browser": "node --import tsx --test test/browser/*.test.ts"
   },
   "dependencies": {
-    "@harness-bridge/client": "workspace:*",
+    "@archipel/client": "workspace:*",
     "marked": "^18.2.1"
   },
   "peerDependencies": {

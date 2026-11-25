@@ -20,7 +20,7 @@ importers:
 
   conformance:
     dependencies:
-      '@harness-bridge/client':
+      '@archipel/client':
         specifier: workspace:*
         version: link:../clients/ts
     devDependencies:
@@ -33,7 +33,7 @@ importers:
 
   examples/node:
     dependencies:
-      '@harness-bridge/client':
+      '@archipel/client':
         specifier: workspace:*
         version: link:../../clients/ts
     devDependencies:
@@ -46,7 +46,7 @@ importers:
 
   tools/watch:
     dependencies:
-      '@harness-bridge/client':
+      '@archipel/client':
         specifier: workspace:*
         version: link:../../clients/ts
     devDependencies:
@@ -59,7 +59,7 @@ importers:
 
   ui/react:
     dependencies:
-      '@harness-bridge/client':
+      '@archipel/client':
         specifier: workspace:*
         version: link:../../clients/ts
       marked:

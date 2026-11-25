@@ -39,8 +39,8 @@ Decision from the user: block by default, offer to fork.
 
 - **Block.** A request that acts on a session (a prompt, a setting) is refused with error `-32004` when another process of the harness has the session open. The error says which process and whether it is busy. The check comes before anything is loaded, so a refused request starts nothing. `whenOpenElsewhere: "allow"` in `config.json` turns the block off.
 - **Reading stays allowed.** Attaching loads the history through the adapter. In the live check that wrote nothing to the transcript.
-- **The list says so.** `openElsewhere` on each session; `!` in `bridge sessions`.
-- **Fork.** ACP's `session/fork`: the harness makes a new session with the same history, which only the daemon has open. The daemon records it and loads its history like an adopted session. `bridge fork SESSION`, `forkSession()` in TypeScript, `fork()` in Swift. The original is untouched.
+- **The list says so.** `openElsewhere` on each session; `!` in `archipel sessions`.
+- **Fork.** ACP's `session/fork`: the harness makes a new session with the same history, which only the daemon has open. The daemon records it and loads its history like an adopted session. `archipel fork SESSION`, `forkSession()` in TypeScript, `fork()` in Swift. The original is untouched.
 
 Probe of fork on the Claude adapter (`spikes/acp-probe/fork.mjs`, no model call): it works on a session the adapter process never opened, returns a new id, and the copy is titled "… (fork)".
 
@@ -64,7 +64,7 @@ What a chat shows when another process has its session open: a notice above the 
 
 Choices made:
 
-- **The chat knows before the user types.** The answer to `_bridge/session/attach` now carries `openElsewhere` (who has it), so the notice is there when the session opens. The SDK's session keeps it as `openElsewhere`, and updates it after every prompt: a refusal sets it, a prompt that goes through clears it.
+- **The chat knows before the user types.** The answer to `_archipel/session/attach` now carries `openElsewhere` (who has it), so the notice is there when the session opens. The SDK's session keeps it as `openElsewhere`, and updates it after every prompt: a refusal sets it, a prompt that goes through clears it.
 - **The composer stays usable.** The daemon does not announce when the other process closes the session, so a disabled composer could stay disabled for no reason. Instead the user may send again: if the other process is gone it works and the notice goes away.
 - **A refused message is not lost.** It goes back into the field, unless the user has typed something else since. Other refusals (for example a read-only connection) are now shown under the composer; before, they were dropped.
 - **The button is only drawn when the app can show the copy.** The app passes `onFork` (React: `useSession(session, { onFork })`; SwiftUI: `LiveChatView(session:onFork:)`) and receives the new session. Without it the notice only explains.

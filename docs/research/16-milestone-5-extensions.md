@@ -11,15 +11,15 @@ A product such as T3 Code must be able to add its own content (checkpoints, hand
 A separate program that connects to the daemon like an app, with the `extend` scope, and says which namespace it is:
 
 ```
-_bridge/extension/register {"namespace": "demo"}
+_archipel/extension/register {"namespace": "demo"}
 ```
 
 From then on:
 
 | It can | How |
 |---|---|
-| See what happens | Like any app: `_bridge/sessions/updated` arrives for every session; it can attach to any of them |
-| Add items to a session | `_bridge/session/append` with an update whose kind starts with `x.demo.` |
+| See what happens | Like any app: `_archipel/sessions/updated` arrives for every session; it can attach to any of them |
+| Add items to a session | `_archipel/session/append` with an update whose kind starts with `x.demo.` |
 | Serve methods | The daemon passes it every request whose method starts with `_x/demo/` and returns its answer to the caller |
 
 The daemon numbers, stores, replays and fans out the extension's updates exactly like the agent's. It never looks inside them. An extension can be written in any language, and one that crashes takes nothing else down: calls waiting on it fail, and its namespace is free again.
@@ -31,14 +31,14 @@ The one real design question was how a client that has never heard of an extensi
 ACP answers this for its own messages with state rules in the schema. An extension's update carries the same kind of rule with it:
 
 ```
-_bridge/session/append {
+_archipel/session/append {
   "sessionId": "…",
   "update": {"sessionUpdate": "x.demo.checkpoint", "checkpointId": "c1", "label": "after turn 1"},
   "state":  {"action": "upsert", "id": "checkpointId"}
 }
 ```
 
-The daemon writes the rule into the stored update (`_meta.bridge.state`). Every client's reducer applies it like an ACP rule, with the update's kind as the target. So:
+The daemon writes the rule into the stored update (`_meta.archipel.state`). Every client's reducer applies it like an ACP rule, with the update's kind as the target. So:
 
 - the item gets a place in the timeline when it first appears,
 - a later update with the same `checkpointId` changes that item,
@@ -50,18 +50,18 @@ A UI that has no component for `x.demo.checkpoint` skips the item or shows a gen
 
 ## The toy extension
 
-`bridge-demo-checkpoints` (about 90 lines, `crates/bridge-client/src/bin/demo_checkpoints.rs`):
+`archipel-demo-checkpoints` (about 90 lines, `crates/archipel-client/src/bin/demo_checkpoints.rs`):
 
 - adds an `x.demo.checkpoint` item whenever a session's turn ends,
 - serves `_x/demo/checkpoints/list` and `_x/demo/checkpoint/restore`; restoring marks the item, which shows as a change to the same item.
 
 It touches no files. A real one would record a git ref and reset to it, and the daemon would not change.
 
-A test starts it as a process next to a daemon and the command-line client: after the recorded turn, `bridge show` prints the session as recorded plus one checkpoint line, `bridge call _x/demo/checkpoints/list` returns it, and after `restore` the same item reads `"restored":true`.
+A test starts it as a process next to a daemon and the command-line client: after the recorded turn, `archipel show` prints the session as recorded plus one checkpoint line, `archipel call _x/demo/checkpoints/list` returns it, and after `restore` the same item reads `"restored":true`.
 
 ## Rules the daemon enforces
 
-- Registering and appending need the `extend` scope (`bridged token add NAME --scope extend`). The local socket has every right.
+- Registering and appending need the `extend` scope (`archipeld token add NAME --scope extend`). The local socket has every right.
 - An extension appends only kinds in its own namespace, never an ACP kind or another extension's.
 - One connection per namespace.
 - Calling an extension's method needs `interact`, like any request that is not one of the six reading ones.

@@ -1,5 +1,5 @@
 {
-  "name": "@harness-bridge/conformance",
+  "name": "@archipel/conformance",
   "version": "0.0.0",
   "private": true,
   "description": "Live checks of what the real harnesses do through the daemon, compared with a recorded baseline.",
@@ -10,7 +10,7 @@
     "live": "node run.ts"
   },
   "dependencies": {
-    "@harness-bridge/client": "workspace:*"
+    "@archipel/client": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -36,8 +36,8 @@ React and SwiftUI have no new example: the two demos (`ui/react/demo/live.tsx`, 
 | B3 "start if not running" in the SDKs | As an example in TypeScript, not as an SDK function. Not in Swift |
 | B4 embedded-daemon example | Done |
 | B5 a page on the three ways to run it | Done as a table in `AGENTS.md` plus the three examples |
-| B2 `bridged service install` | Not built. The service files and the commands to load them stand in for it |
-| B1 `bridged setup` | Not built. `config.json` is still written by hand |
+| B2 `archipeld service install` | Not built. The service files and the commands to load them stand in for it |
+| B1 `archipeld setup` | Not built. `config.json` is still written by hand |
 
 Decisions taken in the examples, on the questions that were open:
 
@@ -57,20 +57,20 @@ Decisions taken in the examples, on the questions that were open:
 
 `examples/*` was a glob in the Cargo workspace, so a folder there without a `Cargo.toml` broke the build. The members are now listed by name.
 
-## Later the same day: do we need `bridged setup` and `service install`?
+## Later the same day: do we need `archipeld setup` and `service install`?
 
 Asked by the user. Answer given: no. Both are conveniences for a person installing by hand, and the reader is an agent with the example in front of it. A product will also want its own service label, binary and installer, which a built-in command would decide for it. What is left of "setup" that an agent cannot do from `--help` is diagnosis, and the daemon already has the data. So two things were done instead.
 
-**`bridge agents` now checks.** It existed, but it only printed what the daemon knew, and the daemon knows whether an agent can start only once it has tried: an agent that was never used read `ready`. The command now asks each agent for its sessions first, which starts it and costs nothing, then prints the state and the reason, and exits with an error unless every agent is ready. A test has a working agent and one whose program does not exist.
+**`archipel agents` now checks.** It existed, but it only printed what the daemon knew, and the daemon knows whether an agent can start only once it has tried: an agent that was never used read `ready`. The command now asks each agent for its sessions first, which starts it and costs nothing, then prints the state and the reason, and exits with an error unless every agent is ready. A test has a working agent and one whose program does not exist.
 
 **The fresh-install path was run.** This machine had no adapter on `PATH`; every test so far used a copy inside `spikes/`. What a new user does was done in a throwaway folder (`npm install -g --prefix …`, so the real global folder was not touched), with that folder's `bin` first on `PATH` and a daemon home with no `config.json`:
 
 | Step | Result |
 |---|---|
 | `npm install -g @agentclientprotocol/claude-agent-acp` | 108 packages, 420 MB, version 0.110.1 (needs Node 22 or later) |
-| `bridged --home <empty folder>` | Started with one agent, `claude` |
-| `bridge agents` | `claude  Claude Code  ready  0.110.1` |
-| `bridge new`, `bridge set … model haiku`, one prompt | The turn ran and answered; the session was deleted afterwards |
+| `archipeld --home <empty folder>` | Started with one agent, `claude` |
+| `archipel agents` | `claude  Claude Code  ready  0.110.1` |
+| `archipel new`, `archipel set … model haiku`, one prompt | The turn ran and answered; the session was deleted afterwards |
 
 So the claim in `AGENTS.md` holds: one npm command, no config file, and a real session works.
 

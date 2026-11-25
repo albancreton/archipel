@@ -7,10 +7,10 @@ _2026-11-22. Checked by `cargo test --workspace` (38 tests) and a live run with 
 | Addition | In short |
 |---|---|
 | Scopes | A connection is `observe`, `interact` or `admin`. Observers read; their attempts to act are refused or ignored |
-| Tokens with a scope | `bridged token add NAME --scope observe` for WebSocket clients; added and removed while the daemon runs |
-| Harness sessions in the list | `_bridge/sessions/list` also asks each adapter (ACP `session/list`) and marks sessions that are not in the log |
+| Tokens with a scope | `archipeld token add NAME --scope observe` for WebSocket clients; added and removed while the daemon runs |
+| Harness sessions in the list | `_archipel/sessions/list` also asks each adapter (ACP `session/list`) and marks sessions that are not in the log |
 | Adoption | Opening such a session makes the adapter replay its history, which becomes the session's log |
-| `_bridge/sessions/updated` | Every connected app is told when a session appears or its title, turn state or liveness changes |
+| `_archipel/sessions/updated` | Every connected app is told when a session appears or its title, turn state or liveness changes |
 | Remembered setup | A session is resumed with the MCP servers and extra directories it was created with |
 | Stale tool calls | When a turn is cut off, tool calls still waiting are marked `cancelled` |
 | Retention | `retentionDays` in `config.json` removes unused sessions from the log |
@@ -24,7 +24,7 @@ Fan-out to several apps and "first answer wins" were already done in milestone 2
 
 ## How adoption works
 
-1. `_bridge/sessions/list` returns the daemon's sessions (`logged: true`) and what each harness reports that the daemon does not have (`logged: false`). `loggedOnly: true` leaves the second group out and starts no adapter.
+1. `_archipel/sessions/list` returns the daemon's sessions (`logged: true`) and what each harness reports that the daemon does not have (`logged: false`). `loggedOnly: true` leaves the second group out and starts no adapter.
 2. An app attaches to, resumes, or sends anything to a session with `logged: false`.
 3. The daemon creates the session's record, starts the adapter if needed, and calls `session/resume` with `replayFrom: {type: "start"}`.
 4. The adapter replays the history as ordinary updates. The daemon numbers and stores them like live ones. Requests that arrive for the session meanwhile wait.
@@ -38,7 +38,7 @@ Adopting starts the harness, so it needs the `interact` scope. An observer can r
 
 Fresh daemon home, real adapter, no prompt sent.
 
-- `bridge sessions --logged`: 0 sessions. `bridge sessions`: 114, all marked as harness-only. The adapter answered the list in under 100 ms.
+- `archipel sessions --logged`: 0 sessions. `archipel sessions`: 114, all marked as harness-only. The adapter answered the list in under 100 ms.
 - An observer token over WebSocket: listing works; opening a harness-only session is refused (`-32003`).
 - The owner opened the session recorded as `subagent` in `testdata`. The daemon adopted it: 24 log entries, including the subagent's child session nested under its parent.
 - The rendering of the adopted session against the one recorded live differs in two places only: one line break inside a message, and the final turn state has no stop reason.
@@ -73,8 +73,8 @@ So a session watched live through the daemon has a richer log than the same sess
 
 - **Windows.** The local transport is still a Unix socket only. A named pipe that only the owner can open needs an explicit access list, which in Rust means the Windows API directly (the workspace forbids `unsafe`), and it cannot be tested on this machine. Writing security code that has never run seemed worse than not having it. It needs a Windows machine and a decision on allowing one audited `unsafe` block or a small dependency.
 - **A session open in two places.** Adopting a session that is also running in the harness's own UI puts two processes on one transcript. Not tested, and nothing prevents it.
-- **Harness-only sessions do not update by themselves.** `_bridge/sessions/updated` covers the daemon's sessions. A session started in the harness's UI appears on the next list.
-- **Paging** of `_bridge/sessions/list`: everything is returned at once (114 sessions was 30 KB).
+- **Harness-only sessions do not update by themselves.** `_archipel/sessions/updated` covers the daemon's sessions. A session started in the harness's UI appears on the next list.
+- **Paging** of `_archipel/sessions/list`: everything is returned at once (114 sessions was 30 KB).
 - **Terminals of a cut-off turn** still read as running. Tool calls are fixed; a terminal has no "cancelled" state to set without inventing an exit status.
 - **Settings after a wake-up** are still unchecked (does Claude resume in the mode set before?).
 - **Stored chunks are not merged**; retention is by age only.

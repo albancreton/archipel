@@ -45,29 +45,29 @@ Changelog entries for 0.110.0 to 0.112.0, plus the diff.
 - `docs/design/daemon.md:187` ("the adapter queues or steers") is still true. The daemon does not change.
 
 **Turn state and approvals**
-- `crates/bridge-server/src/daemon.rs` (approvals and `state_update` handling) passes `state_update` through. The Swift and React kits draw `requires_action` as "waiting for you". Behaviour changes only when a tool runs alongside an open approval or question.
+- `crates/archipel-server/src/daemon.rs` (approvals and `state_update` handling) passes `state_update` through. The Swift and React kits draw `requires_action` as "waiting for you". Behaviour changes only when a tool runs alongside an open approval or question.
 - Recordings with approvals or subagents where another tool may run: `approval_command`, `approval_denied`, `question`, `plan`, `subagent`, `subagents_parallel`, `background`. Not checked.
 
 **`promptQueueing` removal**
-- `crates/bridge-server/src/daemon.rs:957-970` passes the adapter's capabilities to apps unchanged, so apps no longer see the flag. No code reads it: grep finds no use in `crates/`, `clients/` or `ui/`.
+- `crates/archipel-server/src/daemon.rs:957-970` passes the adapter's capabilities to apps unchanged, so apps no longer see the flag. No code reads it: grep finds no use in `crates/`, `clients/` or `ui/`.
 - All 27 Claude fixtures still carry `promptQueueing` in their `initialize` result: 17 files in `testdata/transcripts/claude-v2` and 10 in `testdata/daemon/claude-v2`. They record 0.109.1. The fakes replay them correctly, but they no longer describe the adapter.
 
 **Terminal bytes**
 - Only output that contains a CR changes, so LF-only recordings should be unaffected. I could not confirm that, because the frames are base64 and my decoding command was blocked. The `terminal_*` frames are in `approval_command`, `approval_denied`, `background`, `command_output`, `failing_command`, `files`, `interrupt`, `plan` and `steer`.
 
-**Addons (`crates/bridge-addons`)**
+**Addons (`crates/archipel-addons`)**
 - `acp.restore-settings` (`src/acp/restore_settings.rs`): it still applies, because `session.options` is still advertised. The diff does not change how `session/resume` handles `configOptions`; `initial-config-options.js` changes only the error text. The fault is not shown to be repaired, and the check that decides it, `reopen.keeps_settings.unaided`, is a turn scenario that has not run. The addon's `because` text cites "claude-agent-acp 0.109.1" and would need updating if it stays.
 - `pi.check-setting-values`: Pi only, not affected.
 - No addon can be removed on this evidence.
 
-**Profiles (`crates/bridge-agents`)**
+**Profiles (`crates/archipel-agents`)**
 - `claude()` and the `CLAUDE_CODE_THINKING_DISPLAY` default: not touched by the diff.
 - `Claude::elsewhere` (the `~/.claude/sessions` registry): `claude-code.diff` changes one line in `sdk-tools.d.ts`, so nothing there.
 - The Pi translation from ACP v1: not affected. The daemon speaks v2 to Claude (`protocolVersion: 2` in `initialize.json`), and the v1 changes in `dist/v1/` are not reached.
 
 **Schema, state rules, SDKs and kits**
 - `schema/acp-v2.schema.json` and `schema/state-rules.json`: no change needed for this adapter. The new kinds (`cursor_update`, `agent_message_chunk` for handbacks) are AIR-gated, and the state rules are unchanged.
-- `bridge-schema` uses only the crate's `v2` module, so the crate's v1 changes do not reach us.
+- `archipel-schema` uses only the crate's `v2` module, so the crate's v1 changes do not reach us.
 - `clients/ts`, `clients/swift`, `ui/react`, `ui/swift`: nothing new to show. No kit reads `_meta.claudeCode`, `mcpServerStatus` or `cursor_update`.
 - The ACP SDK update (`docs/updates/2026-11-24-acp-sdk.md`) concludes that no recording needs re-recording. It did not consider these adapter changes, so read the two reports together.
 

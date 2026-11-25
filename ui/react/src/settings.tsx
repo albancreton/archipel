@@ -1,7 +1,7 @@
 // The agent's settings (model, effort, permission mode, switches), drawn from what the agent
 // reports. Nothing here knows a model's or a mode's name.
 
-import type { Json, JsonObject } from "@harness-bridge/client";
+import type { Json, JsonObject } from "@archipel/client";
 import { useState } from "react";
 
 /** One value a setting can take. */
@@ -94,18 +94,18 @@ export function SettingsBar({ settings, onChange, disabled }: SettingsBarProps) 
   };
   const locked = disabled || !onChange || asked !== null;
   return (
-    <div className="hb-settings">
+    <div className="arc-settings">
       {settings.map((setting) => {
         const shown = asked?.id === setting.id ? asked.value : setting.current;
-        const category = setting.category ? ` hb-setting-${setting.category}` : "";
+        const category = setting.category ? ` arc-setting-${setting.category}` : "";
         return setting.kind === "switch" ? (
-          <label key={setting.id} className={`hb-setting hb-setting-switch${category}`} title={setting.description}>
+          <label key={setting.id} className={`arc-setting arc-setting-switch${category}`} title={setting.description}>
             <input type="checkbox" checked={shown === true} disabled={locked} onChange={(event) => change(setting, event.target.checked)} />
             {setting.name}
           </label>
         ) : (
-          <label key={setting.id} className={`hb-setting${category}`} title={setting.description}>
-            <span className="hb-label">{setting.name}</span>
+          <label key={setting.id} className={`arc-setting${category}`} title={setting.description}>
+            <span className="arc-label">{setting.name}</span>
             <select value={String(shown)} disabled={locked} onChange={(event) => change(setting, event.target.value)}>
               {setting.groups.map((group, index) => {
                 const options = group.choices.map((option) => (
@@ -117,7 +117,7 @@ export function SettingsBar({ settings, onChange, disabled }: SettingsBarProps) 
           </label>
         );
       })}
-      {problem && <div className="hb-problem" role="alert">Not changed: {problem}</div>}
+      {problem && <div className="arc-problem" role="alert">Not changed: {problem}</div>}
     </div>
   );
 }

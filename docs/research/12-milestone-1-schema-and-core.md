@@ -6,8 +6,8 @@ _2026-11-22. No networking. Everything here is checked by `cargo test --workspac
 
 - **17 Claude scenarios recorded over ACP v2** (`testdata/transcripts/claude-v2`). This also closed the open question from milestone 0: subagents, questions, plans, compaction, steering, interrupt and background work all work on v2 through the Claude adapter.
 - **`schema/`**: the pinned ACP v2 schema, the state rules extracted from it, and the daemon's extension schema.
-- **`bridge-schema`**: ACP types from the official crate, the state rules as data, the extension types.
-- **`bridge-core`**: the reducer, the session log with condensed replay, the transcript reader, and a plain-text rendering.
+- **`archipel-schema`**: ACP types from the official crate, the state rules as data, the extension types.
+- **`archipel-core`**: the reducer, the session log with condensed replay, the transcript reader, and a plain-text rendering.
 - **`testdata/vectors`**: one readable file per scenario showing what the reducer produced.
 
 ## The finding that shaped the reducer
@@ -47,7 +47,7 @@ Plus 11 unit tests for the reducer and the log.
 
 ## Decisions taken while building
 
-- **Direction of generation.** For ACP, the pinned schema file is the reference and the Rust types come from the official crate, which is the schema's upstream source; a test guards against the two drifting apart. For the daemon's extensions, the Rust types are the source and `schema/bridge.schema.json` is generated from them. This differs from the earlier wording "everything is generated from schema files" and matches how ACP itself works.
+- **Direction of generation.** For ACP, the pinned schema file is the reference and the Rust types come from the official crate, which is the schema's upstream source; a test guards against the two drifting apart. For the daemon's extensions, the Rust types are the source and `schema/archipel.schema.json` is generated from them. This differs from the earlier wording "everything is generated from schema files" and matches how ACP itself works.
 - **The reducer works on JSON, not on the typed ACP structs.** That is what lets unknown kinds and vendor extensions pass through untouched. The typed structs are used where code needs to read specific fields.
 - **Transcript format fixed** (version 1): a header line, then one frame per line with direction, time and message. See `testdata/README.md`.
 - **Seen in the data:** live message chunks arrive without an opening `agent_message`, so an append must create its entry. A thought and a reply can share one `messageId`, so an item is identified by target and id together.

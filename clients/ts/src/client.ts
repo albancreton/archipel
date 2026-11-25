@@ -1,7 +1,7 @@
 // The client an app uses: sessions that stay in step with the daemon, across reconnects.
 
 import { ClosedError, Connection, RpcError, type Transport } from "./connection.ts";
-import type { AgentInfo, OpenElsewhere } from "./generated/bridge.ts";
+import type { AgentInfo, OpenElsewhere } from "./generated/archipel.ts";
 import { get, isObject, type Json, type JsonObject } from "./json.ts";
 import { Mirror, rootOf, SESSION_ERROR, SESSIONS_REMOVED, SESSIONS_UPDATED } from "./mirror.ts";
 import type { Conversation, ItemRef, Request, SessionState } from "./state.ts";
@@ -67,7 +67,7 @@ export function attentionOf(before: string | null | undefined, after: string | n
   return null;
 }
 
-export class BridgeClient {
+export class ArchipelClient {
   /** False while the connection is lost and being retried. */
   connected = false;
   private watchers = new Set<(connected: boolean) => void>();
@@ -85,8 +85,8 @@ export class BridgeClient {
   }
 
   /** Connects and introduces the app to the daemon. */
-  static async connect(options: ClientOptions): Promise<BridgeClient> {
-    const client = new BridgeClient(options);
+  static async connect(options: ClientOptions): Promise<ArchipelClient> {
+    const client = new ArchipelClient(options);
     await client.open();
     client.connected = true;
     return client;
@@ -198,7 +198,7 @@ export class BridgeClient {
    * there once the agent has been started (`listSessions({ agentId })` starts it).
    */
   async agents(): Promise<AgentInfo[]> {
-    const result = await this.call("_bridge/agents/list");
+    const result = await this.call("_archipel/agents/list");
     return (get(result, "agents") as unknown as AgentInfo[] | undefined) ?? [];
   }
 
@@ -207,7 +207,7 @@ export class BridgeClient {
    * `loggedOnly` leaves the latter out and starts no agent.
    */
   async listSessions(filter: { agentId?: string; cwd?: string; loggedOnly?: boolean } = {}): Promise<SessionSummary[]> {
-    const result = await this.call("_bridge/sessions/list", filter as JsonObject);
+    const result = await this.call("_archipel/sessions/list", filter as JsonObject);
     return (get(result, "sessions") as unknown as SessionSummary[] | undefined) ?? [];
   }
 
@@ -223,7 +223,7 @@ export class BridgeClient {
     cwd?: string;
     loggedOnly?: boolean;
   }): Promise<{ sessions: SessionSummary[]; nextCursor?: string }> {
-    const result = await this.call("_bridge/sessions/list", page as JsonObject);
+    const result = await this.call("_archipel/sessions/list", page as JsonObject);
     const nextCursor = get(result, "nextCursor");
     return {
       sessions: (get(result, "sessions") as unknown as SessionSummary[] | undefined) ?? [],
@@ -250,7 +250,7 @@ export class BridgeClient {
         value,
       }));
     }
-    if (options.agentId) params["_meta"] = { bridge: { agentId: options.agentId } };
+    if (options.agentId) params["_meta"] = { archipel: { agentId: options.agentId } };
     const created = await this.call("session/new", params);
     const sessionId = get(created, "sessionId");
     if (typeof sessionId !== "string") throw new Error("the agent did not return a session id");
@@ -277,7 +277,7 @@ export class BridgeClient {
   async sessionOptions(options: { cwd: string; agentId?: string; sessionId?: string }): Promise<JsonObject> {
     const params: JsonObject = { cwd: options.cwd };
     if (options.sessionId) params["sessionId"] = options.sessionId;
-    if (options.agentId) params["_meta"] = { bridge: { agentId: options.agentId } };
+    if (options.agentId) params["_meta"] = { archipel: { agentId: options.agentId } };
     const result = await this.call("session/options", params);
     return isObject(result) ? result : {};
   }
@@ -317,7 +317,7 @@ export class BridgeClient {
   /** Stops following a session. It keeps running in the daemon. */
   async detach(sessionId: string): Promise<void> {
     this.sessions.delete(sessionId);
-    await this.call("_bridge/session/detach", { sessionId }).catch(() => {});
+    await this.call("_archipel/session/detach", { sessionId }).catch(() => {});
   }
 
   close(): void {
@@ -510,7 +510,7 @@ export class Session {
     this.resetOnReplay = true;
     let attached: Json;
     try {
-      attached = await this.connection().call("_bridge/session/attach", params);
+      attached = await this.connection().call("_archipel/session/attach", params);
     } catch (error) {
       this.resetOnReplay = false;
       this.replayed = null;
@@ -550,7 +550,7 @@ export class Session {
     try {
       this.mirror.received(message);
     } catch (error) {
-      if (!(error instanceof ClosedError)) console.error("bridge: could not apply a message:", error);
+      if (!(error instanceof ClosedError)) console.error("archipel: could not apply a message:", error);
     }
     if (get(message, "params.update.sessionUpdate") === "replay_complete") {
       this.replayed?.();

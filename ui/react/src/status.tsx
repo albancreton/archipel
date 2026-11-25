@@ -1,11 +1,11 @@
 // What is going on around the conversation: the agent, the connection, usage, and work that
 // goes on in the background.
 
-import type { Bridge, BridgeClient, JsonObject, SessionState } from "@harness-bridge/client";
+import type { Archipel, ArchipelClient, JsonObject, SessionState } from "@archipel/client";
 import { useSyncExternalStore } from "react";
 
 /** What to tell the user about an agent that cannot be used as it is, or null when it can. */
-export function agentProblem(agent: Bridge.AgentInfo): { tone: "wait" | "act" | "bad"; text: string } | null {
+export function agentProblem(agent: Archipel.AgentInfo): { tone: "wait" | "act" | "bad"; text: string } | null {
   const detail = agent.detail ? ` (${agent.detail})` : "";
   switch (agent.readiness) {
     case "starting": return { tone: "wait", text: `${agent.name} is starting…` };
@@ -22,16 +22,16 @@ export function agentProblem(agent: Bridge.AgentInfo): { tone: "wait" | "act" | 
  * still starting. Draws nothing when all is well. `agents` is `client.agents()`; ask again
  * after a session was created or listed, since an agent is only known once it was started.
  */
-export function AgentStatus({ agents, onRetry }: { agents: Bridge.AgentInfo[]; onRetry?: () => void }) {
+export function AgentStatus({ agents, onRetry }: { agents: Archipel.AgentInfo[]; onRetry?: () => void }) {
   const problems = agents.flatMap((agent) => {
     const problem = agentProblem(agent);
     return problem ? [{ id: agent.agentId, ...problem }] : [];
   });
   if (problems.length === 0) return null;
   return (
-    <div className="hb-chat hb-notices">
+    <div className="arc-chat arc-notices">
       {problems.map((problem) => (
-        <div key={problem.id} className={`hb-notice hb-notice-${problem.tone}`} role={problem.tone === "wait" ? "status" : "alert"}>
+        <div key={problem.id} className={`arc-notice arc-notice-${problem.tone}`} role={problem.tone === "wait" ? "status" : "alert"}>
           <span>{problem.text}</span>
           {onRetry && problem.tone !== "wait" && <button type="button" onClick={() => onRetry()}>Try again</button>}
         </div>
@@ -41,7 +41,7 @@ export function AgentStatus({ agents, onRetry }: { agents: Bridge.AgentInfo[]; o
 }
 
 /** Whether the client is connected, kept current. */
-export function useConnected(client: BridgeClient): boolean {
+export function useConnected(client: ArchipelClient): boolean {
   return useSyncExternalStore((changed) => client.onConnectionChange(changed), () => client.connected, () => client.connected);
 }
 
@@ -49,8 +49,8 @@ export function useConnected(client: BridgeClient): boolean {
 export function ConnectionStatus({ connected }: { connected: boolean }) {
   if (connected) return null;
   return (
-    <div className="hb-chat hb-notices">
-      <div className="hb-notice hb-notice-wait" role="status">Connection lost. Reconnecting… What you see may be out of date.</div>
+    <div className="arc-chat arc-notices">
+      <div className="arc-notice arc-notice-wait" role="status">Connection lost. Reconnecting… What you see may be out of date.</div>
     </div>
   );
 }
@@ -84,16 +84,16 @@ export function Usage({ state }: { state: SessionState }) {
     usage.turnTokens !== undefined ? `${compact(usage.turnTokens)} tokens in the last turn` : "",
   ].filter(Boolean).join(" · ");
   return (
-    <span className="hb-status-usage" title={detail || undefined}>
+    <span className="arc-status-usage" title={detail || undefined}>
       {usage.percent !== undefined && (
         <>
-          <span className={`hb-meter${usage.percent >= 80 ? " hb-meter-high" : ""}`} role="meter" aria-valuenow={usage.percent} aria-valuemin={0} aria-valuemax={100} aria-label="Context used">
+          <span className={`arc-meter${usage.percent >= 80 ? " arc-meter-high" : ""}`} role="meter" aria-valuenow={usage.percent} aria-valuemin={0} aria-valuemax={100} aria-label="Context used">
             <span style={{ width: `${Math.min(usage.percent, 100)}%` }} />
           </span>
           {usage.percent}% of context
         </>
       )}
-      {usage.cost !== undefined && <span className="hb-cost">{usage.cost}</span>}
+      {usage.cost !== undefined && <span className="arc-cost">{usage.cost}</span>}
     </span>
   );
 }
@@ -136,26 +136,26 @@ export function Activity({ state }: { state: SessionState }) {
   if (!todos && background.length === 0) return null;
   const done = todos?.filter((todo) => todo.status === "completed").length ?? 0;
   return (
-    <div className="hb-activity">
+    <div className="arc-activity">
       {todos && (
-        <details className="hb-todos">
+        <details className="arc-todos">
           <summary>
-            <span className="hb-label">Tasks</span> {done} of {todos.length} done
-            {todos.find((todo) => todo.status === "in_progress") && <span className="hb-todo-now"> · {todos.find((todo) => todo.status === "in_progress")!.content}</span>}
+            <span className="arc-label">Tasks</span> {done} of {todos.length} done
+            {todos.find((todo) => todo.status === "in_progress") && <span className="arc-todo-now"> · {todos.find((todo) => todo.status === "in_progress")!.content}</span>}
           </summary>
           <ul>
             {todos.map((todo, at) => (
-              <li key={at} className={`hb-plan-${todo.status}`}>
-                <span className="hb-plan-mark">{todo.status === "completed" ? "✓" : todo.status === "in_progress" ? "…" : "○"}</span>{todo.content}
+              <li key={at} className={`arc-plan-${todo.status}`}>
+                <span className="arc-plan-mark">{todo.status === "completed" ? "✓" : todo.status === "in_progress" ? "…" : "○"}</span>{todo.content}
               </li>
             ))}
           </ul>
         </details>
       )}
       {background.length > 0 && (
-        <div className="hb-background">
-          <span className="hb-label">Running in the background</span>
-          {background.map((work) => <span key={work.id} className="hb-chip" title={work.kind}>{work.label}</span>)}
+        <div className="arc-background">
+          <span className="arc-label">Running in the background</span>
+          {background.map((work) => <span key={work.id} className="arc-chip" title={work.kind}>{work.label}</span>)}
         </div>
       )}
     </div>

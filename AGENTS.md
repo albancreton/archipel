@@ -1,4 +1,4 @@
-# harness-bridge, for coding agents
+# archipel, for coding agents
 
 Read this first if you were asked to build something with this library, or to change it.
 
@@ -6,9 +6,9 @@ Read this first if you were asked to build something with this library, or to ch
 
 A library for apps that show and drive the agent loop of terminal coding harnesses (Claude Code, Pi): messages, reasoning, tool calls, approvals, questions, plans, subagents.
 
-- A **daemon** (`bridged`, Rust) runs the harnesses, logs everything they say, and keeps sessions alive while apps come and go.
+- A **daemon** (`archipeld`, Rust) runs the harnesses, logs everything they say, and keeps sessions alive while apps come and go.
 - **Apps** connect to it with a client SDK (TypeScript or Swift) and may draw sessions with a component kit (React or SwiftUI).
-- The messages are **ACP v2** plus a few additions under `_bridge/`.
+- The messages are **ACP v2** plus a few additions under `_archipel/`.
 
 ## Start from an example
 
@@ -23,7 +23,7 @@ Each of these is small. Copy the one that matches the task. The last column says
 | Host the daemon inside a Rust program | `examples/embedded-daemon` | Its own test, in-process and through the socket |
 | Change, stop or answer what the harness and the apps say to each other; fix a harness fault | `examples/own-daemon` (an addon) | Its own test |
 | Draw a session in a browser with React | `ui/react/demo/live.tsx` | Tests click through it in a real browser against the fake agent |
-| Draw a session in a macOS or iOS app with SwiftUI | `ui/swift/Demo/BridgeChatDemo.swift` | Compiled only. Tests press the views it uses |
+| Draw a session in a macOS or iOS app with SwiftUI | `ui/swift/Demo/ArchipelChatDemo.swift` | Compiled only. Tests press the views it uses |
 | Run the daemon as a service (launchd, systemd) | `examples/service/` | The launchd file is linted, and was loaded and exercised by hand once. The systemd file was never loaded |
 
 How to run each is at the top of the file, or in the README next to it.
@@ -42,7 +42,7 @@ A **fake agent** replays a recorded session, so an integration can be run end to
 
 ```sh
 cargo build
-target/debug/bridged --home /tmp/try --fake testdata/transcripts/claude-v2/approval_command.ndjson --fake-speed 0 &
+target/debug/archipeld --home /tmp/try --fake testdata/transcripts/claude-v2/approval_command.ndjson --fake-speed 0 &
 node examples/node/chat.ts --home /tmp/try --mode default --approve allow-once "anything"
 ```
 
@@ -55,7 +55,7 @@ node examples/node/chat.ts --home /tmp/try --mode default --approve allow-once "
 | Language | Check | Test |
 |---|---|---|
 | Rust | `cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings` | `cargo test --workspace` |
-| TypeScript | `pnpm -r check` | `pnpm -r test` (run `cargo build` first: several tests start `target/debug/bridged`) |
+| TypeScript | `pnpm -r check` | `pnpm -r test` (run `cargo build` first: several tests start `target/debug/archipeld`) |
 | React in a browser | | `pnpm test:browser` in `ui/react` (after `cargo build`, and once `npx playwright install chromium-headless-shell`) |
 | Swift | | `swift test` (also after `cargo build`) |
 
@@ -76,14 +76,14 @@ Node 22.18 or later runs the TypeScript sources directly; there is no build step
 - A request stays open while no app is attached. An app that attaches later gets it.
 
 **Connections**
-- The local socket (`~/.harness-bridge/daemon.sock`) gives full control and is readable only by its owner. A WebSocket connection is as limited as its token: `observe` reads, `interact` also acts, `extend` also acts as an extension, `admin` also deletes sessions.
+- The local socket (`~/.archipel/daemon.sock`) gives full control and is readable only by its owner. A WebSocket connection is as limited as its token: `observe` reads, `interact` also acts, `extend` also acts as an extension, `admin` also deletes sessions.
 - A session can be deleted by another app at any time. The SDKs then set `removed` on it, end any `until` wait, and stop following it (`onSessionRemoved` in TypeScript; in Swift it also leaves `client.sessions`). What it held stays readable; acting on it fails.
 - After a disconnect the SDKs reconnect and continue from the last item they had. An app does not replay by hand.
 - A browser page needs the daemon started with `--ws-origin` for its origin, and sends its token as a subprotocol (`docs/remote.md`).
 
 **Harnesses**
-- Claude Code is driven through an adapter that is an npm package and needs Node 22 or later: `npm install -g @agentclientprotocol/claude-agent-acp`. With no `config.json`, the daemon starts `claude-agent-acp` from `PATH`, so after that one command a real session works. `bridged --help` documents `config.json`.
-- **`bridge agents` is the first thing to run against a real daemon.** It starts every agent and prints `ready`, `needs_login`, or `error` with the reason, and fails unless all are ready. The daemon only learns whether an agent can start when it first needs it, so without this a missing adapter shows up as a failed first message.
+- Claude Code is driven through an adapter that is an npm package and needs Node 22 or later: `npm install -g @agentclientprotocol/claude-agent-acp`. With no `config.json`, the daemon starts `claude-agent-acp` from `PATH`, so after that one command a real session works. `archipeld --help` documents `config.json`.
+- **`archipel agents` is the first thing to run against a real daemon.** It starts every agent and prints `ready`, `needs_login`, or `error` with the reason, and fails unless all are ready. The daemon only learns whether an agent can start when it first needs it, so without this a missing adapter shows up as a failed first message.
 - **Not every harness can do everything.** `client.agents()` gives each agent's `capabilities` once it has started: `session.title` (rename, `client.setTitle`), `session.delete` (`client.deleteSession`), `session.options` (settings before a session exists, `client.sessionOptions`). Claude Code has all three; Pi can neither rename nor delete. A call the harness lacks fails with code -32601, so check before showing the button.
 - A new session uses the account's default model, which may be an expensive one. Set the model before the first message when cost matters: `session.setConfigOption("model", "haiku")`.
 - A daemon started by a service manager does not have your shell's `PATH`. If every agent fails to start, that is why (`examples/service/README.md`).
@@ -97,7 +97,7 @@ Node 22.18 or later runs the TypeScript sources directly; there is no build step
 
 ## If you change the library itself
 
-- **A fix for something a harness, an adapter or ACP gets wrong is an addon, never a change to the daemon's core.** So is an optional feature. Only bugs of this library are fixed in the core. `docs/design/addons.md` has the interface; `crates/bridge-addons` has the shipped ones, one file each.
+- **A fix for something a harness, an adapter or ACP gets wrong is an addon, never a change to the daemon's core.** So is an optional feature. Only bugs of this library are fixed in the core. `docs/design/addons.md` has the interface; `crates/archipel-addons` has the shipped ones, one file each.
 - The Rust core, the TypeScript SDK and the Swift SDK hold the same state for the same messages. `testdata/states` is the reference all three are tested against. After changing the schema run `just gen` (or the two commands under `gen` in the `justfile`).
 - An example that no test runs goes stale without anyone noticing. Add the test with the example, and say in the table above how far it is checked.
 - Decisions and their reasons are written down in `docs/research/NN-*.md`, and commits say why. Start with `docs/research/19-where-things-stand.md`, then `docs/design/daemon.md`.
@@ -107,7 +107,7 @@ Node 22.18 or later runs the TypeScript sources directly; there is no build step
 
 | Path | What |
 |---|---|
-| `crates/` | The Rust workspace. `bridged` is the daemon program, `bridge` a command-line client (both have `--help`), `bridge-server` the daemon as a library |
+| `crates/` | The Rust workspace. `archipeld` is the daemon program, `archipel` a command-line client (both have `--help`), `archipel-server` the daemon as a library |
 | `clients/ts`, `clients/swift` | The client SDKs. Their READMEs have a ten-line example and a file table |
 | `ui/react`, `ui/swift` | The component kits |
 | `examples/` | What the table above points to |

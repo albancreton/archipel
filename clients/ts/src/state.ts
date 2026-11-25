@@ -1,6 +1,6 @@
 // Client state, built by applying ACP v2 messages according to the schema's state rules.
 //
-// This is a port of `crates/bridge-core/src/state.rs`. Both must give the same state for the
+// This is a port of `crates/archipel-core/src/state.rs`. Both must give the same state for the
 // same messages; `testdata/states` holds what that state is for every recorded session.
 
 import { base64Decode, base64Encode, get, idString, isObject, set, type Json, type JsonObject } from "./json.ts";
@@ -171,9 +171,9 @@ export class SessionState {
   }
 }
 
-/** The state rule an update carries for itself under `_meta.bridge.state`, if any. */
+/** The state rule an update carries for itself under `_meta.archipel.state`, if any. */
 function ownRule(kind: string, update: Json): StateRule | undefined {
-  const rule = get(update, "_meta.bridge.state");
+  const rule = get(update, "_meta.archipel.state");
   if (!isObject(rule)) return undefined;
   const action = rule["action"];
   if (action !== "append" && action !== "upsert" && action !== "replace" && action !== "remove") {

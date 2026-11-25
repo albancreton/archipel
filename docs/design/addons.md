@@ -29,7 +29,7 @@ The daemon already had extensions (`daemon.md`, section 11). The two do differen
 
 ## The interface
 
-An addon is a Rust type that implements the trait `Addon` from the crate `bridge-addon-api`. That crate depends only on `serde_json`, so an addon crate does not pull in the daemon.
+An addon is a Rust type that implements the trait `Addon` from the crate `archipel-addon-api`. That crate depends only on `serde_json`, so an addon crate does not pull in the daemon.
 
 An addon can do three things: react to every message that passes, send messages of its own in either direction, and be called back later.
 
@@ -89,11 +89,11 @@ Through the context every hook receives (`Cx`), an addon sends what an app or an
 |---|---|---|
 | The app | `cx.call(method, params)` | A request to the adapter. The answer arrives in the hook `reply`. If the adapter stops first, the reply is an error |
 | The app | `cx.notify(method, params)` | A notification to the adapter, such as `session/cancel` |
-| The adapter | `cx.append(session, update)` | An update added to a session: logged, replayed and sent to apps like the adapter's, marked `_meta.bridge = {origin: "addon", addon: <id>}` |
+| The adapter | `cx.append(session, update)` | An update added to a session: logged, replayed and sent to apps like the adapter's, marked `_meta.archipel = {origin: "addon", addon: <id>}` |
 | The adapter | `cx.announce(method, params)` | A notification to apps that is not a session update. Not logged. With a `sessionId` it goes to the apps attached to that session, otherwise to every app |
 | The adapter | `cx.ask(method, params)` | A request for the user to answer, handled exactly like an adapter's approval: logged in the session its `sessionId` names, marked as the addon's, shown to every attached app, first answer wins. The answer arrives in `reply`. If the session's adapter stops first, the reply is a cancellation |
 
-| An app, towards the daemon | `cx.app_call(method, params)` | A request the daemon handles as if an app had made it: `session/new`, `session/prompt`, `_bridge/sessions/list`. Unlike `cx.call`, the daemon does its part: it records a new session, wakes one that is not live. The answer arrives in `reply`. It does not pass the app-side hooks; what the daemon sends an adapter for it passes every addon's `request`, marked as from this addon |
+| An app, towards the daemon | `cx.app_call(method, params)` | A request the daemon handles as if an app had made it: `session/new`, `session/prompt`, `_archipel/sessions/list`. Unlike `cx.call`, the daemon does its part: it records a new session, wakes one that is not live. The answer arrives in `reply`. It does not pass the app-side hooks; what the daemon sends an adapter for it passes every addon's `request`, marked as from this addon |
 | The daemon, towards one app | `cx.tell(app, method, params)` | A notification to that app alone. Not logged |
 
 In the other direction, an app reaches an addon with a call of a method under `_x/` (hook `method`) or a notification under `_x/` (hook `notification`). Neither ever reaches an adapter.
@@ -137,7 +137,7 @@ Three things are outside it:
 
 ### How it is tested
 
-`crates/bridge-server/tests/addons.rs` (the adapter side) and `tests/app_side.rs` (the app side) have one test per capability and are the reference for exact behaviour. The adapter in them is scripted by the test, so each check reads what the adapter and the app actually received.
+`crates/archipel-server/tests/addons.rs` (the adapter side) and `tests/app_side.rs` (the app side) have one test per capability and are the reference for exact behaviour. The adapter in them is scripted by the test, so each check reads what the adapter and the app actually received.
 
 Two scripts say whether those tests are enough:
 
@@ -152,11 +152,11 @@ The second exists because the first is not enough: with every line run, two of t
 
 | Source | How it gets into a daemon |
 |---|---|
-| The library: `crates/bridge-addons`, one file per addon under `acp/`, `claude/`, `pi/` | `bridge_addons::all()`, which `bridged` uses |
-| A consumer's own crate | Their own daemon binary: `bridged::main(addons)` is the whole `bridged` program with a list of addons, so the binary is five lines. `examples/own-daemon` |
+| The library: `crates/archipel-addons`, one file per addon under `acp/`, `claude/`, `pi/` | `archipel_addons::all()`, which `archipeld` uses |
+| A consumer's own crate | Their own daemon binary: `archipeld::main(addons)` is the whole `archipeld` program with a list of addons, so the binary is five lines. `examples/own-daemon` |
 | A consumer who embeds the daemon | `Server::builder().addon(…)` |
 
-Rust has no stable binary interface, so an addon cannot be dropped in as a file next to a released `bridged`: it is compiled in. Two ways around that exist if they are ever wanted: addons as WebAssembly modules, or the hooks offered over a connection the way extensions are. Neither is built.
+Rust has no stable binary interface, so an addon cannot be dropped in as a file next to a released `archipeld`: it is compiled in. Two ways around that exist if they are ever wanted: addons as WebAssembly modules, or the hooks offered over a connection the way extensions are. Neither is built.
 
 Which addons run is decided in `config.json`:
 
@@ -164,11 +164,11 @@ Which addons run is decided in `config.json`:
 {"addons": {"acp.restore-settings": false, "example.no-bypass": true}}
 ```
 
-An addon that is not named runs if it is a fix and does not if it is a feature. A name the daemon does not have is an error at start. `bridged addons` prints every addon compiled in, whether it runs, and its `info`.
+An addon that is not named runs if it is a fix and does not if it is a feature. A name the daemon does not have is an error at start. `archipeld addons` prints every addon compiled in, whether it runs, and its `info`.
 
 ## How a fix gets removed
 
-Every fix names a conformance scenario (`conformance/`). The scenario records two things: what happens with the addons as shipped, and what the harness does with the addon switched off. When an upstream release repairs the fault, the second one shows `CHANGED` on the next run. That is the signal: delete the addon's file and its line in `bridge_addons::all()`, and drop the "unaided" part of the scenario.
+Every fix names a conformance scenario (`conformance/`). The scenario records two things: what happens with the addons as shipped, and what the harness does with the addon switched off. When an upstream release repairs the fault, the second one shows `CHANGED` on the next run. That is the signal: delete the addon's file and its line in `archipel_addons::all()`, and drop the "unaided" part of the scenario.
 
 A platform-specific fault is handled inside the addon: `applies` gets the operating system, and Rust's `#[cfg(target_os = …)]` is there for code that only compiles on one.
 

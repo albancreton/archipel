@@ -1,6 +1,6 @@
 // Draws every recorded session to HTML and checks that what was said is on the page.
 
-import { Conversation, type Json } from "@harness-bridge/client";
+import { Conversation, type Json } from "@archipel/client";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -50,7 +50,7 @@ test("a pending approval offers its options, and an answered one shows the choic
   const conversation = load("claude-v2/approval_denied");
   const [, state] = conversation.root()!;
   const [id, request] = [...state.requests][0]!;
-  assert.match(renderToStaticMarkup(<ChatView conversation={conversation} />), /hb-answer">No</);
+  assert.match(renderToStaticMarkup(<ChatView conversation={conversation} />), /arc-answer">No</);
 
   request.outcome = null;
   let chosen = "";
@@ -59,15 +59,15 @@ test("a pending approval offers its options, and an answered one shows the choic
   );
   assert.match(html, /<button type="button">Yes<\/button>/);
   assert.match(html, /<button type="button">No<\/button>/);
-  assert.match(html, /hb-pending/);
+  assert.match(html, /arc-pending/);
   assert.equal(chosen, "", `nothing is chosen by drawing (${id})`);
 });
 
 test("a subagent's session is drawn inside its item, and a question shows its answer", () => {
   const nested = renderToStaticMarkup(<ChatView conversation={load("claude-v2/subagent")} />);
-  const body = nested.slice(nested.indexOf("hb-subagent-body"));
+  const body = nested.slice(nested.indexOf("arc-subagent-body"));
   assert.ok(body.includes("acp-probe"), "the child session's reply is inside the subagent");
-  assert.match(renderToStaticMarkup(<ChatView conversation={load("claude-v2/question")} />), /hb-answer">Red</);
+  assert.match(renderToStaticMarkup(<ChatView conversation={load("claude-v2/question")} />), /arc-answer">Red</);
 });
 
 test("an item of an unknown kind gets the fallback, or the component the app supplies", () => {
@@ -83,7 +83,7 @@ test("an item of an unknown kind gets the fallback, or the component the app sup
 
 test("a session open elsewhere says so, and offers the fork only when the app can show the copy", () => {
   const conversation = load("claude-v2/simple");
-  assert.doesNotMatch(renderToStaticMarkup(<ChatView conversation={conversation} />), /hb-elsewhere/);
+  assert.doesNotMatch(renderToStaticMarkup(<ChatView conversation={conversation} />), /arc-elsewhere/);
   const holder = { pid: 4242, status: "busy" };
   const told = renderToStaticMarkup(<ChatView conversation={conversation} openElsewhere={holder} actions={{ prompt: () => {} }} />);
   assert.match(told, /open in another window of the agent \(pid 4242, busy\)/);

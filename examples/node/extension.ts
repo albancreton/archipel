@@ -18,7 +18,7 @@
 // - An item carries a state rule that tells every client how to hold it. Without one the
 //   update is kept as an event and is not placed among the items.
 
-import { Connection, unixSocketTransport, type Json } from "@harness-bridge/client";
+import { Connection, unixSocketTransport, type Json } from "@archipel/client";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,7 +27,7 @@ const NAMESPACE = "notes";
 export async function startExtension(socket: string): Promise<Connection> {
   const daemon = new Connection(await unixSocketTransport(socket));
   await daemon.call("initialize", { protocolVersion: 2, info: { name: "notes-extension", version: "0.0.0" } });
-  await daemon.call("_bridge/extension/register", { namespace: NAMESPACE });
+  await daemon.call("_archipel/extension/register", { namespace: NAMESPACE });
 
   let count = 0;
   daemon.onMessage = (message) => {
@@ -44,7 +44,7 @@ export async function startExtension(socket: string): Promise<Connection> {
     // "upsert by noteId": a later update with the same noteId changes this item.
     const state = { action: "upsert", id: "noteId" };
     daemon
-      .call("_bridge/session/append", { sessionId: params["sessionId"], update, state })
+      .call("_archipel/session/append", { sessionId: params["sessionId"], update, state })
       .then((added) => daemon.answer(id, { noteId: update.noteId, seq: (added as { seq: number }).seq }))
       .catch((error: Error) => daemon.refuse(id, error.message, -32603));
   };
@@ -53,7 +53,7 @@ export async function startExtension(socket: string): Promise<Connection> {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const at = process.argv.indexOf("--home");
-  const home = at < 0 ? path.join(process.env["HOME"] ?? "", ".harness-bridge") : process.argv[at + 1]!;
+  const home = at < 0 ? path.join(process.env["HOME"] ?? "", ".archipel") : process.argv[at + 1]!;
   const daemon = await startExtension(path.join(home, "daemon.sock"));
   daemon.onClose = () => process.exit(0);
   console.log(`notes extension running; apps call _x/${NAMESPACE}/add`);

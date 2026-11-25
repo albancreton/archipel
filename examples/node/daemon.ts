@@ -1,27 +1,27 @@
 // Start the daemon from an app, if it is not already running.
 //
-// Use this when your app should work without an install step: nobody has set up `bridged`
+// Use this when your app should work without an install step: nobody has set up `archipeld`
 // as a service, so the app starts it. If a daemon already answers on the socket (a service,
 // or another app that started one), that one is used and nothing is started. There is never
 // a second daemon on one home folder.
 //
 //   import { ensureDaemon } from "./daemon.ts";
-//   const daemon = await ensureDaemon({ home, command: "/path/to/bridged" });
-//   const client = await BridgeClient.connect({ open: () => unixSocketTransport(daemon.socket), name: "my-app" });
+//   const daemon = await ensureDaemon({ home, command: "/path/to/archipeld" });
+//   const client = await ArchipelClient.connect({ open: () => unixSocketTransport(daemon.socket), name: "my-app" });
 //
 // Who stops it: by default the daemon this call started stops when the app exits, and its
 // sessions stop with it. With `keep: true` it goes on after the app, like a service that
 // nobody installed; say so to your user if you do that.
 
-import { unixSocketTransport } from "@harness-bridge/client";
+import { unixSocketTransport } from "@archipel/client";
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 
 export interface DaemonOptions {
-  /** The daemon's folder: its socket, log and config. Default: `~/.harness-bridge`. */
+  /** The daemon's folder: its socket, log and config. Default: `~/.archipel`. */
   home?: string;
-  /** The daemon program. Default: `bridged` from PATH. */
+  /** The daemon program. Default: `archipeld` from PATH. */
   command?: string;
   /** More arguments, such as `["--fake", recording]` for a daemon that costs nothing. */
   args?: string[];
@@ -51,13 +51,13 @@ async function answers(socket: string): Promise<boolean> {
 }
 
 export async function ensureDaemon(options: DaemonOptions = {}): Promise<Daemon> {
-  const home = options.home ?? path.join(process.env["HOME"] ?? "", ".harness-bridge");
+  const home = options.home ?? path.join(process.env["HOME"] ?? "", ".archipel");
   const socket = path.join(home, "daemon.sock");
   if (await answers(socket)) return { home, socket, started: null, stop: () => {} };
 
   mkdirSync(home, { recursive: true, mode: 0o700 });
   let log = "";
-  const child = spawn(options.command ?? "bridged", ["--home", home, ...(options.args ?? [])], {
+  const child = spawn(options.command ?? "archipeld", ["--home", home, ...(options.args ?? [])], {
     // The daemon logs to stderr. Keep the end of it to explain a failed start.
     stdio: ["ignore", "ignore", options.keep ? "ignore" : "pipe"],
     detached: options.keep === true,

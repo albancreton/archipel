@@ -1,12 +1,12 @@
 // Start the daemon from a macOS app, if it is not already running.
 //
-// Use this when your app should work without an install step: nobody has set up `bridged`
+// Use this when your app should work without an install step: nobody has set up `archipeld`
 // as a service, so the app starts it. If a daemon already answers on the socket (a service,
 // or another app that started one), that one is used and nothing is started. There is never
 // a second daemon on one home folder.
 //
-//   let daemon = try await ensureDaemon(command: Bundle.main.path(forAuxiliaryExecutable: "bridged")!)
-//   let client = BridgeClient(name: "my-app") { try UnixSocketTransport(path: daemon.socket) }
+//   let daemon = try await ensureDaemon(command: Bundle.main.path(forAuxiliaryExecutable: "archipeld")!)
+//   let client = ArchipelClient(name: "my-app") { try UnixSocketTransport(path: daemon.socket) }
 //   try await client.connect()
 //
 // Who stops it: by default the daemon this call started is stopped when the app exits in the
@@ -18,7 +18,7 @@
 // (`docs/remote.md`).
 
 #if os(macOS)
-import BridgeClient
+import ArchipelClient
 import Foundation
 
 public struct Daemon: Sendable {
@@ -77,16 +77,16 @@ private final class Tail: @unchecked Sendable {
 }
 
 /// - Parameters:
-///   - home: the daemon's folder. Default: `~/.harness-bridge`.
+///   - home: the daemon's folder. Default: `~/.archipel`.
 ///   - command: the daemon program: a path, or a name to look up in `PATH`. An app started
 ///     from the Finder has a bare `PATH`, so give a path there.
 ///   - arguments: more arguments, such as `["--fake", recording]` for a daemon that costs nothing.
 ///   - keep: leave the daemon running when the app exits.
 ///   - timeout: how long to wait for a started daemon to answer.
 public func ensureDaemon(
-    home: String? = nil, command: String = "bridged", arguments: [String] = [], keep: Bool = false, timeout: TimeInterval = 10
+    home: String? = nil, command: String = "archipeld", arguments: [String] = [], keep: Bool = false, timeout: TimeInterval = 10
 ) async throws -> Daemon {
-    let home = home ?? NSHomeDirectory() + "/.harness-bridge"
+    let home = home ?? NSHomeDirectory() + "/.archipel"
     let socket = home + "/daemon.sock"
     if answers(socket) { return Daemon(home: home, socket: socket, started: nil) }
 

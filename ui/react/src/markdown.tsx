@@ -22,7 +22,7 @@ function inline(tokens: Token[] | undefined): ReactNode[] {
         return <a key={at} href={link.href} title={link.title ?? undefined} target="_blank" rel="noreferrer noopener">{inner()}</a>;
       }
       // An image is named, not fetched: loading it would tell its server that the user is reading.
-      case "image": return <span key={at} className="hb-md-image">[image: {(token as Tokens.Image).text || (token as Tokens.Image).href}]</span>;
+      case "image": return <span key={at} className="arc-md-image">[image: {(token as Tokens.Image).text || (token as Tokens.Image).href}]</span>;
       case "text": {
         const text = token as Tokens.Text;
         return text.tokens ? <span key={at}>{inline(text.tokens)}</span> : decode(text.text);
@@ -76,7 +76,7 @@ function blocks(tokens: Token[]): ReactNode[] {
         const table = token as Tokens.Table;
         const align = (cell: Tokens.TableCell) => (cell.align ? { textAlign: cell.align } : undefined);
         return (
-          <div key={at} className="hb-md-table">
+          <div key={at} className="arc-md-table">
             <table>
               <thead><tr>{table.header.map((cell, column) => <th key={column} style={align(cell)}>{inline(cell.tokens)}</th>)}</tr></thead>
               <tbody>
@@ -101,7 +101,7 @@ function blocks(tokens: Token[]): ReactNode[] {
  */
 export function Markdown({ text }: { text: string }) {
   const drawn = useMemo(() => blocks(lexer(text, { gfm: true })), [text]);
-  return <div className="hb-md">{drawn}</div>;
+  return <div className="arc-md">{drawn}</div>;
 }
 
 /**

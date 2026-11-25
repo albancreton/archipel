@@ -2,7 +2,7 @@
 // the adapter, and a way to note what was observed.
 
 import { deflateSync } from "node:zlib";
-import { BridgeClient, unixSocketTransport, type Json, type JsonObject, type Session } from "@harness-bridge/client";
+import { ArchipelClient, unixSocketTransport, type Json, type JsonObject, type Session } from "@archipel/client";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -44,19 +44,19 @@ export class Daemon {
   }
 
   async start(): Promise<void> {
-    const bridged = path.join(root, "target/debug/bridged");
-    if (!existsSync(bridged)) throw new Error("run `cargo build` first");
+    const archipeld = path.join(root, "target/debug/archipeld");
+    if (!existsSync(archipeld)) throw new Error("run `cargo build` first");
     const args = ["--home", this.home];
     const child = this.agent.shell
-      ? spawn("zsh", ["-c", `${this.agent.shell} >/dev/null 2>&1; exec "$0" "$@"`, bridged, ...args], { stdio: ["ignore", "ignore", "pipe"] })
-      : spawn(bridged, args, { stdio: ["ignore", "ignore", "pipe"] });
+      ? spawn("zsh", ["-c", `${this.agent.shell} >/dev/null 2>&1; exec "$0" "$@"`, archipeld, ...args], { stdio: ["ignore", "ignore", "pipe"] })
+      : spawn(archipeld, args, { stdio: ["ignore", "ignore", "pipe"] });
     this.child = child;
     await new Promise<void>((resolve, reject) => {
       child.stderr!.on("data", (chunk) => {
         this.log += chunk;
         if (this.log.includes("listening on")) resolve();
       });
-      child.once("exit", (code) => reject(new Error(`bridged exited with ${code}: ${this.log}`)));
+      child.once("exit", (code) => reject(new Error(`archipeld exited with ${code}: ${this.log}`)));
     });
   }
 
@@ -70,8 +70,8 @@ export class Daemon {
     await gone;
   }
 
-  connect(): Promise<BridgeClient> {
-    return BridgeClient.connect({
+  connect(): Promise<ArchipelClient> {
+    return ArchipelClient.connect({
       open: () => unixSocketTransport(path.join(this.home, "daemon.sock")),
       name: "conformance",
       retryMs: 0,
@@ -125,7 +125,7 @@ export class Adapter {
     const adapter = new Adapter(child);
     adapter.welcome = await adapter.call("initialize", {
       protocolVersion: 2,
-      info: { name: "harness-bridge-conformance", version: "0.0.0" },
+      info: { name: "archipel-conformance", version: "0.0.0" },
       capabilities: { elicitation: { form: {}, url: {} } },
     });
     return adapter;
@@ -169,7 +169,7 @@ export class Run {
   outcome: Outcome = { facts: {}, info: {}, failed: [] };
   /** Sessions made by this run, to delete at the end. */
   made: Set<string>;
-  private clients: BridgeClient[] = [];
+  private clients: ArchipelClient[] = [];
   private adapters: Adapter[] = [];
 
   constructor(agent: AgentConfig, daemon: Daemon, work: string, made: Set<string>) {
@@ -196,7 +196,7 @@ export class Run {
     if (!holds) this.outcome.failed.push(what);
   }
 
-  async app(): Promise<BridgeClient> {
+  async app(): Promise<ArchipelClient> {
     const client = await this.daemon.connect();
     this.clients.push(client);
     return client;
@@ -209,7 +209,7 @@ export class Run {
   }
 
   /** A new session, on the cheap model. */
-  async session(app: BridgeClient): Promise<Session> {
+  async session(app: ArchipelClient): Promise<Session> {
     const session = await app.newSession({ cwd: this.work, agentId: this.id });
     this.made.add(session.id);
     if (this.agent.cheapModel && current(session, "model") !== this.agent.cheapModel) {

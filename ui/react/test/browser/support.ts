@@ -28,7 +28,7 @@ export async function servePage(entry: string): Promise<{ url: string; close: ()
     logLevel: "silent",
   });
   const script = bundle.outputFiles[0]!.text;
-  const page = `<!doctype html><meta charset="utf-8"><title>test</title><style>body{margin:0;font:14px sans-serif}.demo{display:flex}.demo-sessions{width:300px;flex:none}.demo .hb-chat{flex:1}${css}</style><div id="root"></div><script type="module" src="/page.js"></script>`;
+  const page = `<!doctype html><meta charset="utf-8"><title>test</title><style>body{margin:0;font:14px sans-serif}.demo{display:flex}.demo-sessions{width:300px;flex:none}.demo .arc-chat{flex:1}${css}</style><div id="root"></div><script type="module" src="/page.js"></script>`;
   const server: Server = createServer((request, response) => {
     if (request.url === "/page.js") response.writeHead(200, { "content-type": "text/javascript" }).end(script);
     else response.writeHead(200, { "content-type": "text/html" }).end(page);
@@ -57,9 +57,9 @@ export interface Daemon {
  * (a name in `testdata/transcripts`), reachable by pages served from `origin`.
  */
 export async function startDaemon(transcript: string, origin: string): Promise<Daemon> {
-  const program = path.join(root, "target/debug/bridged");
+  const program = path.join(root, "target/debug/archipeld");
   if (!existsSync(program)) throw new Error(`${program} is missing: run \`cargo build\` first`);
-  const home = mkdtempSync(path.join(tmpdir(), "hb-ui-"));
+  const home = mkdtempSync(path.join(tmpdir(), "arc-ui-"));
   let child: ChildProcess | undefined;
   let address = "127.0.0.1:0";
   const start = async () => {

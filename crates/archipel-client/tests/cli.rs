@@ -1,0 +1,208 @@
+//! Runs the `archipel` program against a daemon on a local socket, with a fake adapter.
+
+use archipel_agents::{AgentSpec, Fake, Process};
+use archipel_core::transcript::Transcript;
+use archipel_server::Server;
+use archipel_transport::local::LocalServer;
+use std::{fs, path::Path, sync::Arc};
+use tokio::process::Command;
+
+async fn archipel(socket: &Path, args: &[&str]) -> String {
+    let output = Command::new(env!("CARGO_BIN_EXE_archipel"))
+        .arg("--socket")
+        .arg(socket)
+        .args(args)
+        .output()
+        .await
+        .expect("archipel runs");
+    assert!(
+        output.status.success(),
+        "archipel {args:?} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("text")
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_command_line_client_creates_prompts_watches_and_shows_a_session() {
+    let testdata = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata");
+    let recorded =
+        fs::read_to_string(testdata.join("transcripts/claude-v2/simple.ndjson")).unwrap();
+    let transcript = Transcript::parse(&recorded).unwrap();
+    let prompt = transcript.header.prompts[0].clone();
+
+    let dir = std::env::temp_dir().join(format!("archipel-cli-{}", std::process::id()));
+    fs::create_dir_all(&dir).unwrap();
+    let socket = dir.join("daemon.sock");
+    let listener = LocalServer::bind(&socket).unwrap();
+    let server = Server::builder()
+        .agent(AgentSpec {
+            id: "claude".into(),
+            name: "Fake".into(),
+            harness: None,
+            launcher: Arc::new(Fake {
+                transcript,
+                speed: 0.0,
+            }),
+        })
+        .start();
+    let accepting = server.clone();
+    tokio::spawn(async move {
+        while let Ok(link) = listener.accept().await {
+            accepting.connect(link);
+        }
+    });
+
+    // The demo extension, as its own process.
+    let mut extension = Command::new(env!("CARGO_BIN_EXE_archipel-demo-checkpoints"))
+        .arg("--socket")
+        .arg(&socket)
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .expect("the extension starts");
+    let mut ready = String::new();
+    tokio::io::AsyncBufReadExt::read_line(
+        &mut tokio::io::BufReader::new(extension.stderr.take().unwrap()),
+        &mut ready,
+    )
+    .await
+    .unwrap();
+    assert!(ready.contains("registered"), "{ready}");
+
+    assert!(archipel(&socket, &["agents"]).await.starts_with("claude"));
+    let session = archipel(&socket, &["new", "--cwd", "/"]).await;
+    let session = session.trim();
+    // The first characters of the id are enough.
+    assert!(
+        archipel(&socket, &["prompt", &session[..8], &prompt])
+            .await
+            .starts_with("sent ")
+    );
+
+    let watched = archipel(&socket, &["watch", session, "--until-idle"]).await;
+    assert!(watched.contains("[agent_message] "), "{watched}");
+    assert!(watched.trim_end().ends_with("-- idle"), "{watched}");
+
+    // The session as recorded, plus the checkpoint the extension added when the turn ended.
+    let checkpoint = format!("{}-1", &session[..8]);
+    let listed = loop {
+        let params = format!(r#"{{"sessionId":"{session}"}}"#);
+        let listed = archipel(&socket, &["call", "_x/demo/checkpoints/list", &params]).await;
+        if listed.contains(&checkpoint) {
+            break listed;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    };
+    assert!(listed.contains("after turn 1"), "{listed}");
+    let shown = archipel(&socket, &["show", session]).await;
+    let vector = fs::read_to_string(testdata.join("vectors/claude-v2/simple.txt")).unwrap();
+    let recorded: Vec<&str> = vector.split_once("\n\n").unwrap().1.lines().collect();
+    let shown_lines: Vec<&str> = shown.lines().collect();
+    let extra: Vec<&&str> = shown_lines
+        .iter()
+        .filter(|line| !recorded.contains(line))
+        .collect();
+    assert_eq!(extra.len(), 1, "{shown}");
+    assert!(extra[0].starts_with("[x.demo.checkpoint] ") && extra[0].contains(&checkpoint));
+
+    // Restoring changes that item; it does not add another.
+    let params = format!(r#"{{"sessionId":"{session}","checkpointId":"{checkpoint}"}}"#);
+    let restored = archipel(&socket, &["call", "_x/demo/checkpoint/restore", &params]).await;
+    assert!(restored.contains(&checkpoint), "{restored}");
+    let shown = archipel(&socket, &["show", session]).await;
+    assert_eq!(shown.matches("[x.demo.checkpoint]").count(), 1, "{shown}");
+    assert!(shown.contains(r#""restored":true"#), "{shown}");
+
+    let listed = archipel(&socket, &["sessions"]).await;
+    assert!(
+        listed.contains(session) && listed.contains("idle"),
+        "{listed}"
+    );
+
+    // The same through a command that carries the connection, as SSH would:
+    // `archipel --via "ssh host archipel connect --stdio" …`. Here the "remote" side is local.
+    let carrier = format!(
+        "{} --socket {} connect --stdio",
+        env!("CARGO_BIN_EXE_archipel"),
+        socket.display()
+    );
+    let output = Command::new(env!("CARGO_BIN_EXE_archipel"))
+        .args(["--via", &carrier, "show", session])
+        .output()
+        .await
+        .expect("archipel runs");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), shown);
+    server.shutdown().await;
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+/// What somebody runs first: is every agent usable, and if not, why not?
+#[tokio::test(flavor = "multi_thread")]
+async fn agents_starts_each_agent_and_fails_with_the_reason_when_one_cannot_start() {
+    let testdata = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata");
+    let recorded =
+        fs::read_to_string(testdata.join("transcripts/claude-v2/simple.ndjson")).unwrap();
+    let dir = std::env::temp_dir().join(format!("archipel-cli-agents-{}", std::process::id()));
+    fs::create_dir_all(&dir).unwrap();
+    let socket = dir.join("daemon.sock");
+    let listener = LocalServer::bind(&socket).unwrap();
+    let working = AgentSpec {
+        id: "works".into(),
+        name: "Fake".into(),
+        harness: None,
+        launcher: Arc::new(Fake {
+            transcript: Transcript::parse(&recorded).unwrap(),
+            speed: 0.0,
+        }),
+    };
+    // Not the first agent, so nothing but this command would have started it.
+    let missing = AgentSpec {
+        id: "missing".into(),
+        name: "Not installed".into(),
+        harness: None,
+        launcher: Arc::new(Process {
+            command: "/no/such/adapter".into(),
+            ..Process::default()
+        }),
+    };
+    let server = Server::builder().agent(working).agent(missing).start();
+    let accepting = server.clone();
+    tokio::spawn(async move {
+        while let Ok(link) = listener.accept().await {
+            accepting.connect(link);
+        }
+    });
+
+    let output = Command::new(env!("CARGO_BIN_EXE_archipel"))
+        .arg("--socket")
+        .arg(&socket)
+        .arg("agents")
+        .output()
+        .await
+        .expect("archipel runs");
+    let (printed, said) = (
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let lines: Vec<&str> = printed.lines().collect();
+    assert!(
+        lines[0].starts_with("works") && lines[0].contains(" ready "),
+        "{printed}"
+    );
+    assert!(
+        lines[1].starts_with("missing")
+            && lines[1].contains(" error ")
+            && lines[1].contains("could not start the agent: /no/such/adapter"),
+        "{printed}"
+    );
+    assert!(!output.status.success());
+    assert!(said.contains("1 agent(s) cannot be used"), "{said}");
+    server.shutdown().await;
+    fs::remove_dir_all(&dir).unwrap();
+}

@@ -7,24 +7,24 @@ The daemon can run commands as you. So by default it is reachable only through a
 Nothing to configure on the daemon. If you can SSH to the machine, you can use its daemon:
 
 ```
-bridge --via "ssh myhost bridge connect --stdio" sessions
+archipel --via "ssh myhost archipel connect --stdio" sessions
 ```
 
-`bridge connect --stdio` runs on the remote machine and carries one connection to the local socket on its stdin and stdout. SSH does the encryption and decides who gets in. The client SDKs have the same: `commandTransport("ssh", ["myhost", "bridge", "connect", "--stdio"])` in TypeScript.
+`archipel connect --stdio` runs on the remote machine and carries one connection to the local socket on its stdin and stdout. SSH does the encryption and decides who gets in. The client SDKs have the same: `commandTransport("ssh", ["myhost", "archipel", "connect", "--stdio"])` in TypeScript.
 
 Checked with a local command standing in for SSH. A real SSH hop was not tested here (this machine accepts no key for itself).
 
 ## 2. A WebSocket inside a private network
 
 ```
-bridged --ws 127.0.0.1:7890
+archipeld --ws 127.0.0.1:7890
 ```
 
 Every client presents a token.
 
-- **Pairing (preferred):** `bridged pair --scope interact --name phone` prints a one-time code such as `K7QMP-2XWRA`, valid ten minutes. The app exchanges it for a token of its own: `bridge pair ws://host:7890 CODE --save ~/.bridge-token`, or `pair(url, code)` in the SDKs. The code then stops working.
-- **By hand:** `bridged token add NAME --scope observe` prints a token to copy.
-- `bridged token list` and `bridged token remove NAME` list and revoke. Both take effect at once.
+- **Pairing (preferred):** `archipeld pair --scope interact --name phone` prints a one-time code such as `K7QMP-2XWRA`, valid ten minutes. The app exchanges it for a token of its own: `archipel pair ws://host:7890 CODE --save ~/.archipel-token`, or `pair(url, code)` in the SDKs. The code then stops working.
+- **By hand:** `archipeld token add NAME --scope observe` prints a token to copy.
+- `archipeld token list` and `archipeld token remove NAME` list and revoke. Both take effect at once.
 - The daemon stores only a hash of each token. `ws-token` in its home is the owner's own token, for the command-line client on the same machine.
 
 Scopes: `observe` (list and read), `interact` (also prompt, answer, create), `extend` (also act as an extension), `admin`.
@@ -38,7 +38,7 @@ Not tested here: a `wss://` address end to end. The Rust client is built with th
 A browser page may connect only from an origin you name:
 
 ```
-bridged --ws 127.0.0.1:7890 --ws-origin http://localhost:5173
+archipeld --ws 127.0.0.1:7890 --ws-origin http://localhost:5173
 ```
 
 A page cannot set the header the token normally travels in, so it sends it as a WebSocket subprotocol: `webSocketTransport(url, { token, subprotocol: true })`. Any other origin is refused, token or not, because any page your browser shows can try to connect to a local port.

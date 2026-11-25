@@ -1,5 +1,5 @@
 {
-  "name": "@harness-bridge/watch",
+  "name": "@archipel/watch",
   "version": "0.0.0",
   "private": true,
   "description": "Looks for new versions of what the library depends on and writes down what changed.",
@@ -11,7 +11,7 @@
     "watch": "node watch.ts"
   },
   "dependencies": {
-    "@harness-bridge/client": "workspace:*"
+    "@archipel/client": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -9,6 +9,7 @@ One file per recorded session: every JSON-RPC message between a client and an AC
 - Line 1 is a header: `{"transcript":1,"scenario":…,"agent":…,"harness":…,"adapter":…,"protocol":2,"model":…,"prompts":[…],"recordedAt":…}`.
 - Every other line is a frame: `{"dir":"in"|"out","t":<ms since start>,"m":<the JSON-RPC message>}`. `in` is from the agent.
 - Email addresses are replaced with `user@example.com`, and account status messages are left out.
+- Before a recording is committed, `scripts/scrub-recordings.py` takes out what is personal: the home folder and project paths (now `/work/…`), the account's plan, and commands that come from plugins. Then `just vectors` remakes what is derived from it.
 
 | Set | Recorded from | With |
 |---|---|---|
@@ -19,7 +20,7 @@ The scenario names and several prompts are taken from or modelled on T3 Code's r
 
 To add a scenario, add it to `v2rec.mjs`, run `node v2rec.mjs <name>` (a live, paid call), then `just vectors` and read the new file in `vectors/`.
 
-A transcript can also stand in for an adapter: `bridged --fake <transcript>` replays it, and the daemon's tests do the same in-process (`bridge-agents`, `fake`).
+A transcript can also stand in for an adapter: `archipeld --fake <transcript>` replays it, and the daemon's tests do the same in-process (`archipel-agents`, `fake`).
 
 ## adapters/
 

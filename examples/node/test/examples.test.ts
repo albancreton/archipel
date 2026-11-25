@@ -1,7 +1,7 @@
 // Runs every example here against the real daemon program with a fake agent that replays
 // a recorded session. Needs `cargo build` first.
 
-import { BridgeClient, unixSocketTransport } from "@harness-bridge/client";
+import { ArchipelClient, unixSocketTransport } from "@archipel/client";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
@@ -13,12 +13,12 @@ import { ensureDaemon } from "../daemon.ts";
 import { startExtension } from "../extension.ts";
 
 const root = path.join(import.meta.dirname, "../../..");
-const bridged = path.join(root, "target/debug/bridged");
+const archipeld = path.join(root, "target/debug/archipeld");
 const fake = (scenario: string) => ["--fake", path.join(root, `testdata/transcripts/claude-v2/${scenario}.ndjson`), "--fake-speed", "0"];
 
-test("the daemon is started once, and found the second time", { skip: !existsSync(bridged) }, async () => {
-  const home = mkdtempSync(path.join(os.tmpdir(), "bridge-ex-"));
-  const first = await ensureDaemon({ home, command: bridged, args: fake("simple") });
+test("the daemon is started once, and found the second time", { skip: !existsSync(archipeld) }, async () => {
+  const home = mkdtempSync(path.join(os.tmpdir(), "archipel-ex-"));
+  const first = await ensureDaemon({ home, command: archipeld, args: fake("simple") });
   try {
     assert.ok(first.started, "nothing was running, so it was started");
     const second = await ensureDaemon({ home, command: "/no/such/program" });
@@ -32,9 +32,9 @@ test("the daemon is started once, and found the second time", { skip: !existsSyn
   rmSync(`${home}-none`, { recursive: true, force: true });
 });
 
-test("the chat prints a turn and answers its approval", { skip: !existsSync(bridged) }, async () => {
-  const home = mkdtempSync(path.join(os.tmpdir(), "bridge-ex-"));
-  const daemon = await ensureDaemon({ home, command: bridged, args: fake("approval_command") });
+test("the chat prints a turn and answers its approval", { skip: !existsSync(archipeld) }, async () => {
+  const home = mkdtempSync(path.join(os.tmpdir(), "archipel-ex-"));
+  const daemon = await ensureDaemon({ home, command: archipeld, args: fake("approval_command") });
   try {
     const lines: string[] = [];
     const session = await chat({
@@ -56,12 +56,12 @@ test("the chat prints a turn and answers its approval", { skip: !existsSync(brid
   }
 });
 
-test("the extension's item reaches an app, live and on replay", { skip: !existsSync(bridged) }, async () => {
-  const home = mkdtempSync(path.join(os.tmpdir(), "bridge-ex-"));
-  const daemon = await ensureDaemon({ home, command: bridged, args: fake("simple") });
+test("the extension's item reaches an app, live and on replay", { skip: !existsSync(archipeld) }, async () => {
+  const home = mkdtempSync(path.join(os.tmpdir(), "archipel-ex-"));
+  const daemon = await ensureDaemon({ home, command: archipeld, args: fake("simple") });
   try {
     const extension = await startExtension(daemon.socket);
-    const connect = (name: string) => BridgeClient.connect({ open: () => unixSocketTransport(daemon.socket), name, retryMs: 0 });
+    const connect = (name: string) => ArchipelClient.connect({ open: () => unixSocketTransport(daemon.socket), name, retryMs: 0 });
     const app = await connect("example-app");
     const session = await app.newSession({ cwd: root });
 
@@ -82,6 +82,6 @@ test("the extension's item reaches an app, live and on replay", { skip: !existsS
 });
 
 test("the launchd file is a well-formed property list", { skip: process.platform !== "darwin" }, () => {
-  const plist = path.join(root, "examples/service/dev.harness-bridge.bridged.plist");
+  const plist = path.join(root, "examples/service/dev.archipel.archipeld.plist");
   assert.match(execFileSync("plutil", ["-lint", plist], { encoding: "utf8" }), /OK/);
 });

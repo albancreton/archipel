@@ -1,13 +1,13 @@
 # React component kit
 
-`@harness-bridge/react`: one component per kind of item, and a chat view assembled from them. Optional: an app can use the client SDK alone and draw everything itself.
+`@archipel/react`: one component per kind of item, and a chat view assembled from them. Optional: an app can use the client SDK alone and draw everything itself.
 
 ```tsx
-import { ChatView, useSession } from "@harness-bridge/react";
-import "@harness-bridge/react/styles.css";
+import { ChatView, useSession } from "@archipel/react";
+import "@archipel/react/styles.css";
 
 function Chat({ session, onFork }) {
-  // session: a Session of @harness-bridge/client. onFork receives the copy to show instead.
+  // session: a Session of @archipel/client. onFork receives the copy to show instead.
   const { conversation, actions, openElsewhere, error } = useSession(session, { onFork });
   return <ChatView conversation={conversation} actions={actions} openElsewhere={openElsewhere} error={error} />;
 }
@@ -71,10 +71,10 @@ With any of these, `actions.prompt` receives content blocks instead of a string;
 ## The rest
 
 - **Diffs** (`Diff`) are drawn per file with line numbers, the count of added and removed lines, and long unchanged parts folded behind "Show N unchanged lines". There is no syntax highlighting. `parsePatch` and `foldContext` are exported.
-- **Terminal output** (`Terminal`, `AnsiText`) shows the colours and styles a command prints; other control codes are dropped, and a progress line shows its last state. It is not a terminal emulator. The 16 terminal colours are CSS variables (`--hb-ansi-0` to `--hb-ansi-15`).
+- **Terminal output** (`Terminal`, `AnsiText`) shows the colours and styles a command prints; other control codes are dropped, and a progress line shows its last state. It is not a terminal emulator. The 16 terminal colours are CSS variables (`--arc-ansi-0` to `--arc-ansi-15`).
 - Each component takes an item and, where the user can act, a callback. Nothing else.
 - `components={{ "x.acme.checkpoint": Checkpoint }}` draws an extension's kind with your component. Without it the item gets a generic fallback.
-- Styles are one CSS file with `hb-` classes and a few variables.
+- Styles are one CSS file with `arc-` classes and a few variables.
 - **The agent's text is drawn as Markdown** (`Markdown`, parsed with `marked`): headings, lists, tables, quotes, code blocks. It is built as React elements, never as HTML, so markup the agent writes is shown as text, links go only to `http`, `https` and `mailto`, and images are named, not fetched. Text that is still arriving is fine: an open code fence is code up to where the text ends. There is no code highlighting. `renderText={(text) => …}` on `ChatView` (or the `RenderText` context) swaps the renderer; `(text) => text` shows the text as written. The user's own messages are always as written.
 - **Long sessions:** `Timeline` draws the newest 200 items and a "Show earlier" button (`pageSize`), and rows off screen are skipped by the browser (`content-visibility`). A session of 5000 items draws in the time of 200.
 

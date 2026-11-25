@@ -1,6 +1,6 @@
 // The settings bar and the session list, drawn to HTML.
 
-import { Conversation, type Bridge, type SessionSummary } from "@harness-bridge/client";
+import { Conversation, type Archipel, type SessionSummary } from "@archipel/client";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -42,7 +42,7 @@ test("the settings bar draws a menu per choice and a checkbox per switch", () =>
   const [, state] = load("claude-v2/simple").root()!;
   const settings = settingsOf(state.values.get("configOptions"));
   const html = renderToStaticMarkup(<SettingsBar settings={settings} onChange={() => {}} />);
-  assert.match(html, /<span class="hb-label">Model<\/span><select>/);
+  assert.match(html, /<span class="arc-label">Model<\/span><select>/);
   assert.match(html, /<option value="haiku"[^>]*selected=""/);
   assert.match(html, /<input type="checkbox"\/>Ultracode/);
   assert.doesNotMatch(html, /disabled/);
@@ -51,8 +51,8 @@ test("the settings bar draws a menu per choice and a checkbox per switch", () =>
 
   // The chat draws it only for an app that can change a setting.
   const conversation = load("claude-v2/simple");
-  assert.doesNotMatch(renderToStaticMarkup(<ChatView conversation={conversation} />), /hb-settings/);
-  assert.match(renderToStaticMarkup(<ChatView conversation={conversation} actions={{ setOption: () => {} }} />), /hb-settings/);
+  assert.doesNotMatch(renderToStaticMarkup(<ChatView conversation={conversation} />), /arc-settings/);
+  assert.match(renderToStaticMarkup(<ChatView conversation={conversation} actions={{ setOption: () => {} }} />), /arc-settings/);
 });
 
 const summary = (sessionId: string, more: Partial<SessionSummary> = {}): SessionSummary => ({
@@ -72,14 +72,14 @@ test("the session list groups by folder and says what each session is doing", ()
     ["/work/site", ["s2"]],
   ]);
   const html = renderToStaticMarkup(<SessionList sessions={sessions} selected="s1" now={now} onOpen={() => {}} />);
-  assert.match(html, /<h3 class="hb-label" title="\/work\/app">app<\/h3>/);
-  assert.match(html, /class="hb-session hb-selected"/);
+  assert.match(html, /<h3 class="arc-label" title="\/work\/app">app<\/h3>/);
+  assert.match(html, /class="arc-session arc-selected"/);
   assert.match(html, /Fix the login<\/span>.*?needs you<\/span>.*?>5m<\/time>/);
   assert.match(html, /Docs<\/span>.*?running<\/span>.*?open elsewhere<\/span>/);
   assert.match(html, /Untitled<\/span>.*?from pi<\/span>/);
-  assert.match(html, /Old<\/span><span class="hb-session-meta"><span class="hb-session-agent">claude<\/span><time[^>]*>3d<\/time>/, "an idle session has no badge");
+  assert.match(html, /Old<\/span><span class="arc-session-meta"><span class="arc-session-agent">claude<\/span><time[^>]*>3d<\/time>/, "an idle session has no badge");
   assert.doesNotMatch(html, />Rename<|>Delete<|Show more/);
-  assert.match(renderToStaticMarkup(<SessionList sessions={sessions} groupBy="none" />), /^<div class="hb-sessions"><ul>/);
+  assert.match(renderToStaticMarkup(<SessionList sessions={sessions} groupBy="none" />), /^<div class="arc-sessions"><ul>/);
   assert.match(renderToStaticMarkup(<SessionList sessions={[]} />), /No sessions/);
 });
 
@@ -89,7 +89,7 @@ test("rename and delete are offered only where the agent can do them", () => {
   const all = renderToStaticMarkup(<SessionList sessions={sessions} {...act} />);
   assert.equal(all.match(/>Rename</g)?.length, 2, "without the agent list every session gets the controls");
   assert.match(all, /Show more/);
-  const agents: Bridge.AgentInfo[] = [
+  const agents: Archipel.AgentInfo[] = [
     { agentId: "claude", name: "Claude", readiness: "ready", capabilities: { session: { title: {}, delete: {} } } },
     { agentId: "pi", name: "Pi", readiness: "ready", capabilities: { session: {} } },
   ];
@@ -150,7 +150,7 @@ test("what is sent: text alone, or blocks with what was attached and mentioned",
 
 test("attaching is offered only for what the agent takes, and the user's message shows what was sent", () => {
   assert.doesNotMatch(renderToStaticMarkup(<Composer running={false} />), /Attach/);
-  assert.match(renderToStaticMarkup(<Composer running={false} accepts={{ image: true }} />), /<input type="file" multiple="" hidden="" accept="image\/\*"\/><button type="button" class="hb-attach">Attach/);
+  assert.match(renderToStaticMarkup(<Composer running={false} accepts={{ image: true }} />), /<input type="file" multiple="" hidden="" accept="image\/\*"\/><button type="button" class="arc-attach">Attach/);
   assert.match(renderToStaticMarkup(<Composer running accepts={{ image: true, files: true }} />), /<input type="file" multiple="" hidden=""\/>.*Stop/);
 
   const conversation = load("claude-v2/simple");
@@ -164,5 +164,5 @@ test("attaching is offered only for what the agent takes, and the user's message
   ] });
   state.timeline.push({ target: "userMessage", id: "u2" });
   const html = renderToStaticMarkup(<ChatView conversation={conversation} />);
-  assert.match(html, /look &lt;b&gt;<span class="hb-user-attached"><img src="data:image\/png;base64,AAAA" alt="attached picture"\/><span class="hb-chip">image<\/span><span class="hb-chip">src\/main\.ts<\/span><span class="hb-chip">my notes\.md<\/span>/);
+  assert.match(html, /look &lt;b&gt;<span class="arc-user-attached"><img src="data:image\/png;base64,AAAA" alt="attached picture"\/><span class="arc-chip">image<\/span><span class="arc-chip">src\/main\.ts<\/span><span class="arc-chip">my notes\.md<\/span>/);
 });

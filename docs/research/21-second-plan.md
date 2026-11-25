@@ -50,16 +50,16 @@ Proposal: the library ships helpers and one example; the consumer decides the li
 
 What already holds:
 
-- `bridged` runs in the foreground and logs to stderr. That is the form launchd and systemd want, so there is nothing to "daemonize" in the old sense.
-- The server is already a Rust library (`bridge-server`, `Server::builder()`). A Rust app can host it in its own process with no separate program.
+- `archipeld` runs in the foreground and logs to stderr. That is the form launchd and systemd want, so there is nothing to "daemonize" in the old sense.
+- The server is already a Rust library (`archipel-server`, `Server::builder()`). A Rust app can host it in its own process with no separate program.
 
 What to add:
 
 | # | Helper | What it does |
 |---|---|---|
-| B1 | `bridged setup` | Finds the installed harnesses and their adapters (Claude Code, the Claude adapter and the Node it needs, Pi, `pi-acp`), says what is missing, writes `config.json`. Today the config is written by hand |
-| B2 | `bridged service install / uninstall / status` | Writes and loads a per-user service: a launchd agent on macOS, a systemd user unit on Linux. Windows with the Windows work |
-| B3 | "Start if not running" in the SDKs | For an app that prefers to own the daemon: start `bridged` as a child when its socket does not answer, and connect. Swift and TypeScript (Node) |
+| B1 | `archipeld setup` | Finds the installed harnesses and their adapters (Claude Code, the Claude adapter and the Node it needs, Pi, `pi-acp`), says what is missing, writes `config.json`. Today the config is written by hand |
+| B2 | `archipeld service install / uninstall / status` | Writes and loads a per-user service: a launchd agent on macOS, a systemd user unit on Linux. Windows with the Windows work |
+| B3 | "Start if not running" in the SDKs | For an app that prefers to own the daemon: start `archipeld` as a child when its socket does not answer, and connect. Swift and TypeScript (Node) |
 | B4 | `examples/embedded-daemon` | A short Rust program that hosts the server in-process with its own agent list and store. The example the user asked for |
 | B5 | A page in `docs/` | The three ways to run it (service, child of the app, in-process) and when each fits |
 

@@ -15,7 +15,7 @@ Why Playwright and not a DOM imitation (jsdom): focus, the caret, the file choos
 
 ## SwiftUI: pressed inside the test process
 
-`swift test` now runs 8 click tests in the kit (20 in all, under four seconds). `Tests/BridgeUITests/Screen.swift` puts a view in a window that is never shown, finds its controls through accessibility by their label, presses them, and types into its text fields through the field's own editor.
+`swift test` now runs 8 click tests in the kit (20 in all, under four seconds). `Tests/ArchipelUITests/Screen.swift` puts a view in a window that is never shown, finds its controls through accessibility by their label, presses them, and types into its text fields through the field's own editor.
 
 How this was found: Apple's UI tests (XCUITest) need an app bundle and an Xcode project, which a Swift package does not have. Reading the accessibility tree from inside the process needs neither, and no permission. SwiftUI only describes its views to accessibility once something has asked; setting `AXEnhancedUserInterface` on the application object does that. A `List` builds its rows only when drawn, so the helper draws the window into memory, and it looks inside the row views because the rows do not report their content.
 
@@ -27,7 +27,7 @@ Covered: an approval, a question (typing and Skip), the composer (sending, the c
 
 1. **SwiftUI composer: Return with the file menu open sent the message instead of taking the file.** The text field keeps the handlers it was given until its own text changes, and the files to mention arrive after that, so the handler still saw an empty menu. The handlers now ask for the menu when the key is pressed. The same would have hit Tab and the arrows. The command menu was not affected (it depends only on the text). Seen in the test process, not on a screen.
 2. **React: "Try again" on an agent notice passed the click event to the app's function.** Harmless for a function without parameters, wrong for one with an optional one. Fixed.
-3. React: the composer's menus open above it, so a composer at the very top of a page puts them out of view. Not changed: a composer sits at the bottom of a chat. An app that puts it elsewhere needs its own style for `.hb-menu`.
+3. React: the composer's menus open above it, so a composer at the very top of a page puts them out of view. Not changed: a composer sits at the bottom of a chat. An app that puts it elsewhere needs its own style for `.arc-menu`.
 
 ## Not done
 

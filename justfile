@@ -5,20 +5,20 @@ default:
 
 # Regenerate everything derived from the schema: the rules, the extension schema, client types.
 gen:
-    cargo run -q -p bridge-schema --bin gen
+    cargo run -q -p archipel-schema --bin gen
     cd clients/ts && node generate-types.mjs
 
 # Rewrite the expected renderings in testdata/vectors after a deliberate change. Review the diff.
 vectors:
-    UPDATE_VECTORS=1 cargo test -q -p bridge-agents --test pi
-    UPDATE_VECTORS=1 cargo test -q -p bridge-core --test transcripts
-    UPDATE_VECTORS=1 cargo test -q -p bridge-server --test daemon every_recorded
+    UPDATE_VECTORS=1 cargo test -q -p archipel-agents --test pi
+    UPDATE_VECTORS=1 cargo test -q -p archipel-core --test transcripts
+    UPDATE_VECTORS=1 cargo test -q -p archipel-server --test daemon every_recorded
 
-# Start a daemon with a fake agent that replays a recorded session. Then use `target/debug/bridge --home target/demo-home …`.
+# Start a daemon with a fake agent that replays a recorded session. Then use `target/debug/archipel --home target/demo-home …`.
 demo scenario="approval_command":
     cargo build -q
     mkdir -p target/demo-home
-    target/debug/bridged --home target/demo-home --fake testdata/transcripts/claude-v2/{{scenario}}.ndjson
+    target/debug/archipeld --home target/demo-home --fake testdata/transcripts/claude-v2/{{scenario}}.ndjson
 
 # Format, lint and type-check everything.
 check:
@@ -58,3 +58,7 @@ addon-mutations:
 # Look for new versions of what the library depends on and write down what changed. Free; see tools/watch/README.md.
 watch *args:
     cd tools/watch && node watch.ts {{args}}
+
+# Take what is personal out of recordings and logs before committing them. `just scrub --check testdata` only looks.
+scrub *args:
+    scripts/scrub-recordings.py {{args}}

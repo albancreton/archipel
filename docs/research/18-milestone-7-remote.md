@@ -8,8 +8,8 @@ The user guide for this is `docs/remote.md`. This note is what was built and how
 
 | Addition | Checked by |
 |---|---|
-| `bridge connect --stdio` and `--via COMMAND`: a connection carried on a command's stdin and stdout, for SSH | Rust and TypeScript tests, with a local command standing in for SSH |
-| `bridged pair`: a one-time code an app exchanges for its own token | A test against the daemon program: wrong code refused, the code works once, lower case without the dash works, a code expires; also from TypeScript and Swift |
+| `archipel connect --stdio` and `--via COMMAND`: a connection carried on a command's stdin and stdout, for SSH | Rust and TypeScript tests, with a local command standing in for SSH |
+| `archipeld pair`: a one-time code an app exchanges for its own token | A test against the daemon program: wrong code refused, the code works once, lower case without the dash works, a code expires; also from TypeScript and Swift |
 | Tokens stored as SHA-256 hashes | Same test: the token file does not contain the token |
 | Revoking a token while the daemon runs | Same test |
 | `--ws-origin`: named web origins may connect, with the token as a WebSocket subprotocol | Transport test; live run in a headless browser |
@@ -23,7 +23,7 @@ Daemon with the fake agent, a WebSocket, and `--ws-origin http://localhost:5173`
 1. A session was created from the command line and left at its approval.
 2. The page connected with the token as a subprotocol, listed the session, and drew it with the approval's three buttons (`requires action`).
 3. "No" was clicked in the page. The page then showed the tool call as failed, the approval answered "No", and the agent's reply.
-4. `bridge show` on the command line showed the same.
+4. `archipel show` on the command line showed the same.
 5. The same page served from another port (`:5174`), with the right token: refused.
 
 `img/18-browser-live.png` is the page after step 3.

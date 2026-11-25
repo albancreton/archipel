@@ -1,5 +1,5 @@
 {
-  "name": "@harness-bridge/examples",
+  "name": "@archipel/examples",
   "version": "0.0.0",
   "private": true,
   "description": "Small programs to start from: a chat, starting the daemon from an app, an extension.",
@@ -10,7 +10,7 @@
     "test": "node --test test/*.test.ts"
   },
   "dependencies": {
-    "@harness-bridge/client": "workspace:*"
+    "@archipel/client": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

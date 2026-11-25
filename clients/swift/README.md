@@ -1,10 +1,10 @@
 # Swift client SDK
 
-`BridgeClient`, a Swift package (the `Package.swift` is at the repository root). For macOS and iOS.
+`ArchipelClient`, a Swift package (the `Package.swift` is at the repository root). For macOS and iOS.
 
 ```swift
-let client = BridgeClient(name: "MyApp") {
-    try UnixSocketTransport(path: NSHomeDirectory() + "/.harness-bridge/daemon.sock")
+let client = ArchipelClient(name: "MyApp") {
+    try UnixSocketTransport(path: NSHomeDirectory() + "/.archipel/daemon.sock")
     // or: WebSocketTransport(url: URL(string: "ws://host:7890")!, token: token)
 }
 try await client.connect()
@@ -13,13 +13,13 @@ let session = try await client.session(sessions[0].id)
 try await session.prompt("Run the tests")
 ```
 
-`BridgeClient` and `BridgeSession` are observable, so SwiftUI views that read them update by themselves.
+`ArchipelClient` and `ArchipelSession` are observable, so SwiftUI views that read them update by themselves.
 
 | File | What |
 |---|---|
 | `State.swift` | The reducer: applies ACP v2 messages by following the state rules. A port of the Rust core |
 | `Mirror.swift` | What a client of the daemon holds, and the daemon's additions |
-| `Client.swift` | `BridgeClient` and `BridgeSession`: attach, reconnect, prompt, answer |
+| `Client.swift` | `ArchipelClient` and `ArchipelSession`: attach, reconnect, prompt, answer |
 | `Transport.swift` | The daemon's WebSocket and its local socket |
 | `Resources/state-rules.json` | The state rules, written by `just gen` |
 

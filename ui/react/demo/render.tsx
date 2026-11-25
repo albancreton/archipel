@@ -1,7 +1,7 @@
 // Draws recorded sessions to standalone HTML files in demo/out, to look at the components
 // without a daemon: `pnpm demo`, then open one of the files.
 
-import { Conversation } from "@harness-bridge/client";
+import { Conversation } from "@archipel/client";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";

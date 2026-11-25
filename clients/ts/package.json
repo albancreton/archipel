@@ -1,7 +1,7 @@
 {
-  "name": "@harness-bridge/client",
+  "name": "@archipel/client",
   "version": "0.0.0",
-  "description": "Client SDK for the harness-bridge daemon: connection, session state, and the reducer that follows the ACP v2 state rules.",
+  "description": "Client SDK for the archipel daemon: connection, session state, and the reducer that follows the ACP v2 state rules.",
   "license": "MIT OR Apache-2.0",
   "type": "module",
   "exports": {

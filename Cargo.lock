@@ -34,6 +34,120 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
+name = "archipel-addon-api"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
+name = "archipel-addons"
+version = "0.0.0"
+dependencies = [
+ "archipel-addon-api",
+ "serde_json",
+]
+
+[[package]]
+name = "archipel-agents"
+version = "0.0.0"
+dependencies = [
+ "archipel-core",
+ "archipel-transport",
+ "base64",
+ "getrandom",
+ "serde_json",
+ "similar",
+ "tokio",
+]
+
+[[package]]
+name = "archipel-client"
+version = "0.0.0"
+dependencies = [
+ "archipel-agents",
+ "archipel-core",
+ "archipel-schema",
+ "archipel-server",
+ "archipel-transport",
+ "base64",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "archipel-core"
+version = "0.0.0"
+dependencies = [
+ "archipel-schema",
+ "base64",
+ "indexmap 2.14.2",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "archipel-schema"
+version = "0.0.0"
+dependencies = [
+ "agent-client-protocol-schema",
+ "schemars 1.2.3",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "archipel-server"
+version = "0.0.0"
+dependencies = [
+ "archipel-addon-api",
+ "archipel-agents",
+ "archipel-core",
+ "archipel-schema",
+ "archipel-store-sqlite",
+ "archipel-transport",
+ "indexmap 2.14.2",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "archipel-store-sqlite"
+version = "0.0.0"
+dependencies = [
+ "archipel-core",
+ "rusqlite",
+ "serde_json",
+]
+
+[[package]]
+name = "archipel-transport"
+version = "0.0.0"
+dependencies = [
+ "futures-util",
+ "getrandom",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+]
+
+[[package]]
+name = "archipeld"
+version = "0.0.0"
+dependencies = [
+ "archipel-addons",
+ "archipel-agents",
+ "archipel-core",
+ "archipel-server",
+ "archipel-transport",
+ "getrandom",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -58,120 +172,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2f6c7dbe95a6ed67ad9f18e57daf93a2f034c524b99fd2b76d18fdfeb6660aa"
 dependencies = [
  "hybrid-array",
-]
-
-[[package]]
-name = "bridge-addon-api"
-version = "0.0.0"
-dependencies = [
- "serde_json",
-]
-
-[[package]]
-name = "bridge-addons"
-version = "0.0.0"
-dependencies = [
- "bridge-addon-api",
- "serde_json",
-]
-
-[[package]]
-name = "bridge-agents"
-version = "0.0.0"
-dependencies = [
- "base64",
- "bridge-core",
- "bridge-transport",
- "getrandom",
- "serde_json",
- "similar",
- "tokio",
-]
-
-[[package]]
-name = "bridge-client"
-version = "0.0.0"
-dependencies = [
- "base64",
- "bridge-agents",
- "bridge-core",
- "bridge-schema",
- "bridge-server",
- "bridge-transport",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "bridge-core"
-version = "0.0.0"
-dependencies = [
- "base64",
- "bridge-schema",
- "indexmap 2.14.2",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "bridge-schema"
-version = "0.0.0"
-dependencies = [
- "agent-client-protocol-schema",
- "schemars 1.2.3",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "bridge-server"
-version = "0.0.0"
-dependencies = [
- "bridge-addon-api",
- "bridge-agents",
- "bridge-core",
- "bridge-schema",
- "bridge-store-sqlite",
- "bridge-transport",
- "indexmap 2.14.2",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "bridge-store-sqlite"
-version = "0.0.0"
-dependencies = [
- "bridge-core",
- "rusqlite",
- "serde_json",
-]
-
-[[package]]
-name = "bridge-transport"
-version = "0.0.0"
-dependencies = [
- "futures-util",
- "getrandom",
- "serde_json",
- "tokio",
- "tokio-tungstenite",
-]
-
-[[package]]
-name = "bridged"
-version = "0.0.0"
-dependencies = [
- "bridge-addons",
- "bridge-agents",
- "bridge-core",
- "bridge-server",
- "bridge-transport",
- "getrandom",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
 ]
 
 [[package]]
@@ -386,10 +386,10 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 name = "embedded-daemon"
 version = "0.0.0"
 dependencies = [
- "bridge-agents",
- "bridge-core",
- "bridge-server",
- "bridge-transport",
+ "archipel-agents",
+ "archipel-core",
+ "archipel-server",
+ "archipel-transport",
  "serde_json",
  "tokio",
 ]
@@ -876,9 +876,9 @@ dependencies = [
 name = "own-daemon"
 version = "0.0.0"
 dependencies = [
- "bridge-addon-api",
- "bridge-addons",
- "bridged",
+ "archipel-addon-api",
+ "archipel-addons",
+ "archipeld",
  "serde_json",
  "tokio",
 ]

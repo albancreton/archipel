@@ -30,12 +30,12 @@ It also made the mechanism smaller. My first design re-applied the settings with
 
 ## What was built
 
-- `crates/bridge-addon-api`: the trait and the types its hooks receive.
-- `crates/bridge-server`: `Builder::addon` and `addons`; the daemon calls the hooks at the two points where every message to and from an adapter passes.
-- `crates/bridge-addons`: the two addons, `all()` and `recommended()`.
-- `crates/bridged`: now a library with a five-line program on top; `addons` in `config.json`; the command `bridged addons`.
+- `crates/archipel-addon-api`: the trait and the types its hooks receive.
+- `crates/archipel-server`: `Builder::addon` and `addons`; the daemon calls the hooks at the two points where every message to and from an adapter passes.
+- `crates/archipel-addons`: the two addons, `all()` and `recommended()`.
+- `crates/archipeld`: now a library with a five-line program on top; `addons` in `config.json`; the command `archipeld addons`.
 - `examples/own-daemon`: a daemon with an addon of its own (a house rule that refuses the mode that skips approvals).
-- Core: `session/delete` is handled by the daemon. Once the harness agrees, the session leaves the log and every app receives the new notification `_bridge/sessions/removed`. A session open in another process of the harness is not deleted, by the same rule as any other action on it. The required scope is still `interact`; whether it should be `admin` is an open decision.
+- Core: `session/delete` is handled by the daemon. Once the harness agrees, the session leaves the log and every app receives the new notification `_archipel/sessions/removed`. A session open in another process of the harness is not deleted, by the same rule as any other action on it. The required scope is still `interact`; whether it should be `admin` is an open decision.
 - Agents now say which harness they are (`AgentSpec.harness`), for addons that are about one.
 
 ## What was checked
@@ -63,10 +63,10 @@ Cost: 12 short Haiku turns for Claude, and Pi on the local model.
 ## Not done, and limits
 
 - **An addon cannot yet see the adapter's answers, make requests of its own, or add items and methods.** Nothing needed them. A feature addon such as rewind will, and they are added then. _(Added the same evening at the user's request: see the section at the end.)_
-- **Addons are compiled in.** Somebody who uses the released `bridged` binary cannot add one without building their own daemon. `examples/own-daemon` shows that this is five lines, but it is a build.
+- **Addons are compiled in.** Somebody who uses the released `archipeld` binary cannot add one without building their own daemon. `examples/own-daemon` shows that this is five lines, but it is a build.
 - **Problem 3 is solved only as far as the settings can be restored.** If a model is gone when the session wakes, the adapter skips it and the display changes at that moment, as before. The app is not told why.
 - **The plan-mode behaviour seen once in note 23** (Haiku selected, turns on Sonnet) is untouched and still has no scenario.
-- **The SDKs do not act on `_bridge/sessions/removed` yet**, as they do not on `_bridge/sessions/updated`. Both have the name as a constant only.
+- **The SDKs do not act on `_archipel/sessions/removed` yet**, as they do not on `_archipel/sessions/updated`. Both have the name as a constant only.
 
 ## Later the same day: the full set of capabilities
 
@@ -105,7 +105,7 @@ So the interface was completed along three lines. The tables are in `docs/design
 
 Decisions taken on the way:
 
-- **An addon's request of the user is an ordinary pending request.** It is logged in the session, shown to every attached app, answered by the first, cancelled when the session's adapter stops. Apps need nothing new to show it. It carries the addon's mark in `_meta.bridge`, next to its place in the log. For that, the daemon now adds the log position to `_meta.bridge` instead of replacing what is there.
+- **An addon's request of the user is an ordinary pending request.** It is logged in the session, shown to every attached app, answered by the first, cancelled when the session's adapter stops. Apps need nothing new to show it. It carries the addon's mark in `_meta.archipel`, next to its place in the log. For that, the daemon now adds the log position to `_meta.archipel` instead of replacing what is there.
 - **The layers apply to an addon's own messages in both directions.** What an inner addon asks of the user passes the outer addons, which may answer it in the user's place, exactly as for an adapter's approval. The answer stops at the addon that asked.
 - **A held approval is not logged until it goes on.** Logging it would show apps a request they cannot answer yet.
 - **A held update is logged when released**, so later than it arrived. Keeping its place would mean holding back everything after it, which is the opposite of "nothing else waits".
@@ -132,12 +132,12 @@ Decisions taken on the way:
 - **`to_app` does not change the log.** It runs each time a message is sent to an app, also on replay, so its change is made on the way out. Storing is the job of `update`.
 - **`applies` is not asked on the app side.** Many app messages belong to no agent (the session list, `initialize`). The hook gets the session's agent when there is one.
 - **An addon can call the daemon as an app would (`cx.app_call`).** Without it, an addon that made a session with `cx.call("session/new")` would have one the daemon knows nothing about. Its request skips the app-side hooks and is marked as the addon's on the adapter side.
-- **An addon sees its own messages in `to_app`.** Everything sent to an app passes every layer there. Keeping "never shown its own" would need the origin to survive the log and the replay, and the mark in `_meta.bridge` already tells an addon which updates are its own.
+- **An addon sees its own messages in `to_app`.** Everything sent to an app passes every layer there. Keeping "never shown its own" would need the origin to survive the log and the replay, and the mark in `_meta.archipel` already tells an addon which updates are its own.
 - **No cost without addons.** With none, the daemon sends and receives exactly as before; with some, every message to every app costs one call per addon.
 
 A side effect worth knowing: since any send can now run addon code, three places in the daemon that assumed a session still exists after sending were made to check instead.
 
-Checked: six tests in `crates/bridge-server/tests/app_side.rs` with the scripted adapter (84 Rust tests in all), the two addon test files run eight times in a row. Live again, since every message to an app now takes the new path when addons are present, which they are in `bridged`: Claude's six free scenarios plus `reopen.keeps_settings`, `turn.interrupt` and `shell.output_streams`, and Pi's ten: all `same`.
+Checked: six tests in `crates/archipel-server/tests/app_side.rs` with the scripted adapter (84 Rust tests in all), the two addon test files run eight times in a row. Live again, since every message to an app now takes the new path when addons are present, which they are in `archipeld`: Claude's six free scenarios plus `reopen.keeps_settings`, `turn.interrupt` and `shell.output_streams`, and Pi's ten: all `same`.
 
 Not covered by a test: a held app-side message when its app disconnects (it is dropped).
 

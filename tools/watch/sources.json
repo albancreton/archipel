@@ -19,7 +19,7 @@
       "registry": "crates",
       "package": "agent-client-protocol-schema",
       "current": "1.21.2",
-      "why": "The Rust types for ACP (crates/bridge-schema/Cargo.toml). It must be the release that matches the pinned schema file.",
+      "why": "The Rust types for ACP (crates/archipel-schema/Cargo.toml). It must be the release that matches the pinned schema file.",
       "files": ["src/**/*.rs", "Cargo.toml"]
     },
     {

@@ -1,4 +1,4 @@
-# harness-bridge (temporary name)
+# archipel (temporary name)
 
 A library for building apps that render the agent loop of terminal coding harnesses: messages, reasoning, tool calls, approvals, questions, plans, todos, subagents. The model is "what libghostty is to the Ghostty terminal": the hard part done once, with thin clients in Swift, React Native, Electron or Windows on top.
 
@@ -6,7 +6,7 @@ Claude Code and Pi are the main targets. Other harnesses are accessory.
 
 Status: all seven milestones of the first plan are done; `docs/research/19` lists what is still open.
 
-- A daemon (`bridged`) runs Claude Code and Pi side by side, numbers and logs everything they say, and keeps sessions alive while apps come and go.
+- A daemon (`archipeld`) runs Claude Code and Pi side by side, numbers and logs everything they say, and keeps sessions alive while apps come and go.
 - Apps attach, catch up after a disconnect, and answer approvals; the first answer wins. A connection can be limited to reading.
 - The daemon lists the sessions each harness already has and loads one when it is opened.
 - Other programs add their own items and methods as extensions.
@@ -23,8 +23,8 @@ No cost: a fake agent replays a recorded session.
 
 ```
 cargo build
-target/debug/bridged --home /tmp/bridge-demo --fake testdata/transcripts/claude-v2/approval_command.ndjson &
-alias b='target/debug/bridge --home /tmp/bridge-demo'
+target/debug/archipeld --home /tmp/archipel-demo --fake testdata/transcripts/claude-v2/approval_command.ndjson &
+alias b='target/debug/archipel --home /tmp/archipel-demo'
 b new --mode default            # prints the session id; its first characters are enough afterwards
 b prompt <id> hello --watch     # stops when the agent asks for approval
 b answer <id> allow-once
@@ -32,7 +32,7 @@ b watch <id> --until-idle
 b show <id>
 ```
 
-With the real Claude adapter: put a `config.json` in the daemon's home (see `bridged --help`) and run `bridged` without `--fake`. `bridge --help` lists the client's commands.
+With the real Claude adapter: put a `config.json` in the daemon's home (see `archipeld --help`) and run `archipeld` without `--fake`. `archipel --help` lists the client's commands.
 
 ## Decisions so far
 

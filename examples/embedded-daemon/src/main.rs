@@ -1,9 +1,9 @@
 //! A Rust program that hosts the daemon in its own process.
 //!
-//! Use this when your product is a Rust program and you want one binary: no `bridged` to
+//! Use this when your product is a Rust program and you want one binary: no `archipeld` to
 //! install, no service. The server runs on your program's tokio runtime. Your own code talks
 //! to it over an in-process link; other apps can still reach it through a local socket, with
-//! the same SDKs as for `bridged`.
+//! the same SDKs as for `archipeld`.
 //!
 //! ```sh
 //! # With the real Claude adapter (`claude-agent-acp` on PATH):
@@ -12,20 +12,20 @@
 //! cargo run -p embedded-daemon -- /tmp/embedded-home testdata/transcripts/claude-v2/simple.ndjson
 //! ```
 //!
-//! What you choose yourself, compared with `bridged`:
+//! What you choose yourself, compared with `archipeld`:
 //!
 //! - which agents exist ([`agents`]), instead of `config.json`;
 //! - where the log is kept ([`start`]): a file, or memory for a program that keeps nothing;
 //! - which connections are let in, and with which scope ([`serve`]);
 //! - which addons run (`Server::builder().addon(…)`, see `examples/own-daemon`).
 //!
-//! What you give up: sessions stop when your program stops. With `bridged` as a service they
+//! What you give up: sessions stop when your program stops. With `archipeld` as a service they
 //! go on while apps come and go.
 
-use bridge_agents::{AgentSpec, Fake, Process, claude};
-use bridge_core::transcript::Transcript;
-use bridge_server::{Handle, Scope, Server, SqliteStore};
-use bridge_transport::{Link, local::LocalServer};
+use archipel_agents::{AgentSpec, Fake, Process, claude};
+use archipel_core::transcript::Transcript;
+use archipel_server::{Handle, Scope, Server, SqliteStore};
+use archipel_transport::{Link, local::LocalServer};
 use serde_json::{Value, json};
 use std::{error::Error, fs, os::unix::fs::PermissionsExt, path::Path, sync::Arc};
 
@@ -74,7 +74,7 @@ fn connect(server: &Handle) -> Link {
 }
 
 /// Sends a request over a link and waits for its answer, skipping what else arrives. A real
-/// program would use a client that keeps those other messages: `bridge-client` in Rust, or
+/// program would use a client that keeps those other messages: `archipel-client` in Rust, or
 /// one of the SDKs over the socket.
 async fn call(link: &mut Link, id: u64, method: &str, params: Value) -> Option<Value> {
     let request = json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params});
@@ -118,7 +118,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Some(&home.join("log.sqlite")),
     )?;
     let mut own = connect(&server);
-    let listed = call(&mut own, 1, "_bridge/agents/list", json!({})).await;
+    let listed = call(&mut own, 1, "_archipel/agents/list", json!({})).await;
     println!(
         "agents: {}",
         listed.map_or(Value::Null, |answer| answer["result"]["agents"].clone())
@@ -143,7 +143,7 @@ mod tests {
 
         // The program's own code, in-process.
         let mut own = connect(&server);
-        let listed = call(&mut own, 1, "_bridge/agents/list", json!({}))
+        let listed = call(&mut own, 1, "_archipel/agents/list", json!({}))
             .await
             .unwrap();
         assert_eq!(listed["result"]["agents"][0]["agentId"], "fake");
@@ -168,7 +168,7 @@ mod tests {
             tokio::spawn(async move { serve(&server, &socket).await.map_err(|e| e.to_string()) })
         };
         let mut app = loop {
-            match bridge_transport::local::connect(&socket).await {
+            match archipel_transport::local::connect(&socket).await {
                 Ok(link) => break link,
                 Err(_) => tokio::task::yield_now().await,
             }
@@ -176,7 +176,7 @@ mod tests {
         let listed = call(
             &mut app,
             1,
-            "_bridge/sessions/list",
+            "_archipel/sessions/list",
             json!({"loggedOnly": true}),
         )
         .await

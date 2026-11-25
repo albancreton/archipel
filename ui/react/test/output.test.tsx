@@ -23,7 +23,7 @@ test("colour codes become styles and other control codes are dropped", () => {
   assert.equal(ansiPieces("10%\r50%\r100%\ndone\r\n").map((piece) => piece.text).join(""), "100%\ndone\n", "a progress line shows its last state");
   assert.deepEqual(ansiPieces(""), []);
   const html = renderToStaticMarkup(<AnsiText text={`ok ${ESC}[32m<b>${ESC}[7m inv ${ESC}[0m`} />);
-  assert.equal(html, 'ok <span class="hb-ansi-fg-2">&lt;b&gt;</span><span class="hb-ansi-fg-bg hb-ansi-bg-2"> inv </span>');
+  assert.equal(html, 'ok <span class="arc-ansi-fg-2">&lt;b&gt;</span><span class="arc-ansi-fg-bg arc-ansi-bg-2"> inv </span>');
 });
 
 const patch = [
@@ -51,9 +51,9 @@ test("long unchanged parts are folded, short ones are not", () => {
   assert.deepEqual(rows.map((row) => (row.kind === "fold" ? `fold ${row.rows.length}` : row.kind)),
     ["hunk", "fold 5", "context", "context", "context", "remove", "add", "context", "context"]);
   const html = renderToStaticMarkup(<Diff block={{ type: "diff", changes: [{ operation: "modify", path: "src/a.ts" }], patch: { text: patch } }} />);
-  assert.match(html, /modify <code>src\/a\.ts<\/code><span class="hb-added"> \+1<\/span> <span class="hb-removed">−1<\/span>/);
+  assert.match(html, /modify <code>src\/a\.ts<\/code><span class="arc-added"> \+1<\/span> <span class="arc-removed">−1<\/span>/);
   assert.match(html, /Show 5 unchanged lines/);
-  assert.match(html, /<tr class="hb-diff-remove"><td class="hb-diff-number">9<\/td><td class="hb-diff-number"><\/td><td class="hb-diff-text"><span class="hb-diff-sign">-<\/span>nine<\/td><\/tr>/);
+  assert.match(html, /<tr class="arc-diff-remove"><td class="arc-diff-number">9<\/td><td class="arc-diff-number"><\/td><td class="arc-diff-text"><span class="arc-diff-sign">-<\/span>nine<\/td><\/tr>/);
   assert.doesNotMatch(html, />one</, "folded lines are not on the page until asked for");
   // What is not a patch is shown as it came.
   assert.match(renderToStaticMarkup(<Diff block={{ changes: [{ operation: "add", path: "x" }], patch: { text: "odd text" } }} />), /add <code>x<\/code><\/div><pre>odd text<\/pre>/);

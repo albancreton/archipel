@@ -5,8 +5,8 @@
 [thought] I need to write the plan file and exit plan mode, which means loading the ExitPlanMode schema first. I'll also run a quick read-only listing of the directory, and I'll do the schema lookup and the lis… (+24 chars)
 [tool other completed] ToolSearch
     = Tool: ExitPlanMode
-[tool execute completed] ls -la /work/probe; ls /work/harness-bridge/spikes/acp-probe
-    $ ls -la /work/probe; ls /work/harness-bridge/spikes/acp-probe   (exit 0)
+[tool execute completed] ls -la /work/probe; ls /work/archipel/spikes/acp-probe
+    $ ls -la /work/probe; ls /work/archipel/spikes/acp-probe   (exit 0)
     | total 40
     | drwxr-xr-x@  7 dev  staff  224 Nov 22 18:50 .
     | drwxr-xr-x@ 13 dev  staff  416 Nov 22 18:50 ..
@@ -23,18 +23,18 @@
     diff add /Users/dev/.claude/plans/plan-how-to-add-cozy-peacock-of-d3ba26c6-56d0-451a-9d63-73e765577a8c.md
     +5 -0 lines
 [tool switch_mode completed] Exited Plan Mode
-    = # Plan: add NOTES.md to spikes/acp-probe/work⏎⏎- **Create** `/work/probe/NOTES.md` (it doesn't exist yet; the directory holds only scratch files such as `pack… (+292 chars)
+    = # Plan: add NOTES.md to spikes/acp-probe/work⏎⏎- **Create** `/work/probe/NOTES.md` (it doesn't exist yet; the directory holds only scratch files such as `package.json`, `perm-wait.txt` and `probe-writ… (+250 chars)
 [approval] Ready to code? -> allow_once (Yes, manually approve edits)
-[plan markdown] # Plan: add NOTES.md to spikes/acp-probe/work⏎⏎- **Create** `/work/probe/NOTES.md` (it doesn't exist yet; the directory holds only scratch files such as `pack… (+291 chars)
+[plan markdown] # Plan: add NOTES.md to spikes/acp-probe/work⏎⏎- **Create** `/work/probe/NOTES.md` (it doesn't exist yet; the directory holds only scratch files such as `package.json`, `perm-wait.txt` and `probe-writ… (+249 chars)
 [thought] Plan approval came through, so I'm out of plan mode and can start on the file. The plan calls for creating NOTES.md, so I'll write that now.⏎⏎Since the file doesn't exist yet, I can write it directly … (+183 chars)
 [tool edit completed] Write NOTES.md
     diff add /work/probe/NOTES.md
     +1 -0 lines
-[tool execute completed] cat /work/probe/NOTES.md; git -C /work/harness-bridge status --short -- spikes/acp-probe/work
-    $ cat /work/probe/NOTES.md; git -C /work/harness-bridge status --short -- spikes/acp-probe/work   (exit 0)
+[tool execute completed] cat /work/probe/NOTES.md; git -C /work/archipel status --short -- spikes/acp-probe/work
+    $ cat /work/probe/NOTES.md; git -C /work/archipel status --short -- spikes/acp-probe/work   (exit 0)
     | Scratch working directory for ACP probe experiments (permission and write probes).
 [approval] Write NOTES.md -> allow_once (Yes)
-[approval] cat /work/probe/NOTES.md; git -C /work/harness-bridge status --short -- spikes/acp-probe/work -> allow_once (Yes)
+[approval] cat /work/probe/NOTES.md; git -C /work/archipel status --short -- spikes/acp-probe/work -> allow_once (Yes)
 [assistant] I created `spikes/acp-probe/work/NOTES.md` with a one-line description:⏎⏎> Scratch working directory for ACP probe experiments (permission and write probes).⏎⏎I read it back and it contains that line.… (+21 chars)
 -- state: idle end_turn background=0
 -- title: NOTES.md directory plan

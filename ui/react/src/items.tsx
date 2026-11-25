@@ -1,7 +1,7 @@
 // One component per kind of item. Each takes the item and, where the user can act, a callback.
 // Nothing here knows about connections; give the components state and they draw it.
 
-import { base64Text, type Json, type JsonObject, type Request } from "@harness-bridge/client";
+import { base64Text, type Json, type JsonObject, type Request } from "@archipel/client";
 import { useContext, useState, type ReactNode } from "react";
 import { ansiPieces, type AnsiStyle } from "./ansi.ts";
 import { foldContext, parsePatch, type DiffRow } from "./diff.ts";
@@ -36,10 +36,10 @@ export function UserMessage({ item }: { item: Json }) {
   const blocks = (Array.isArray(content) ? content : [content]).filter(isObject);
   const extras = blocks.filter((block) => block["type"] !== "text");
   return (
-    <div className="hb-item hb-user">
+    <div className="arc-item arc-user">
       {blocks.filter((block) => block["type"] === "text").map((block) => text(block, "text")).join("") || (typeof content === "string" ? content : "")}
       {extras.length > 0 && (
-        <span className="hb-user-attached">
+        <span className="arc-user-attached">
           {extras.map((block, at) => {
             // Only a picture the user sent themselves is shown, and only from its own bytes.
             if (block["type"] === "image" && text(block, "data") && /^image\/[\w.+-]+$/.test(text(block, "mimeType"))) {
@@ -47,7 +47,7 @@ export function UserMessage({ item }: { item: Json }) {
             }
             const resource = isObject(block["resource"]) ? block["resource"] : block;
             const name = text(block, "name") || decodeURIComponent(text(resource, "uri").split("/").pop() ?? "") || text(block, "type");
-            return <span key={at} className="hb-chip">{name}</span>;
+            return <span key={at} className="arc-chip">{name}</span>;
           })}
         </span>
       )}
@@ -58,7 +58,7 @@ export function UserMessage({ item }: { item: Json }) {
 /** What the agent said, drawn as Markdown unless `RenderText` says otherwise. */
 export function AssistantMessage({ item }: { item: Json }) {
   const render = useContext(RenderText);
-  return <div className="hb-item hb-assistant">{render(contentText(isObject(item) ? item["content"] : undefined))}</div>;
+  return <div className="arc-item arc-assistant">{render(contentText(isObject(item) ? item["content"] : undefined))}</div>;
 }
 
 /** Reasoning, folded by default. */
@@ -66,7 +66,7 @@ export function Thought({ item }: { item: Json }) {
   const render = useContext(RenderText);
   const body = contentText(isObject(item) ? item["content"] : undefined).trim();
   return (
-    <details className="hb-item hb-thought">
+    <details className="arc-item arc-thought">
       <summary>Thinking</summary>
       <div>{render(body)}</div>
     </details>
@@ -77,9 +77,9 @@ function ansiProps(style: AnsiStyle): { className?: string; style?: { color?: st
   // Inverse swaps the two colours; without colours it is the terminal's own pair, swapped.
   const [fg, bg] = style.inverse ? [style.bg ?? "bg", style.fg ?? "fg"] : [style.fg, style.bg];
   const classes = [
-    typeof fg === "number" ? `hb-ansi-fg-${fg}` : fg === "bg" ? "hb-ansi-fg-bg" : "",
-    typeof bg === "number" ? `hb-ansi-bg-${bg}` : bg === "fg" ? "hb-ansi-bg-fg" : "",
-    style.bold ? "hb-ansi-bold" : "", style.dim ? "hb-ansi-dim" : "", style.italic ? "hb-ansi-italic" : "", style.underline ? "hb-ansi-underline" : "",
+    typeof fg === "number" ? `arc-ansi-fg-${fg}` : fg === "bg" ? "arc-ansi-fg-bg" : "",
+    typeof bg === "number" ? `arc-ansi-bg-${bg}` : bg === "fg" ? "arc-ansi-bg-fg" : "",
+    style.bold ? "arc-ansi-bold" : "", style.dim ? "arc-ansi-dim" : "", style.italic ? "arc-ansi-italic" : "", style.underline ? "arc-ansi-underline" : "",
   ].filter(Boolean).join(" ");
   const css = {
     ...(typeof fg === "string" && fg !== "bg" ? { color: fg } : {}),
@@ -104,12 +104,12 @@ export function Terminal({ item }: { item: Json }) {
     ? typeof exit["exitCode"] === "number" ? `exit ${exit["exitCode"]}` : "ended"
     : "running";
   return (
-    <div className="hb-terminal">
-      <div className="hb-terminal-command">
+    <div className="arc-terminal">
+      <div className="arc-terminal-command">
         <code>$ {text(item, "command")}</code>
-        <span className={`hb-badge hb-${ended === "running" ? "running" : ended === "exit 0" ? "ok" : "failed"}`}>{ended}</span>
+        <span className={`arc-badge arc-${ended === "running" ? "running" : ended === "exit 0" ? "ok" : "failed"}`}>{ended}</span>
       </div>
-      {output && <pre className="hb-terminal-output"><AnsiText text={output} /></pre>}
+      {output && <pre className="arc-terminal-output"><AnsiText text={output} /></pre>}
     </div>
   );
 }
@@ -120,17 +120,17 @@ function DiffLine({ row }: { row: DiffRow }) {
   if (row.kind === "fold") {
     if (open) return <>{row.rows.map((inner, at) => <DiffLine key={at} row={inner} />)}</>;
     return (
-      <tr className="hb-diff-fold">
+      <tr className="arc-diff-fold">
         <td colSpan={3}><button type="button" onClick={() => setOpen(true)}>Show {row.rows.length} unchanged lines</button></td>
       </tr>
     );
   }
-  if (row.kind === "hunk") return <tr className="hb-diff-hunk"><td colSpan={3}>{row.text}</td></tr>;
+  if (row.kind === "hunk") return <tr className="arc-diff-hunk"><td colSpan={3}>{row.text}</td></tr>;
   return (
-    <tr className={row.kind === "add" ? "hb-diff-add" : row.kind === "remove" ? "hb-diff-remove" : undefined}>
-      <td className="hb-diff-number">{row.old ?? ""}</td>
-      <td className="hb-diff-number">{row.new ?? ""}</td>
-      <td className="hb-diff-text"><span className="hb-diff-sign">{row.kind === "add" ? "+" : row.kind === "remove" ? "-" : " "}</span>{row.text}</td>
+    <tr className={row.kind === "add" ? "arc-diff-add" : row.kind === "remove" ? "arc-diff-remove" : undefined}>
+      <td className="arc-diff-number">{row.old ?? ""}</td>
+      <td className="arc-diff-number">{row.new ?? ""}</td>
+      <td className="arc-diff-text"><span className="arc-diff-sign">{row.kind === "add" ? "+" : row.kind === "remove" ? "-" : " "}</span>{row.text}</td>
     </tr>
   );
 }
@@ -144,18 +144,18 @@ export function Diff({ block }: { block: Json }) {
   const files = parsePatch(patch);
   const operations = new Map(list(block, "changes").map((change) => [text(change, "path"), text(change, "operation")]));
   return (
-    <div className="hb-diff">
+    <div className="arc-diff">
       {files.length === 0 && list(block, "changes").map((change, at) => (
-        <div key={at} className="hb-diff-file">{text(change, "operation")} <code>{text(change, "path")}</code></div>
+        <div key={at} className="arc-diff-file">{text(change, "operation")} <code>{text(change, "path")}</code></div>
       ))}
       {files.length === 0 && patch && <pre>{patch}</pre>}
       {files.map((file, at) => (
-        <div key={at} className="hb-diff-one">
-          <div className="hb-diff-file">
+        <div key={at} className="arc-diff-one">
+          <div className="arc-diff-file">
             {operations.get(file.path) ?? ""} <code>{file.path}</code>
-            <span className="hb-added"> +{file.added}</span> <span className="hb-removed">−{file.removed}</span>
+            <span className="arc-added"> +{file.added}</span> <span className="arc-removed">−{file.removed}</span>
           </div>
-          <div className="hb-diff-rows">
+          <div className="arc-diff-rows">
             <table><tbody>{foldContext(file.rows).map((row, line) => <DiffLine key={line} row={row} />)}</tbody></table>
           </div>
         </div>
@@ -171,11 +171,11 @@ export function Diff({ block }: { block: Json }) {
 export function ToolCall({ item, terminal }: { item: Json; terminal?: (id: string) => Json | undefined }) {
   const status = text(item, "status") || "pending";
   return (
-    <div className={`hb-item hb-tool hb-tool-${status}`}>
-      <div className="hb-tool-head">
-        <span className="hb-tool-kind">{text(item, "kind") || text(item, "name") || "tool"}</span>
-        <span className="hb-tool-title">{text(item, "title") || text(item, "name")}</span>
-        <span className={`hb-badge hb-${status === "completed" ? "ok" : status === "failed" || status === "cancelled" ? "failed" : "running"}`}>
+    <div className={`arc-item arc-tool arc-tool-${status}`}>
+      <div className="arc-tool-head">
+        <span className="arc-tool-kind">{text(item, "kind") || text(item, "name") || "tool"}</span>
+        <span className="arc-tool-title">{text(item, "title") || text(item, "name")}</span>
+        <span className={`arc-badge arc-${status === "completed" ? "ok" : status === "failed" || status === "cancelled" ? "failed" : "running"}`}>
           {status.replace("_", " ")}
         </span>
       </div>
@@ -187,7 +187,7 @@ export function ToolCall({ item, terminal }: { item: Json; terminal?: (id: strin
         }
         if (type === "diff") return <Diff key={at} block={block} />;
         const body = contentText(block);
-        return body ? <pre key={at} className="hb-tool-output">{body}</pre> : null;
+        return body ? <pre key={at} className="arc-tool-output">{body}</pre> : null;
       })}
     </div>
   );
@@ -197,13 +197,13 @@ export function ToolCall({ item, terminal }: { item: Json; terminal?: (id: strin
 export function Plan({ item }: { item: Json }) {
   const entries = list(item, "entries");
   return (
-    <div className="hb-item hb-plan">
-      <div className="hb-label">Plan</div>
+    <div className="arc-item arc-plan">
+      <div className="arc-label">Plan</div>
       {entries.length > 0 ? (
         <ul>
           {entries.map((entry, at) => (
-            <li key={at} className={`hb-plan-${text(entry, "status")}`}>
-              <span className="hb-plan-mark">{text(entry, "status") === "completed" ? "✓" : text(entry, "status") === "in_progress" ? "…" : "○"}</span>
+            <li key={at} className={`arc-plan-${text(entry, "status")}`}>
+              <span className="arc-plan-mark">{text(entry, "status") === "completed" ? "✓" : text(entry, "status") === "in_progress" ? "…" : "○"}</span>
               {text(entry, "content")}
             </li>
           ))}
@@ -219,12 +219,12 @@ export function Plan({ item }: { item: Json }) {
 export function Subagent({ item, children }: { item: Json; children?: ReactNode }) {
   const state = isObject(item) && isObject(item["state"]) ? text(item["state"], "state") : "";
   return (
-    <details className="hb-item hb-subagent" open>
+    <details className="arc-item arc-subagent" open>
       <summary>
-        <span className="hb-label">Subagent</span> {text(item, "title")}
-        <span className={`hb-badge hb-${state === "idle" ? "ok" : "running"}`}>{state}</span>
+        <span className="arc-label">Subagent</span> {text(item, "title")}
+        <span className={`arc-badge arc-${state === "idle" ? "ok" : "running"}`}>{state}</span>
       </summary>
-      <div className="hb-subagent-body">{children}</div>
+      <div className="arc-subagent-body">{children}</div>
     </details>
   );
 }
@@ -232,8 +232,8 @@ export function Subagent({ item, children }: { item: Json; children?: ReactNode 
 /** A message between a session and its subagent: the task given, or the result returned. */
 export function SessionMessage({ item }: { item: Json }) {
   return (
-    <div className="hb-item hb-session-message">
-      <div className="hb-label">Between agents</div>
+    <div className="arc-item arc-session-message">
+      <div className="arc-label">Between agents</div>
       {contentText(isObject(item) ? item["content"] : undefined)}
     </div>
   );
@@ -241,7 +241,7 @@ export function SessionMessage({ item }: { item: Json }) {
 
 export function Compaction({ item }: { item: Json }) {
   return (
-    <details className="hb-item hb-compaction">
+    <details className="arc-item arc-compaction">
       <summary>Conversation compacted ({text(item, "status")})</summary>
       <div>{contentText(isObject(item) ? item["summary"] : undefined)}</div>
     </details>
@@ -255,11 +255,11 @@ export function Approval({ request, onChoose }: { request: Request; onChoose?: (
   const chosen = isObject(outcome) ? text(outcome, "optionId") : "";
   const cancelled = isObject(outcome) && outcome["outcome"] === "cancelled";
   return (
-    <div className={`hb-item hb-request ${request.outcome === null ? "hb-pending" : ""}`}>
-      <div className="hb-label">Permission</div>
-      <div className="hb-request-title">{text(request.params, "title")}</div>
+    <div className={`arc-item arc-request ${request.outcome === null ? "arc-pending" : ""}`}>
+      <div className="arc-label">Permission</div>
+      <div className="arc-request-title">{text(request.params, "title")}</div>
       {request.outcome === null ? (
-        <div className="hb-options">
+        <div className="arc-options">
           {options.map((option) => (
             <button key={text(option, "optionId")} type="button" onClick={() => onChoose?.(text(option, "optionId"))}>
               {text(option, "name")}
@@ -267,7 +267,7 @@ export function Approval({ request, onChoose }: { request: Request; onChoose?: (
           ))}
         </div>
       ) : (
-        <div className="hb-answer">
+        <div className="arc-answer">
           {cancelled ? "Cancelled" : (text(options.find((option) => text(option, "optionId") === chosen), "name") || chosen)}
         </div>
       )}
@@ -282,11 +282,11 @@ export function Question({ request, onAnswer }: { request: Request; onAnswer?: (
   const [values, setValues] = useState<JsonObject>({});
   const answered = isObject(request.outcome) ? request.outcome : undefined;
   return (
-    <div className={`hb-item hb-request ${request.outcome === null ? "hb-pending" : ""}`}>
-      <div className="hb-label">Question</div>
-      <div className="hb-request-title">{text(request.params, "message")}</div>
+    <div className={`arc-item arc-request ${request.outcome === null ? "arc-pending" : ""}`}>
+      <div className="arc-label">Question</div>
+      <div className="arc-request-title">{text(request.params, "message")}</div>
       {answered ? (
-        <div className="hb-answer">
+        <div className="arc-answer">
           {answered["action"] === "accept"
             ? Object.values(isObject(answered["content"]) ? answered["content"] : {}).map(String).join(", ")
             : "No answer"}
@@ -301,7 +301,7 @@ export function Question({ request, onAnswer }: { request: Request; onAnswer?: (
           {fields.map(([key, field]) => {
             const choices = list(field, "oneOf");
             return (
-              <label key={key} className="hb-field">
+              <label key={key} className="arc-field">
                 <span>{text(field, "title") || key}</span>
                 {choices.length > 0 ? (
                   <select value={String(values[key] ?? "")} onChange={(event) => setValues({ ...values, [key]: event.target.value })}>
@@ -318,7 +318,7 @@ export function Question({ request, onAnswer }: { request: Request; onAnswer?: (
               </label>
             );
           })}
-          <div className="hb-options">
+          <div className="arc-options">
             <button type="submit">Answer</button>
             <button type="button" onClick={() => onAnswer?.(null)}>Skip</button>
           </div>
@@ -331,7 +331,7 @@ export function Question({ request, onAnswer }: { request: Request; onAnswer?: (
 /** Any item there is no component for, such as an extension's: its kind and its data. */
 export function Fallback({ kind, item }: { kind: string; item: Json }) {
   return (
-    <details className="hb-item hb-fallback">
+    <details className="arc-item arc-fallback">
       <summary>{kind}</summary>
       <pre>{JSON.stringify(item, null, 2)}</pre>
     </details>

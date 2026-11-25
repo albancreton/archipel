@@ -6,7 +6,7 @@
 [user] Remember the codeword PAPAYA. Reply OK.
 [assistant] OK
 [user] /compact
-[compaction completed] 1. Primary Request and Intent:⏎   The user asked me to remember the codeword "PAPAYA" and reply "OK". I replied "OK". No other task has been requested.⏎⏎2. Key Technical Concepts:⏎   - None beyond the… (+813 chars)
+[compaction completed] 1. Primary Request and Intent:⏎   The user asked me to remember the codeword "PAPAYA" and reply "OK". I replied "OK". No other task has been requested.⏎⏎2. Key Technical Concepts:⏎   - None beyond the… (+771 chars)
 [user] What was the codeword? One word.
 [assistant] PAPAYA
 -- state: idle end_turn background=0
