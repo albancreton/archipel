@@ -54,3 +54,7 @@ addon-coverage:
 # Break the addon system's rules one at a time and check that the tests notice. Takes a minute.
 addon-mutations:
     scripts/addon-mutations.py
+
+# Look for new versions of what the library depends on and write down what changed. Free; see tools/watch/README.md.
+watch *args:
+    cd tools/watch && node watch.ts {{args}}

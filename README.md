@@ -80,6 +80,7 @@ With the real Claude adapter: put a `config.json` in the daemon's home (see `bri
 | `examples/service` | The daemon as a launchd or systemd service |
 | `examples/own-daemon` | A daemon with an addon of one's own, without forking |
 | `conformance/` | Live checks of the real harnesses against a recorded baseline |
+| `tools/watch/` | Looks for new upstream versions and writes down what changed; its reports go to `docs/updates/` |
 | `docs/remote.md` | How to reach a daemon from another machine or a browser |
 | `testdata/` | Recorded sessions and readable renderings of what the core makes of them |
 | `spikes/` | The scripts and raw logs behind 05, 06, 09, 10. See `spikes/README.md` |

@@ -4,6 +4,7 @@
 //
 // --free    only the scenarios that spend no model turn
 // --update  write what was seen as the new baseline (review the diff before committing)
+// --config=FILE  another config than config.json: the watch script runs a new adapter this way
 
 import type { Json, JsonObject } from "@harness-bridge/client";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -14,7 +15,8 @@ import { scenarios } from "./scenarios.ts";
 const args = process.argv.slice(2);
 const flags = new Set(args.filter((arg) => arg.startsWith("--")));
 const [agentId, ...wanted] = args.filter((arg) => !arg.startsWith("--"));
-const config = readJson(path.join(here, "config.json")) as { agents: Record<string, AgentConfig> } | null;
+const configFile = [...flags].find((entry) => entry.startsWith("--config="))?.slice("--config=".length) ?? path.join(here, "config.json");
+const config = readJson(configFile) as { agents: Record<string, AgentConfig> } | null;
 if (!config) throw new Error("copy config.example.json to config.json and fill in the paths");
 const agent = agentId ? config.agents[agentId] : undefined;
 if (!agentId || !agent) throw new Error(`usage: node run.ts <${Object.keys(config.agents).join("|")}> [scenario ...] [--free] [--update]`);
@@ -88,7 +90,7 @@ const facts = (record: Record<string, Json>) => Object.entries(record).map(([key
 const report = [
   `# Conformance: ${agentId}`,
   "",
-  `Run on ${new Date().toISOString().slice(0, 10)}. ${results.length} scenarios.`,
+  `Run on ${new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10)}. ${results.length} scenarios.`,
   "",
   "| Scenario | Result | Seconds |",
   "|---|---|---|",

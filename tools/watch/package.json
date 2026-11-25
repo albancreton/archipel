@@ -1,0 +1,20 @@
+{
+  "name": "@harness-bridge/watch",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Looks for new versions of what the library depends on and writes down what changed.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
+    "watch": "node watch.ts"
+  },
+  "dependencies": {
+    "@harness-bridge/client": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}

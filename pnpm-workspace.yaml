@@ -3,3 +3,4 @@ packages:
   - "ui/react"
   - "conformance"
   - "examples/node"
+  - "tools/watch"

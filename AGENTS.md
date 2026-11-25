@@ -112,6 +112,7 @@ Node 22.18 or later runs the TypeScript sources directly; there is no build step
 | `ui/react`, `ui/swift` | The component kits |
 | `examples/` | What the table above points to |
 | `testdata/` | Recorded sessions, and the state each must produce |
+| `tools/watch/` | Looks for new versions of the adapters, harnesses and ACP, and writes down what changed |
 | `conformance/` | Live checks of the real harnesses against a recorded baseline |
 | `docs/design/` | The daemon's design, and the addon interface |
 | `docs/research/` | How each decision was reached, in order |

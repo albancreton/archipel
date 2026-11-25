@@ -1,0 +1,71 @@
+{
+  "agent": {
+    "command": "claude",
+    "args": ["-p", "--allowedTools", "Read,Grep,Glob"]
+  },
+  "sources": [
+    {
+      "id": "acp-sdk",
+      "registry": "npm",
+      "package": "@agentclientprotocol/sdk",
+      "current": "2.9.1",
+      "why": "schema/acp-v2.schema.json is copied from its schema/v2/schema.unstable.json. The state rules and every client's types are generated from that file.",
+      "files": ["schema/v2/*"],
+      "changelog": "https://raw.githubusercontent.com/agentclientprotocol/typescript-sdk/main/CHANGELOG.md",
+      "schema": "schema/v2/schema.unstable.json"
+    },
+    {
+      "id": "acp-schema-crate",
+      "registry": "crates",
+      "package": "agent-client-protocol-schema",
+      "current": "1.21.2",
+      "why": "The Rust types for ACP (crates/bridge-schema/Cargo.toml). It must be the release that matches the pinned schema file.",
+      "files": ["src/**/*.rs", "Cargo.toml"]
+    },
+    {
+      "id": "claude-adapter",
+      "registry": "npm",
+      "package": "@agentclientprotocol/claude-agent-acp",
+      "current": "0.109.1",
+      "why": "Everything Claude says passes through it. The recordings in testdata/transcripts/claude-v2 and the conformance baseline were made with this version.",
+      "files": ["dist/**/*.js", "package.json"],
+      "changelog": "https://raw.githubusercontent.com/agentclientprotocol/claude-agent-acp/main/CHANGELOG.md",
+      "probe": "claude"
+    },
+    {
+      "id": "claude-agent-sdk",
+      "registry": "npm",
+      "package": "@anthropic-ai/claude-agent-sdk",
+      "current": "0.3.330",
+      "why": "The Claude adapter is built on it. New kinds of message appear in its types before the adapter passes them on.",
+      "files": ["sdk.d.ts", "sdk-tools.d.ts"],
+      "changelog": "https://raw.githubusercontent.com/anthropics/claude-agent-sdk-typescript/main/CHANGELOG.md"
+    },
+    {
+      "id": "claude-code",
+      "registry": "npm",
+      "package": "@anthropic-ai/claude-code",
+      "current": "2.1.330",
+      "why": "The harness itself. The open-elsewhere check reads its registry of running sessions, which is not documented.",
+      "files": ["sdk-tools.d.ts"],
+      "changelog": "https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md"
+    },
+    {
+      "id": "pi",
+      "registry": "npm",
+      "package": "@earendil-works/pi-coding-agent",
+      "current": "1.6.0",
+      "why": "The Pi harness. The Pi profile translates what its adapter sends.",
+      "files": ["CHANGELOG.md", "dist/modes/rpc/*.js", "dist/modes/rpc/*.d.ts"]
+    },
+    {
+      "id": "pi-adapter",
+      "registry": "npm",
+      "package": "pi-acp",
+      "current": "0.0.35",
+      "why": "Pi speaks ACP v1 through it. The recordings in testdata/adapters/pi-v1 were made with this version.",
+      "files": ["dist/index.js", "README.md", "package.json"],
+      "probe": "pi"
+    }
+  ]
+}
