@@ -18,7 +18,8 @@
     "demo:live": "node demo/serve.mjs"
   },
   "dependencies": {
-    "@harness-bridge/client": "workspace:*"
+    "@harness-bridge/client": "workspace:*",
+    "marked": "^18.2.1"
   },
   "peerDependencies": {
     "react": ">=18"

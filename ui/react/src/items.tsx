@@ -2,7 +2,8 @@
 // Nothing here knows about connections; give the components state and they draw it.
 
 import { base64Text, type Json, type JsonObject, type Request } from "@harness-bridge/client";
-import { useState, type ReactNode } from "react";
+import { useContext, useState, type ReactNode } from "react";
+import { RenderText } from "./markdown.tsx";
 
 const isObject = (value: Json | undefined): value is JsonObject =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -31,17 +32,20 @@ export function UserMessage({ item }: { item: Json }) {
   return <div className="hb-item hb-user">{contentText(isObject(item) ? item["content"] : undefined)}</div>;
 }
 
+/** What the agent said, drawn as Markdown unless `RenderText` says otherwise. */
 export function AssistantMessage({ item }: { item: Json }) {
-  return <div className="hb-item hb-assistant">{contentText(isObject(item) ? item["content"] : undefined)}</div>;
+  const render = useContext(RenderText);
+  return <div className="hb-item hb-assistant">{render(contentText(isObject(item) ? item["content"] : undefined))}</div>;
 }
 
 /** Reasoning, folded by default. */
 export function Thought({ item }: { item: Json }) {
+  const render = useContext(RenderText);
   const body = contentText(isObject(item) ? item["content"] : undefined).trim();
   return (
     <details className="hb-item hb-thought">
       <summary>Thinking</summary>
-      <div>{body}</div>
+      <div>{render(body)}</div>
     </details>
   );
 }

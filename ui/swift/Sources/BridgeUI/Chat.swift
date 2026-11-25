@@ -84,7 +84,9 @@ public struct SessionTimeline: View {
         let inline = Set((state.collections["toolCall"] ?? [:]).values.flatMap { tool in
             (tool["content"]?.array ?? []).compactMap { $0["terminalId"]?.string }
         })
-        VStack(alignment: .leading, spacing: 10) {
+        // Lazy: inside a scroll view only the rows on screen are built, so a long session
+        // opens as quickly as a short one.
+        LazyVStack(alignment: .leading, spacing: 10) {
             ForEach(state.timeline, id: \.self) { ref in
                 row(ref, inline: inline)
             }

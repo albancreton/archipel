@@ -19,6 +19,8 @@ SessionList(
 
 `SessionList` groups sessions under their folder's name. A row says `needs you`, `running`, `open elsewhere`, and `from <agent>` for a session started outside the app. Rename and delete are in the row's context menu, only where the agent can do them; delete asks first, because the agent removes the session from its own history too. `SessionRow` and `SessionSummary.byFolder` are public for a list of your own.
 
+- **The agent's text is drawn as Markdown** (`MarkdownText`, on Foundation's own parser, no dependency): headings, lists, tables, quotes, code blocks. Links go only to `http`, `https` and `mailto`. An open code fence in text that is still arriving is code. There is no code highlighting. `.agentText { AnyView(Text($0)) }` on any view above swaps the renderer.
+- **Long sessions:** the timeline is a `LazyVStack`, so inside the chat's scroll view only the rows on screen are built.
 - Each view takes an item and, where the user can act, a closure.
 - When another process of the harness has the session open (its own terminal UI, say), the daemon refuses messages for it. The chat says so above the composer; with `onFork` it offers "Fork and continue here". A refused message goes back into the field.
 - `custom: ["x.acme.checkpoint": { AnyView(CheckpointView(item: $0)) }]` draws an extension's kind.

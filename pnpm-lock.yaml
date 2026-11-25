@@ -49,6 +49,9 @@ importers:
       '@harness-bridge/client':
         specifier: workspace:*
         version: link:../../clients/ts
+      marked:
+        specifier: ^18.2.1
+        version: 18.2.1
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
@@ -301,6 +304,11 @@ packages:
   lodash@4.18.1:
     resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
+  marked@18.2.1:
+    resolution: {integrity: sha512-ii4bxCTCqqwpT86XZWgJNs+ZnAIZksmLGYMViWA7PDIXYIeNo1x6cDdX3JOip9NM/cI6p8z57FxliACboTruMA==}
+    engines: {node: '>= 20'}
+    hasBin: true
+
   minimist@1.2.8:
     resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==}
 
@@ -508,6 +516,8 @@ snapshots:
       tinyglobby: 0.2.17
 
   lodash@4.18.1: {}
+
+  marked@18.2.1: {}
 
   minimist@1.2.8: {}
 

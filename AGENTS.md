@@ -68,7 +68,7 @@ Node 22.18 or later runs the TypeScript sources directly; there is no build step
 - A session's content is a list of **items** in order (`session.items()`), each with a kind (`userMessage`, `agentMessage`, `agentThought`, `toolCall`, `terminal`, `plan`, `subagent`, …) and an id. Items change while they stream. Draw from the current state after each change; do not append per update.
 - Draw a kind you do not know as a generic item, do not drop it. Extensions and addons add kinds named `x.<namespace>.<name>`.
 - `prompt` resolves when the agent has taken the message, not when the turn is over. The turn is over when `turnState` is `idle`.
-- Text is the agent's Markdown source. The kits show it as written; they do not render Markdown.
+- Text is the agent's Markdown source. The kits draw it as Markdown without ever building HTML from it; an app that draws text itself must not insert it as HTML either.
 
 **Approvals and questions**
 - They arrive as requests (`session.pendingRequests()`), and the turn waits in `requires_action`. Every attached app gets them; the first answer counts and the others are told.

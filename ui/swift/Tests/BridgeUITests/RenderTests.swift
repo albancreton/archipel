@@ -137,6 +137,48 @@ final class RenderTests: XCTestCase {
         XCTAssertGreaterThan(try draw(rows, as: "session-rows"), 5000, "something was drawn")
     }
 
+    /// The blocks in words, to compare.
+    func outline(_ text: String) -> [String] {
+        markdownBlocks(text).map { block in
+            switch block {
+            case .paragraph(let text): "p: \(String(text.characters))"
+            case .heading(let level, let text): "h\(level): \(String(text.characters))"
+            case .code(let code, let language): "code(\(language ?? "")): \(code)"
+            case .listItem(let text, let marker, let depth): "\(depth) \(marker) \(String(text.characters))"
+            case .quote(let text): "quote: \(String(text.characters))"
+            case .table(let rows): "table: " + rows.map { $0.map { String($0.characters) }.joined(separator: ",") }.joined(separator: " / ")
+            case .rule: "rule"
+            }
+        }
+    }
+
+    func testMarkdownIsSplitIntoBlocksAndDrawn() throws {
+        let text = [
+            "# Title", "", "Some **bold** and `code` text.", "", "- one", "  - inner", "- two", "", "1. first", "2. second", "",
+            "> quoted", "", "| a | b |", "|---|---|", "| 1 | 2 |", "", "```ts", "const a = 1 < 2 && true;", "```", "", "---", "", "The end.",
+        ].joined(separator: "\n")
+        XCTAssertEqual(outline(text), [
+            "h1: Title", "p: Some bold and code text.", "1 • one", "2 • inner", "1 • two", "1 1. first", "1 2. second",
+            "quote: quoted", "table: a,b / 1,2", "code(ts): const a = 1 < 2 && true;", "rule", "p: The end.",
+        ])
+        let view = MarkdownText(text).padding(16).frame(width: 520)
+        XCTAssertGreaterThan(try draw(view, as: "markdown"), 20_000, "something was drawn")
+    }
+
+    func testTextThatIsStillArrivingAndMarkupFromTheAgent() throws {
+        XCTAssertEqual(outline("Here:\n\n```sh\nnpm te"), ["p: Here:", "code(sh): npm te"], "an open code fence is code")
+        XCTAssertEqual(outline("some **bol"), ["p: some **bol"])
+        XCTAssertEqual(outline(""), [])
+
+        // A link is kept only to the web or to mail; markup stays text.
+        guard case .paragraph(let links)? = markdownBlocks("[bad](javascript:alert(1)) [ok](https://example.com) <b>raw</b>").first else {
+            return XCTFail("expected a paragraph")
+        }
+        XCTAssertEqual(links.runs.compactMap(\.link).map(\.absoluteString), ["https://example.com"])
+        XCTAssertTrue(String(links.characters).contains("bad"))
+        XCTAssertTrue(String(links.characters).contains("raw"))
+    }
+
     func testTextOfContent() {
         XCTAssertEqual(contentText([["type": "text", "text": "a"], ["type": "text", "text": "b"]]), "ab")
         XCTAssertEqual(contentText(["type": "content", "content": ["type": "text", "text": "inner"]]), "inner")

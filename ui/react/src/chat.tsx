@@ -2,6 +2,7 @@
 
 import { RpcError, type Conversation, type Json, type JsonObject, type Session, type SessionState } from "@harness-bridge/client";
 import { useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
+import { RenderText } from "./markdown.tsx";
 import { SettingsBar, settingsOf } from "./settings.tsx";
 import {
   Approval, AssistantMessage, Compaction, Fallback, Plan, Question, SessionMessage, Subagent, Terminal, Thought, ToolCall, UserMessage,
@@ -42,10 +43,18 @@ export interface TimelineProps {
   state: SessionState;
   actions?: Actions;
   components?: ItemComponents;
+  /**
+   * How many of the newest items are drawn at first; "Show earlier" adds as many again. A long
+   * session is then as quick to draw as a short one. The default is 200; `Infinity` draws all.
+   */
+  pageSize?: number;
 }
 
 /** The items of one session, in order. A subagent's session is drawn inside its item. */
-export function Timeline({ conversation, state, actions, components }: TimelineProps) {
+export function Timeline({ conversation, state, actions, components, pageSize = 200 }: TimelineProps) {
+  const [shown, setShown] = useState(pageSize);
+  // Counted from the end, so items that arrive do not push older ones out.
+  const first = Math.max(0, state.timeline.length - shown);
   // A terminal that a tool call shows is not drawn a second time.
   const inline = new Set<string>();
   for (const tool of state.collections.get("toolCall")?.values() ?? []) {
@@ -96,7 +105,12 @@ export function Timeline({ conversation, state, actions, components }: TimelineP
 
   return (
     <div className="hb-timeline">
-      {state.timeline.map((ref) => {
+      {first > 0 && (
+        <button type="button" className="hb-earlier" onClick={() => setShown(shown + pageSize)}>
+          Show earlier ({first} more)
+        </button>
+      )}
+      {state.timeline.slice(first).map((ref) => {
         const drawn = draw(ref.target, ref.id);
         return drawn && <div key={`${ref.target}:${ref.id}`} className="hb-row">{drawn}</div>;
       })}
@@ -206,18 +220,23 @@ export interface ChatViewProps {
   openElsewhere?: Holder | null;
   /** Something the daemon reported outside any request, such as a log it cannot write. Shown above the composer. */
   error?: string | null;
+  /** Draws the agent's text. The default draws Markdown; `(text) => text` shows it as written. */
+  renderText?: (text: string) => ReactNode;
+  /** See `Timeline`. */
+  pageSize?: number;
 }
 
 /** A simple chat: status, the items, and a composer. Assemble your own from the parts if it does not fit. */
-export function ChatView({ conversation, sessionId, actions, components, openElsewhere, error }: ChatViewProps) {
+export function ChatView({ conversation, sessionId, actions, components, openElsewhere, error, renderText, pageSize }: ChatViewProps) {
   const state = sessionId ? conversation.sessions.get(sessionId) : conversation.root()?.[1];
   if (!state) return <div className="hb-chat hb-empty">No session</div>;
   const turn = state.values.get("state") as JsonObject | undefined;
   const running = turn !== undefined && turn["state"] !== "idle";
+  const timeline = <Timeline conversation={conversation} state={state} actions={actions} components={components} pageSize={pageSize} />;
   return (
     <div className="hb-chat">
       <StatusBar state={state} />
-      <Timeline conversation={conversation} state={state} actions={actions} components={components} />
+      {renderText ? <RenderText value={renderText}>{timeline}</RenderText> : timeline}
       {openElsewhere && <OpenElsewhere holder={openElsewhere} onFork={actions?.fork} />}
       {error && <div className="hb-problem hb-session-error" role="alert">{error}</div>}
       {actions?.setOption && <SettingsBar settings={settingsOf(state.values.get("configOptions"))} onChange={actions.setOption} />}

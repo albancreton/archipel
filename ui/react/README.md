@@ -55,6 +55,7 @@ await client.newSession({ cwd, agentId, configOptions: initial });
 - Each component takes an item and, where the user can act, a callback. Nothing else.
 - `components={{ "x.acme.checkpoint": Checkpoint }}` draws an extension's kind with your component. Without it the item gets a generic fallback.
 - Styles are one CSS file with `hb-` classes and a few variables.
-- Text is shown as written; Markdown is not rendered.
+- **The agent's text is drawn as Markdown** (`Markdown`, parsed with `marked`): headings, lists, tables, quotes, code blocks. It is built as React elements, never as HTML, so markup the agent writes is shown as text, links go only to `http`, `https` and `mailto`, and images are named, not fetched. Text that is still arriving is fine: an open code fence is code up to where the text ends. There is no code highlighting. `renderText={(text) => …}` on `ChatView` (or the `RenderText` context) swaps the renderer; `(text) => text` shows the text as written. The user's own messages are always as written.
+- **Long sessions:** `Timeline` draws the newest 200 items and a "Show earlier" button (`pageSize`), and rows off screen are skipped by the browser (`content-visibility`). A session of 5000 items draws in the time of 200.
 
 `pnpm test` draws all recorded sessions and checks that every message and tool call is on the page. `pnpm demo` writes them as HTML files to `demo/out`.

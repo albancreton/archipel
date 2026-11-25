@@ -73,3 +73,23 @@
 .hb-session-confirm span { flex-basis: 100%; }
 .hb-sessions .hb-danger { background: var(--hb-bad); border-color: var(--hb-bad); color: #fff; }
 .hb-empty { color: var(--hb-muted); }
+.hb-assistant, .hb-thought > div { white-space: normal; }
+.hb-md > :first-child { margin-top: 0; } .hb-md > :last-child { margin-bottom: 0; }
+.hb-md p, .hb-md ul, .hb-md ol, .hb-md blockquote, .hb-md pre, .hb-md .hb-md-table { margin: 0 0 8px; }
+.hb-md h3, .hb-md h4, .hb-md h5, .hb-md h6 { margin: 12px 0 6px; font-size: 1em; font-weight: 600; }
+.hb-md h3 { font-size: 1.15em; }
+.hb-md ul, .hb-md ol { padding-left: 1.4em; }
+.hb-md li > div > :last-child { margin-bottom: 0; }
+.hb-md code { font: 0.92em ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 4px; border-radius: 4px; background: var(--hb-soft); }
+.hb-md pre { max-height: none; white-space: pre; overflow-x: auto; background: var(--hb-soft); }
+.hb-md pre code { padding: 0; background: none; font-size: 12px; }
+.hb-md blockquote { padding-left: 10px; border-left: 3px solid var(--hb-line); color: var(--hb-muted); }
+.hb-md a { color: var(--hb-accent); }
+.hb-md hr { border: 0; border-top: 1px solid var(--hb-line); margin: 10px 0; }
+.hb-md-table { overflow-x: auto; }
+.hb-md table { border-collapse: collapse; font-size: 13px; }
+.hb-md th, .hb-md td { padding: 3px 10px; border: 1px solid var(--hb-line); text-align: left; }
+.hb-md-image { color: var(--hb-muted); }
+/* Rows off screen are not laid out or painted until they are scrolled to. */
+.hb-row { content-visibility: auto; contain-intrinsic-size: auto 60px; }
+.hb-chat .hb-earlier { align-self: center; background: var(--hb-bg); border-color: var(--hb-line); color: var(--hb-muted); font-size: 12px; }

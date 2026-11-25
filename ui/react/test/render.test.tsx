@@ -19,7 +19,17 @@ for (const set of readdirSync(states)) {
     const name = `${set}/${path.basename(file, ".json")}`;
     test(`${name} is drawn with everything that was said`, () => {
       const conversation = load(name);
-      const html = renderToStaticMarkup(<ChatView conversation={conversation} />);
+      // As written, so that the text can be found letter for letter. Markdown has its own tests.
+      const html = renderToStaticMarkup(<ChatView conversation={conversation} renderText={(text) => text} />);
+      // And as Markdown: every word that was said is still on the page.
+      const words = new Set(renderToStaticMarkup(<ChatView conversation={conversation} />).replace(/<[^>]*>/g, " ").match(/[\p{L}\p{N}]{3,}/gu));
+      for (const state of conversation.sessions.values()) {
+        for (const item of state.collections.get("agentMessage")?.values() ?? []) {
+          const said = contentText((item as { content?: Json }).content);
+          // A link's address is in its `href`, not in the text.
+          for (const word of said.replace(/\]\([^)]*\)/g, " ").match(/[\p{L}\p{N}]{3,}/gu) ?? []) assert.ok(words.has(word), `Markdown lost "${word}"`);
+        }
+      }
       for (const state of conversation.sessions.values()) {
         for (const target of ["userMessage", "agentMessage"]) {
           for (const item of state.collections.get(target)?.values() ?? []) {

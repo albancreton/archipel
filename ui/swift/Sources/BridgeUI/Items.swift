@@ -84,9 +84,10 @@ public struct UserMessageView: View {
 
 public struct AssistantMessageView: View {
     let item: JSON
+    @Environment(\.agentText) private var render
     public init(item: JSON) { self.item = item }
     public var body: some View {
-        Text(contentText(item["content"])).frame(maxWidth: .infinity, alignment: .leading)
+        render(contentText(item["content"])).frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -94,10 +95,11 @@ public struct AssistantMessageView: View {
 public struct ThoughtView: View {
     let item: JSON
     @State private var open = false
+    @Environment(\.agentText) private var render
     public init(item: JSON) { self.item = item }
     public var body: some View {
         DisclosureGroup("Thinking", isExpanded: $open) {
-            Text(contentText(item["content"]).trimmingCharacters(in: .whitespacesAndNewlines))
+            render(contentText(item["content"]).trimmingCharacters(in: .whitespacesAndNewlines))
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .font(.callout).foregroundStyle(.secondary)
