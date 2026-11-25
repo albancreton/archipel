@@ -16,8 +16,9 @@ The repository is at `~/Dev/archipel` (your working directory). **Never change, 
    - Only lines removed, or `everything is at the newest version`: the library caught up. Answer with exactly `[SILENT]`.
    - A line added or changed: that source has a version nobody was told about. Go on.
 2. Read `target/watch/out/<newest date>/result.json`. For each source in the difference it gives `headlines` (one line per check) and `files` (what was written for it: the diff, the changelog, schema changes, what the adapter says at `initialize`). `summary.md` next to it has the same in prose.
-3. For each such source, write a report by following `tools/watch/brief.md` exactly: it says what to read, which sections to write and what to look for in this repository. Search the diff for what matters instead of reading all of it. Save the report as `target/watch/reports/<date>-<source>.md`.
-4. Answer with the message for the user (below). That answer is what gets delivered.
+3. For each such source, write a report by following `tools/watch/brief.md` exactly. Work from this run's files; an older report in `docs/updates/` is about other versions unless its title names these.
+   The brief says what to read, which sections to write and what to look for in this repository. Search the diff for what matters instead of reading all of it. Save the report as `target/watch/reports/<date>-<source>.md`.
+4. Answer with the message for the user (below). Your whole answer is delivered as it is, so it starts with the message's first line: no sentence before it about what you did, and nothing after it.
 
 If something fails (a file is missing, the diff cannot be read), say so in the message rather than guessing.
 
