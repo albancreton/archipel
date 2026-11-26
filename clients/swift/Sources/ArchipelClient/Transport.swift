@@ -90,6 +90,110 @@ public final class UnixSocketTransport: Transport, @unchecked Sendable {
 }
 #endif
 
+/// Carries the connection on bytes the app moves itself: one JSON message per line, as the
+/// daemon's local socket and `archipel connect --stdio` speak it.
+///
+/// This is how an app reaches a daemon on another machine through SSH without this package
+/// knowing any SSH library: the app opens a channel that runs `archipel connect --stdio` on the
+/// machine, and hands over what the channel prints (`reading`) and a way to write to it.
+/// SSH then does the encryption and decides who gets in; nothing listens on the network.
+///
+/// ```swift
+/// let client = ArchipelClient(name: "MyApp") {
+///     let channel = try await ssh.run("archipel connect --stdio")   // the app's SSH library
+///     return StreamTransport(reading: channel.output, write: channel.write, close: channel.close)
+/// }
+/// ```
+public final class StreamTransport: Transport, @unchecked Sendable {
+    private let next: () async throws -> Data?
+    private let write: @Sendable (Data) async throws -> Void
+    private let onClose: @Sendable () -> Void
+    /// What arrived and is not a whole line yet.
+    private var buffered = Data()
+
+    /// - Parameters:
+    ///   - reading: what arrives, in pieces of any size; a line may come in several.
+    ///     Its end is the end of the connection.
+    ///   - write: sends bytes the other way, in order.
+    ///   - close: ends the connection, which must end `reading` too.
+    public init<Bytes: AsyncSequence>(
+        reading: Bytes,
+        write: @escaping @Sendable (Data) async throws -> Void,
+        close: @escaping @Sendable () -> Void = {}
+    ) where Bytes.Element == Data {
+        var iterator = reading.makeAsyncIterator()
+        next = { try await iterator.next() }
+        self.write = write
+        onClose = close
+    }
+
+    public func send(_ message: JSON) async throws {
+        try await write(Data((message.text + "\n").utf8))
+    }
+
+    public func receive() async throws -> JSON {
+        while true {
+            while let end = buffered.firstIndex(of: UInt8(ascii: "\n")) {
+                let line = buffered[buffered.startIndex..<end]
+                buffered = Data(buffered[buffered.index(after: end)...])
+                // What is not JSON is skipped: a login banner, or the like.
+                if let message = try? JSON(parsing: String(decoding: line, as: UTF8.self)) { return message }
+            }
+            guard let more = try await next() else { throw ConnectionClosed() }
+            buffered.append(more)
+        }
+    }
+
+    public func close() {
+        onClose()
+    }
+}
+
+#if os(macOS)
+/// Carries the connection on a command's input and output, such as
+/// `ssh myhost archipel connect --stdio`. The command is looked for in `PATH`; what it prints
+/// on its error output goes where the app's own does.
+public final class CommandTransport: Transport, @unchecked Sendable {
+    private let process = Process()
+    private let stream: StreamTransport
+
+    public init(command: String, arguments: [String] = []) throws {
+        let (input, output) = (Pipe(), Pipe())
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = [command] + arguments
+        process.standardInput = input
+        process.standardOutput = output
+        let writer = input.fileHandleForWriting
+        // Writing to a command that has ended is an error here, not a signal that ends the app.
+        _ = fcntl(writer.fileDescriptor, F_SETNOSIGPIPE, 1)
+        let reader = output.fileHandleForReading
+        let (chunks, arrived) = AsyncStream<Data>.makeStream()
+        reader.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                handle.readabilityHandler = nil
+                arrived.finish()
+            } else {
+                arrived.yield(chunk)
+            }
+        }
+        let process = process
+        stream = StreamTransport(
+            reading: chunks,
+            write: { try writer.write(contentsOf: $0) },
+            close: {
+                if process.isRunning { process.terminate() }
+                try? writer.close()
+            })
+        try process.run()
+    }
+
+    public func send(_ message: JSON) async throws { try await stream.send(message) }
+    public func receive() async throws -> JSON { try await stream.receive() }
+    public func close() { stream.close() }
+}
+#endif
+
 /// What `pair` returns: the app's own token, what it may do, and the name the daemon lists it under.
 public struct Pairing: Sendable, Equatable {
     public var token: String

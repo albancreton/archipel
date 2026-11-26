@@ -107,6 +107,18 @@ final class LiveTests: XCTestCase {
         }
         watch.close()
 
+        // The same session through a command that carries the connection, as SSH would.
+        let archipel = Self.root.appendingPathComponent("target/debug/archipel").path
+        let carried = ArchipelClient(name: "swift-test-3") {
+            try CommandTransport(command: archipel, arguments: ["--home", home.path, "connect", "--stdio"])
+        }
+        carried.retryAfter = 0
+        try await carried.connect()
+        XCTAssertEqual(carried.welcome.at("_meta.archipel.scope")?.string, "admin")
+        let throughCommand = try await carried.session(session.id)
+        XCTAssertNil(difference(throughCommand.conversation.json, expected))
+        carried.close()
+
         // An unknown session is refused.
         do {
             _ = try await other.session("no-such-session")
@@ -117,4 +129,53 @@ final class LiveTests: XCTestCase {
         app.close()
         other.close()
     }
+
+    /// A daemon on another machine, through a real SSH connection. Only runs when told where:
+    /// `ARCHIPEL_TEST_VIA="ssh myhost archipel connect --stdio" swift test`. It only reads.
+    func testADaemonOnAnotherMachineIsReachedThroughSSH() async throws {
+        guard let via = ProcessInfo.processInfo.environment["ARCHIPEL_TEST_VIA"], !via.isEmpty else {
+            throw XCTSkip("set ARCHIPEL_TEST_VIA to a command that reaches a daemon")
+        }
+        let words = via.split(separator: " ").map(String.init)
+        let app = ArchipelClient(name: "swift-ssh-test") {
+            try CommandTransport(command: words[0], arguments: Array(words.dropFirst()))
+        }
+        app.retryAfter = 0
+        try await app.connect()
+        XCTAssertEqual(app.welcome.at("_meta.archipel.scope")?.string, "admin")
+        _ = try await app.refreshSessions()
+        app.close()
+    }
+
+    /// Lines arrive from a byte stream cut anywhere: in the middle of a message, of a character,
+    /// several at once, with text that is not a message in between.
+    func testAStreamOfBytesCutAnywhereGivesWholeMessages() async throws {
+        let text = "Welcome to myhost\n{\"id\":1,\"text\":\"été\"}\n{\"id\":2}\n\n{\"id\":3}\n"
+        let bytes = Array(text.utf8)
+        for size in [1, 2, 7, bytes.count] {
+            let (chunks, feed) = AsyncStream<Data>.makeStream()
+            for start in stride(from: 0, to: bytes.count, by: size) {
+                feed.yield(Data(bytes[start..<min(start + size, bytes.count)]))
+            }
+            feed.finish()
+            let sent = Sent()
+            let transport = StreamTransport(reading: chunks, write: { await sent.add($0) })
+            var ids: [Double] = []
+            var last: JSON?
+            while let message = try? await transport.receive() {
+                ids.append(message.at("id")?.number ?? 0)
+                if last == nil { last = message }
+            }
+            XCTAssertEqual(ids, [1, 2, 3], "in pieces of \(size)")
+            XCTAssertEqual(last?.at("text")?.string, "été")
+            try await transport.send(["id": 4])
+            let written = await sent.all
+            XCTAssertEqual(String(decoding: written, as: UTF8.self), "{\"id\":4}\n")
+        }
+    }
+}
+
+private actor Sent {
+    var all = Data()
+    func add(_ data: Data) { all.append(data) }
 }
