@@ -22,6 +22,8 @@ let package = Package(
         .target(name: "ArchipelUI", dependencies: ["ArchipelClient"], path: "ui/swift/Sources/ArchipelUI"),
         // A theme for the kit: ui/themes/minitel. `.archipelTheme(.minitel())` on a view of the kit.
         .target(name: "ArchipelMinitel", dependencies: ["ArchipelUI"], path: "ui/themes/minitel/swift/Sources/ArchipelMinitel"),
+        // Every view in each of its states: a page of pictures, or a live window (ui/swift/Catalog).
+        .executableTarget(name: "ArchipelCatalog", dependencies: ["ArchipelClient", "ArchipelUI", "ArchipelMinitel"], path: "ui/swift/Catalog", exclude: ["out"]),
         .executableTarget(name: "ArchipelChatDemo", dependencies: ["ArchipelClient", "ArchipelUI", "ArchipelMinitel"], path: "ui/swift/Demo"),
         // An example to copy, kept compiling and tested: start the daemon from a macOS app.
         .target(name: "DaemonExample", dependencies: ["ArchipelClient"], path: "examples/swift", exclude: ["Tests"]),

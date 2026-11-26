@@ -2,7 +2,7 @@
 
 What a component set for archipel has to draw, what each part takes and gives back, and the rules every set keeps. The React kit (`ui/react`) and the SwiftUI kit (`ui/swift`) are two sets built to this. Start here to make a third, or to redesign one.
 
-A set may also take a theme: a look for the same components, kept in `ui/themes/<name>` with a version per kit (`react`, `swift`) and its own DESIGN.md. Nothing here is tied to a platform. Names are the React ones; the Swift names are in [the last table](#names-in-the-kits). To see every component of the React kit in each of its states, run `pnpm catalog` in `ui/react` and open `demo/out/catalog.html`.
+A set may also take a theme: a look for the same components, kept in `ui/themes/<name>` with a version per kit (`react`, `swift`) and its own DESIGN.md. Nothing here is tied to a platform. Names are the React ones; the Swift names are in [the last table](#names-in-the-kits). To see every component of the React kit in each of its states, run `pnpm catalog` in `ui/react` and open `demo/out/catalog.html`. The SwiftUI kit has the same page, with the same data and sections: `swift run ArchipelCatalog` from the repository's root writes `ui/swift/Catalog/out/catalog.html`, and `--live` opens it in a window.
 
 ## Where the data comes from
 
@@ -526,4 +526,4 @@ The two kits have the same components and say the same things, but do not look a
 
 - Draw every file of `testdata/states/`: they are real recorded sessions, the same the SDKs are tested against. `ui/react/demo/render.tsx` does it for React.
 - Drive a session end to end against the fake agent, with no model and no account (see `AGENTS.md`, "Check your work without spending money").
-- Compare with the React catalogue (`pnpm catalog` in `ui/react`) for the states a recording does not reach: menus open, a row being renamed, a refused setting.
+- Compare the two catalogues (`pnpm catalog` in `ui/react`, `swift run ArchipelCatalog` at the root) for the states a recording does not reach: menus open, a row being renamed, a refused setting.

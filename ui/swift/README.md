@@ -30,6 +30,8 @@ SessionList(
 - `custom: ["x.acme.checkpoint": { AnyView(CheckpointView(item: $0)) }]` draws an extension's kind.
 - `Demo/` is a small macOS app on both packages: `swift run ArchipelChatDemo`, or `swift run ArchipelChatDemo --theme minitel`.
 
+**Catalogue.** `swift run ArchipelCatalog` (from the repository's root) draws every view in each of its states, light and dark, with the same data and sections as the React catalogue, and writes `ui/swift/Catalog/out/catalog.html`. The views are drawn in a window that is never shown, so text fields, menus and switches look as they do on screen. `--theme minitel` writes `catalog-minitel.html`; `--live` opens the same specimens in a window, where they can be clicked and typed into, with the theme and the scheme in its toolbar. The views take a starting state for this, also useful to an app: `ThoughtView(item:open:)`, `CompactionView(item:open:)`, `FallbackView(kind:item:open:)`, `ActivityView(state:open:)`, and `Composer(…, text:)`. States that SwiftUI draws as system alerts (renaming a session, confirming a delete) are not in it.
+
 `swift test` draws recorded sessions off screen and writes the pictures to `.build/archipel-ui-renders`.
 
 It also uses the views as a person would (`Tests/ArchipelUITests/ClickTests.swift`): buttons are found by their label and pressed, and text is typed into fields. The helper `Screen.swift` does this inside the test process through accessibility, in a window that is never shown, so it needs no permission. It cannot drive menus (pickers, a row's menu), alerts, the file dialog or drags.
