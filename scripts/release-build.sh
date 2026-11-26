@@ -10,7 +10,7 @@
 #
 # Runs on an Apple-silicon Mac, with zig and cargo-zigbuild for the Linux targets
 # (brew install zig; cargo install --locked cargo-zigbuild). The Rust targets are added here.
-# .github/workflows/release.yml runs this for a version tag.
+# scripts/release.sh runs this and publishes the result.
 set -eu
 cd "$(dirname "$0")/.."
 OUT="${1:-target/release-assets}"
