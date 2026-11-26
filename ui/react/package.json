@@ -16,6 +16,7 @@
     "test": "node --import tsx --test test/*.test.tsx",
     "demo": "node --import tsx demo/render.tsx",
     "demo:live": "node demo/serve.mjs",
+    "catalog": "node --import tsx demo/catalog.tsx",
     "test:browser": "node --import tsx --test test/browser/*.test.ts"
   },
   "dependencies": {
