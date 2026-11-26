@@ -11,7 +11,7 @@ Status: all seven milestones of the first plan are done; `docs/research/19` list
 - The daemon lists the sessions each harness already has and loads one when it is opened.
 - Other programs add their own items and methods as extensions.
 - Client SDKs for TypeScript and Swift, and component kits for React and SwiftUI.
-- Remote access through SSH, or a WebSocket with paired tokens; a browser page from a named origin.
+- Remote access through SSH, which does the encryption; nothing listens on the network. On the same machine, a WebSocket with paired tokens for a browser page from a named origin.
 
 Tested against 29 recorded sessions in three languages, and live with both harnesses.
 
@@ -84,6 +84,7 @@ With the real Claude adapter: put a `config.json` in the daemon's home (see `arc
 | `docs/remote.md` | How to reach a daemon from another machine or a browser |
 | `testdata/` | Recorded sessions and readable renderings of what the core makes of them |
 | `docs/research/spikes/` | The scripts behind 05, 06, 09, 10. See its README |
+| `docs/research/40` | SSH is the way in: the security of the path between apps and the daemon |
 | `tools/record/` | Records sessions of the real Claude adapter into `testdata/` |
 | `data/t3-claude-commits-30d.txt` | The 230 Claude-related T3 commits analysed in 03 |
 

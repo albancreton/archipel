@@ -211,7 +211,7 @@ The daemon can run commands as the user. Anything that can talk to it has that p
 |---|---|---|
 | Same machine | Unix socket (named pipe on Windows) | File permissions, owner only |
 | Remote, over SSH | `archipel connect --stdio` run through SSH, same frames (done; `docs/remote.md`) | SSH |
-| Remote, direct | WebSocket, off unless asked for | Bearer token; TLS from Tailscale serve or a reverse proxy |
+| Same machine, for a browser page | WebSocket, off unless asked for, on loopback only (`--ws-exposed` lifts that behind a proxy that encrypts) | Bearer token |
 
 All three carry the same JSON-RPC messages (one per line, or one per WebSocket text frame), so the daemon and clients have one codec.
 
@@ -221,7 +221,7 @@ Implemented in milestone 2: the Unix socket (owner-only file in an owner-only di
 - **Scopes:** `observe` (list and read), `interact` (also create, prompt, answer, cancel, adopt), `admin` (also delete a session, which cannot be undone; later pair and configure). A wall display gets `observe`. The local socket always has every right: whoever can open it is the user. Done.
 - **Browser clients:** origin allow-list on the WebSocket (`--ws-origin`); the token travels as a WebSocket subprotocol because a page cannot set headers; no cookies. Done.
 - **Logs:** account details and environment values are stripped before storage.
-- **Not built:** an own relay or end-to-end encryption. Tailscale and SSH cover remote access with maintained code. Revisit only if a hosted relay becomes a goal.
+- **Not built:** an own relay, TLS in the daemon or end-to-end encryption. SSH covers remote access with maintained code, and the daemon opens nothing on the network (`docs/research/40`). Revisit only if a hosted relay becomes a goal.
 
 Harness credentials never pass through the daemon's protocol. Each harness keeps its own login.
 

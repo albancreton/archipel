@@ -81,6 +81,7 @@ Node 22.18 or later runs the TypeScript sources directly; there is no build step
 
 **Connections**
 - The local socket (`~/.archipel/daemon.sock`) gives full control and is readable only by its owner. A WebSocket connection is as limited as its token: `observe` reads, `interact` also acts, `extend` also acts as an extension, `admin` also deletes sessions.
+- From another machine, the way in is SSH: the app runs `archipel connect --stdio` on the daemon's machine and speaks to the local socket through it (`commandTransport` in TypeScript, `CommandTransport` and `StreamTransport` in Swift, `Endpoint::Command` in Rust). The WebSocket is not encrypted and only listens on loopback; it is for a browser page on the same machine (`docs/remote.md`).
 - A session can be deleted by another app at any time. The SDKs then set `removed` on it, end any `until` wait, and stop following it (`onSessionRemoved` in TypeScript; in Swift it also leaves `client.sessions`). What it held stays readable; acting on it fails.
 - After a disconnect the SDKs reconnect and continue from the last item they had. An app does not replay by hand.
 - A browser page needs the daemon started with `--ws-origin` for its origin, and sends its token as a subprotocol (`docs/remote.md`).

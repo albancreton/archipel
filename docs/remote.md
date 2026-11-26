@@ -1,6 +1,8 @@
 # Reaching a daemon from another machine
 
-The daemon can run commands as you. So by default it is reachable only through a local socket that only you can open. There are three ways to open it further; pick the first that fits.
+The daemon can run commands as you. So it listens on one thing only: a local socket that only you can open. Nothing listens on the network, and reaching the daemon from elsewhere means getting onto its machine as you, which is what SSH is for.
+
+**SSH is the way in from another machine.** It does the encryption, checks that the machine is the right one, and decides who gets in. The daemon adds no door of its own: it is exactly as reachable as your shell, and someone who cannot SSH to the machine cannot reach its daemon.
 
 ## 1. Through SSH
 
@@ -10,28 +12,44 @@ Nothing to configure on the daemon. If you can SSH to the machine, you can use i
 archipel --via "ssh myhost archipel connect --stdio" sessions
 ```
 
-`archipel connect --stdio` runs on the remote machine and carries one connection to the local socket on its stdin and stdout. SSH does the encryption and decides who gets in. The client SDKs have the same: `commandTransport("ssh", ["myhost", "archipel", "connect", "--stdio"])` in TypeScript.
+`archipel connect --stdio` runs on the remote machine and carries one connection to the local socket on its input and output. The messages are the local socket's: one JSON message per line.
 
-Checked with a local command standing in for SSH. A real SSH hop was not tested here (this machine accepts no key for itself).
+| From | Use |
+|---|---|
+| Rust | `Endpoint::Command("ssh myhost archipel connect --stdio")` |
+| TypeScript (Node, Electron) | `commandTransport("ssh", ["myhost", "archipel", "connect", "--stdio"])` |
+| Swift on macOS | `CommandTransport(command: "ssh", arguments: ["myhost", "archipel", "connect", "--stdio"])` |
+| Swift on iOS, or any app with an SSH library of its own | `StreamTransport`: the app opens a channel that runs `archipel connect --stdio` and hands over its output and a way to write to it |
 
-## 2. A WebSocket inside a private network
+Things to know:
+
+- **A command run through SSH does not have your terminal's `PATH`.** If `archipel` is not found, name it in full (`ssh myhost .archipel/bin/archipel connect --stdio`).
+- **An app must not be asked a question.** Give SSH `-o BatchMode=yes`, so that a machine whose key is unknown or has changed is refused instead of waiting for an answer nobody sees.
+- **Only the first connection needs to pay for the handshake.** With `-o ControlMaster=auto -o ControlPersist=10m -o ControlPath=~/.ssh/app-%C`, SSH keeps one connection to the machine and every later call goes through it. Measured on a local network: 0.19 s for a new connection, 0.01 s through a shared one.
+- **A connection that drops** (a closed laptop, another network) ends the command. The SDKs then open a new one and continue from the last item they had.
+
+Checked against the daemon of another machine (Linux, on the local network, OpenSSH), with the command-line client and with the TypeScript and Swift SDKs. The Swift one is a test that runs when told where: `ARCHIPEL_TEST_VIA="ssh myhost archipel connect --stdio" swift test`.
+
+## 2. A WebSocket, on the same machine
 
 ```
 archipeld --ws 127.0.0.1:7890
 ```
 
-Every client presents a token.
+For what cannot open the local socket or run a command: a page in a browser. **The WebSocket is not encrypted**, so the daemon only accepts a loopback address for it, and every client presents a token.
 
-- **Pairing (preferred):** `archipeld pair --scope interact --name phone` prints a one-time code such as `K7QMP-2XWRA`, valid ten minutes. The app exchanges it for a token of its own: `archipel pair ws://host:7890 CODE --save ~/.archipel-token`, or `pair(url, code)` in the SDKs. The code then stops working.
+- **Pairing (preferred):** `archipeld pair --scope interact --name phone` prints a one-time code such as `K7QMP-2XWRA`, valid ten minutes. The app exchanges it for a token of its own: `archipel pair ws://127.0.0.1:7890 CODE --save ~/.archipel-token`, or `pair(url, code)` in the SDKs. The code then stops working.
 - **By hand:** `archipeld token add NAME --scope observe` prints a token to copy.
 - `archipeld token list` and `archipeld token remove NAME` list and revoke. Both take effect at once.
 - The daemon stores only a hash of each token. `ws-token` in its home is the owner's own token, for the command-line client on the same machine.
 
 Scopes: `observe` (list and read), `interact` (also prompt, answer, create), `extend` (also act as an extension), `admin`.
 
-The WebSocket itself is not encrypted. Bind it to loopback and put something in front that is: Tailscale (`tailscale serve` gives the machine an HTTPS address inside your tailnet and forwards to the local port; clients then use `wss://…`), or a reverse proxy with a certificate. Binding it to a public address directly is a mistake.
+The token matters even on loopback: every program and every user of the machine can connect to a local port.
 
-Not tested here: a `wss://` address end to end. The Rust client is built with the platform's TLS; the TypeScript and Swift clients use their platform's WebSocket, which handles `wss://`.
+**From another machine, the WebSocket travels inside SSH** like everything else: `ssh -N -L 7890:127.0.0.1:7890 myhost` makes the remote port answer on your own machine, and the client connects to `ws://127.0.0.1:7890` there. Described, not run here.
+
+**`--ws-exposed`** lets `--ws` take an address other machines can reach. It exists for one case: something in front of the daemon encrypts the traffic and decides who gets in (a reverse proxy with a certificate, or `tailscale serve`, which gives the machine an HTTPS address inside your tailnet; clients then use `wss://…`). Without that, anyone on the network can read the sessions and take the tokens. Not tested here: a `wss://` address end to end.
 
 ## 3. A page in a browser
 
@@ -47,6 +65,7 @@ A page cannot set the header the token normally travels in, so it sends it as a 
 
 ## What is not built
 
-- A relay or end-to-end encryption of its own. SSH and Tailscale cover remote access with maintained code.
-- TLS inside the daemon.
+- **Encryption in the daemon** (TLS, or a protocol of its own), and a relay. SSH covers remote access with maintained code; `docs/research/40-ssh-is-the-way-in.md` has the reasoning.
+- **Keys that may only reach the daemon, or only read.** Anyone who gets in through SSH has full control, as on the local socket. SSH can tie a key to one command in `authorized_keys`, so `archipel connect --stdio` could take a scope and a name there; it does not yet.
+- **Protection from other programs running as you** on the daemon's machine: they can open the socket, and read the session log.
 - Windows: the local socket is a Unix socket.
