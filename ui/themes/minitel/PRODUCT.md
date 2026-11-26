@@ -26,7 +26,7 @@ The kit draws only what the daemon's state holds, so it stays correct across har
 
 ## Capabilities and Constraints
 
-- A theme, not a kit: it restyles the component kits in `ui/react` and `ui/swift` without changing what they draw. For React it is one stylesheet (`react/styles.css`) used in place of the kit's own; every class starts with `arc-`, and the colours are CSS variables an app may override. The SwiftUI version goes in `swift/`.
+- A theme, not a kit: it restyles the component kits in `ui/react` and `ui/swift` without changing what they draw. For React it is one stylesheet (`react/styles.css`) used in place of the kit's own; every class starts with `arc-`, and the colours are CSS variables an app may override. For SwiftUI it is a value of the kit's `ArchipelTheme` (`swift/`, the `ArchipelMinitel` library).
 - Nothing small: body text at 16px, and no text under 14px, labels, badges, code and diffs included.
 - Rules from `ui/COMPONENTS.md` stay in force: draw from the current state, never drop an unknown kind, Markdown is never HTML, ask before deleting anything, and only offer what the agent can do.
 - Two themes. Dark is the default identity, built on Minitel's palette. A light theme derived from the same palette still ships.

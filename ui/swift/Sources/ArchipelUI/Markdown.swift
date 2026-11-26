@@ -106,6 +106,7 @@ func markdownBlocks(_ text: String) -> [MarkdownBlock] {
 /// The agent's Markdown, drawn block by block.
 public struct MarkdownText: View {
     let text: String
+    @Environment(\.archipelTheme) private var theme
 
     public init(_ text: String) { self.text = text }
 
@@ -126,19 +127,19 @@ public struct MarkdownText: View {
             Text(text)
         case .heading(let level, let text):
             // Chat text is not a document: its headings stay close to the text's size.
-            Text(text).font(level <= 1 ? .title3 : .headline).fontWeight(.semibold).padding(.top, 2)
+            Text(text).font(level <= 1 ? theme.fonts.headingLarge : theme.fonts.heading).fontWeight(.semibold).padding(.top, 2)
         case .code(let code, _):
             // Long lines wrap, as in the kit's other code blocks.
             CodeBlock(text: code)
         case .listItem(let text, let marker, let depth):
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(marker).foregroundStyle(.secondary).monospacedDigit()
+                Text(marker).foregroundStyle(theme.colors.secondary).monospacedDigit()
                 Text(text)
             }
             .padding(.leading, CGFloat(depth - 1) * 16)
         case .quote(let text):
-            Text(text).foregroundStyle(.secondary).padding(.leading, 10)
-                .overlay(alignment: .leading) { Rectangle().fill(Color.secondary.opacity(0.4)).frame(width: 3) }
+            Text(text).foregroundStyle(theme.colors.secondary).padding(.leading, 12)
+                .overlay(alignment: .leading) { Rectangle().fill(theme.colors.edge).frame(width: 3) }
         case .table(let rows):
             Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 4) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { index, row in

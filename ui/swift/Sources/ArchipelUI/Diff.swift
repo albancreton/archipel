@@ -101,6 +101,7 @@ func foldContext(_ rows: [DiffRow], keep: Int = 3) -> [DiffRow] {
 /// parts are folded. A patch this cannot read is shown as it is.
 public struct DiffView: View {
     let block: JSON
+    @Environment(\.archipelTheme) private var theme
     public init(block: JSON) { self.block = block }
 
     public var body: some View {
@@ -110,7 +111,7 @@ public struct DiffView: View {
         VStack(alignment: .leading, spacing: 6) {
             if files.isEmpty {
                 ForEach(Array(changes.enumerated()), id: \.offset) { _, change in
-                    Text("\(change["operation"]?.string ?? "") \(change["path"]?.string ?? "")").font(.caption).foregroundStyle(.secondary)
+                    Text("\(change["operation"]?.string ?? "") \(change["path"]?.string ?? "")").font(theme.fonts.meta).foregroundStyle(theme.colors.secondary)
                 }
                 if !patch.isEmpty { CodeBlock(text: patch) }
             }
@@ -119,15 +120,16 @@ public struct DiffView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 6) {
                         Text([operation, file.path].compactMap { $0 }.joined(separator: " "))
-                        Text("+\(file.added)").foregroundStyle(.green)
-                        Text("−\(file.removed)").foregroundStyle(.red)
+                        Text("+\(file.added)").foregroundStyle(theme.colors.ok)
+                        Text("−\(file.removed)").foregroundStyle(theme.colors.bad)
                     }
-                    .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 8).padding(.vertical, 4)
-                    Divider()
+                    .font(theme.fonts.code).foregroundStyle(theme.colors.secondary).padding(.horizontal, 8).padding(.vertical, 4)
+                    Rectangle().fill(theme.colors.line).frame(height: 1)
                     DiffRows(rows: foldContext(file.rows))
                 }
-                .background(.background, in: RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(.secondary.opacity(0.25)))
+                .background(theme.colors.sunken, in: RoundedRectangle(cornerRadius: theme.controlRadius))
+                .clipShape(RoundedRectangle(cornerRadius: theme.controlRadius))
+                .overlay(RoundedRectangle(cornerRadius: theme.controlRadius).stroke(theme.colors.line))
             }
         }
     }
@@ -137,6 +139,7 @@ public struct DiffView: View {
 struct DiffRows: View {
     let rows: [DiffRow]
     @State private var opened: Set<Int> = []
+    @Environment(\.archipelTheme) private var theme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -146,14 +149,14 @@ struct DiffRows: View {
                         DiffRows(rows: inner)
                     } else {
                         Button("Show \(inner.count) unchanged lines") { opened.insert(index) }
-                            .buttonStyle(.plain).foregroundStyle(Color.accentColor).padding(.horizontal, 8)
+                            .buttonStyle(.plain).foregroundStyle(theme.colors.accent).underline().padding(.horizontal, 8)
                     }
                 } else {
                     line(row)
                 }
             }
         }
-        .font(.system(.caption, design: .monospaced))
+        .font(theme.fonts.code)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -161,12 +164,12 @@ struct DiffRows: View {
     private func line(_ row: DiffRow) -> some View {
         switch row {
         case .hunk(let text):
-            Text(text).foregroundStyle(.secondary).padding(.horizontal, 8)
-                .frame(maxWidth: .infinity, alignment: .leading).background(Color.secondary.opacity(0.1))
+            Text(text).foregroundStyle(theme.colors.secondary).padding(.horizontal, 8).padding(.vertical, 2)
+                .frame(maxWidth: .infinity, alignment: .leading).background(theme.colors.line.opacity(0.4))
         case .add(let text, let new):
-            numbered(nil, new, "+", text).background(Color.green.opacity(0.14))
+            numbered(nil, new, "+", text).background(theme.colors.ok.opacity(0.16))
         case .remove(let text, let old):
-            numbered(old, nil, "-", text).background(Color.red.opacity(0.14))
+            numbered(old, nil, "-", text).background(theme.colors.bad.opacity(0.16))
         case .context(let text, let old, let new):
             numbered(old, new, " ", text)
         case .fold:
@@ -176,8 +179,8 @@ struct DiffRows: View {
 
     private func numbered(_ old: Int?, _ new: Int?, _ sign: String, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 6) {
-            Text(old.map(String.init) ?? "").frame(width: 34, alignment: .trailing).foregroundStyle(.secondary)
-            Text(new.map(String.init) ?? "").frame(width: 34, alignment: .trailing).foregroundStyle(.secondary)
+            Text(old.map(String.init) ?? "").frame(width: 34, alignment: .trailing).foregroundStyle(theme.colors.secondary)
+            Text(new.map(String.init) ?? "").frame(width: 34, alignment: .trailing).foregroundStyle(theme.colors.secondary)
             Text(sign)
             Text(text)
             Spacer(minLength: 0)

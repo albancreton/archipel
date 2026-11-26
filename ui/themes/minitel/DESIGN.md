@@ -158,7 +158,7 @@ components:
 
 # Design System: archipel component kit
 
-This file records the Minitel theme as shipped for React in `react/styles.css` (next to this file); the SwiftUI version in `swift/` follows it. What each component has to draw, and the behaviour rules every set keeps, live in `ui/COMPONENTS.md`; this file does not repeat them. A SwiftUI kit built to the same world takes its values from the frontmatter and its rules from here.
+This file records the Minitel theme as shipped for React in `react/styles.css` (next to this file) and for SwiftUI in `swift/` (`ArchipelTheme.minitel()`), with the same values; pixels in one are points in the other. What each component has to draw, and the behaviour rules every set keeps, live in `ui/COMPONENTS.md`; this file does not repeat them. A SwiftUI kit built to the same world takes its values from the frontmatter and its rules from here.
 
 ## Overview
 

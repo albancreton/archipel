@@ -144,11 +144,15 @@ public struct Composer: View {
     @State private var closed = false
     @State private var picking = false
     @State private var problem: String?
+    @Environment(\.archipelTheme) private var theme
 
     public init(
         running: Bool, send: @escaping ([JSON]) async throws -> Void, cancel: @escaping () -> Void = {}, commands: [Command] = [],
-        mentions: ((String) async -> [Mention])? = nil, accepts: Accepts = Accepts(), maxBytes: Int = 5_000_000
+        mentions: ((String) async -> [Mention])? = nil, accepts: Accepts = Accepts(), maxBytes: Int = 5_000_000,
+        text: String = ""
     ) {
+        // `text`: what the field holds at first, such as a draft the app kept.
+        _draft = State(initialValue: text)
         self.running = running
         self.send = send
         self.cancel = cancel
@@ -194,19 +198,21 @@ public struct Composer: View {
                     ForEach(Array(menu.enumerated()), id: \.element.id) { index, entry in
                         Button(action: entry.pick) {
                             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                Text(entry.label).font(.system(.callout, design: .monospaced))
-                                Text(entry.detail ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                Text(entry.label).font(theme.fonts.mono)
+                                // On the chosen row the detail takes the text colour, to stay readable on its fill.
+                                Text(entry.detail ?? "").font(theme.fonts.meta).foregroundStyle(index == at ? theme.colors.text : theme.colors.secondary).lineLimit(1)
                                 Spacer(minLength: 0)
                             }
                             .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(index == at ? Color.secondary.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 6))
+                            .background(index == at ? theme.colors.accent.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: theme.controlRadius))
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
                 }
                 .padding(4)
-                .background(RoundedRectangle(cornerRadius: 10).stroke(Color.secondary.opacity(0.3)))
+                .background(RoundedRectangle(cornerRadius: theme.cardRadius).fill(theme.drawsControls ? theme.colors.raised : .clear))
+                .overlay(RoundedRectangle(cornerRadius: theme.cardRadius).stroke(theme.drawsControls ? theme.colors.edge : theme.colors.line))
             }
             if !attached.isEmpty {
                 HStack(spacing: 6) {
@@ -217,17 +223,17 @@ public struct Composer: View {
                             Button { attached.removeAll { $0.id == file.id } } label: { Image(systemName: "xmark") }
                                 .buttonStyle(.plain).accessibilityLabel("Remove \(file.name)")
                         }
-                        .font(.caption)
+                        .font(theme.fonts.meta)
                         .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Color.secondary.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+                        .background(theme.colors.raised, in: RoundedRectangle(cornerRadius: theme.controlRadius))
                     }
                 }
             }
-            if let problem { Text(problem).font(.callout).foregroundStyle(.red) }
+            if let problem { Text(problem).font(theme.fonts.secondary).foregroundStyle(theme.colors.bad) }
             HStack(alignment: .bottom) {
                 TextField(running ? "Add to the running turn…" : "Message the agent…", text: $draft, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
                     .lineLimit(1...6)
+                    .archipelField()
                     // These ask for the menu when the key is pressed. The one drawn above may be
                     // older: the field keeps its handlers until its own text changes, and the
                     // files to mention arrive later than that.
@@ -241,10 +247,10 @@ public struct Composer: View {
                         return .handled
                     }
                 if accepts.image || accepts.files {
-                    Button("Attach") { picking = true }
+                    Button("Attach") { picking = true }.archipelButton()
                 }
-                Button("Send") { submit() }.buttonStyle(.borderedProminent)
-                if running { Button("Stop", action: cancel) }
+                Button("Send") { submit() }.archipelButton(primary: true)
+                if running { Button("Stop", action: cancel).archipelButton() }
             }
         }
         .onChange(of: draft) {

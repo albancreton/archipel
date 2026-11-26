@@ -22,37 +22,75 @@ public func contentText(_ content: JSON?) -> String {
 struct Badge: View {
     let text: String
     /// Set to choose the colour; otherwise it follows the text.
-    var tint: Color?
+    var tone: Tone?
+    @Environment(\.archipelTheme) private var theme
+    @Environment(\.self) private var environment
     var body: some View {
-        let color: Color = if let tint { tint } else { switch text {
-        case "completed", "idle", "exit 0": .green
-        case "failed", "cancelled": .red
-        default: text.hasPrefix("exit") ? .red : .orange
-        } }
-        Text(text.replacingOccurrences(of: "_", with: " "))
-            .font(.caption2)
-            .padding(.horizontal, 7).padding(.vertical, 1)
-            .foregroundStyle(color)
-            .overlay(Capsule().stroke(color, lineWidth: 1))
+        let color = theme.color(tone ?? Tone(status: text))
+        let words = Text(text.replacingOccurrences(of: "_", with: " ")).font(theme.fonts.meta).lineLimit(1)
+        switch theme.badge {
+        case .outlined:
+            words
+                .padding(.horizontal, 7).padding(.vertical, 1)
+                .foregroundStyle(color)
+                .overlay(Capsule().stroke(color, lineWidth: 1))
+                .fixedSize()
+        case .tinted:
+            HStack(spacing: 6) {
+                Circle().fill(color).frame(width: 7, height: 7)
+                // Text between the tone and the text colour, so it stays readable on the pale fill.
+                words.foregroundStyle(mix(color, theme.colors.text, 0.7))
+            }
+            .padding(.horizontal, 10).padding(.vertical, 2)
+            .background(color.opacity(0.12), in: Capsule())
+            .fixedSize()
+        }
+    }
+
+    private func mix(_ one: Color, _ other: Color, _ amount: Double) -> Color {
+        let a = one.resolve(in: environment), b = other.resolve(in: environment)
+        func between(_ x: Float, _ y: Float) -> Double { Double(x) * amount + Double(y) * (1 - amount) }
+        return Color(.sRGB, red: between(a.red, b.red), green: between(a.green, b.green), blue: between(a.blue, b.blue))
     }
 }
 
 struct Card<Content: View>: View {
+    /// Waiting for the user: the border takes the attention colour.
     var highlighted = false
     @ViewBuilder var content: Content
+    @Environment(\.archipelTheme) private var theme
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: theme.cardRadius)
         VStack(alignment: .leading, spacing: 6) { content }
-            .padding(10)
+            .padding(theme.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(highlighted ? Color.orange : Color.secondary.opacity(0.25)))
+            .background(theme.colors.card, in: shape)
+            .background(highlighted ? theme.colors.attention.opacity(theme.waitingFill) : .clear, in: shape)
+            .overlay(shape.stroke(highlighted ? theme.colors.attention : theme.colors.line, lineWidth: highlighted ? theme.waitingBorder : 1))
     }
 }
 
+/// The uppercase word that names a part.
 struct Label2: View {
     let text: String
+    @Environment(\.archipelTheme) private var theme
+    var body: some View { Self.text(text, theme) }
+
+    /// The same as text, to lead a line of other text.
+    static func text(_ text: String, _ theme: ArchipelTheme) -> Text {
+        Text(text.uppercased()).font(theme.fonts.label).tracking(theme.fonts.labelTracking).foregroundColor(theme.colors.secondary)
+    }
+}
+
+/// A label, then a title on the same line; a long title wraps after the label.
+struct LabelledTitle: View {
+    let label: String
+    let title: String
+    var font: Font?
+    @Environment(\.archipelTheme) private var theme
     var body: some View {
-        Text(text.uppercased()).font(.caption2).foregroundStyle(.secondary)
+        (Label2.text(label, theme) + Text("  ") + Text(title).font(font ?? theme.fonts.requestTitle))
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -60,18 +98,38 @@ struct CodeBlock: View {
     let text: String
     /// Terminal output, whose colour codes are drawn as colours.
     var terminal = false
+    @Environment(\.archipelTheme) private var theme
     var body: some View {
-        Text(terminal ? AnsiText(text).attributed : AttributedString(text))
-            .font(.system(.caption, design: .monospaced))
+        let shape = RoundedRectangle(cornerRadius: theme.controlRadius)
+        Text(terminal ? AnsiText(text).attributed(palette: theme.colors.ansi) : AttributedString(text))
+            .font(theme.fonts.code)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(8)
-            .background(.background, in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(.secondary.opacity(0.25)))
+            .background(theme.colors.sunken, in: shape)
+            .overlay(shape.stroke(theme.colors.line))
+    }
+}
+
+/// The mark before a plan entry or a todo: a tick when done, a dot while in progress, a ring before.
+struct PlanMark: View {
+    let status: String
+    @Environment(\.archipelTheme) private var theme
+    var body: some View {
+        Group {
+            switch status {
+            case "completed": Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(theme.colors.ok)
+            case "in_progress": Image(systemName: "circle.fill").font(.system(size: 7)).foregroundStyle(theme.colors.running)
+            default: Image(systemName: "circle").font(.system(size: 9, weight: .medium)).foregroundStyle(theme.colors.secondary)
+            }
+        }
+        .frame(width: 16)
+        .accessibilityLabel(status.replacingOccurrences(of: "_", with: " "))
     }
 }
 
 public struct UserMessageView: View {
     let item: JSON
+    @Environment(\.archipelTheme) private var theme
     public init(item: JSON) { self.item = item }
     public var body: some View {
         let blocks = item["content"]?.array ?? item["content"].map { [$0] } ?? []
@@ -88,14 +146,14 @@ public struct UserMessageView: View {
                     } else {
                         let uri = (block["resource"] ?? block)["uri"]?.string
                         Text(block["name"]?.string ?? uri.flatMap { URL(string: $0)?.lastPathComponent } ?? block["type"]?.string ?? "attachment")
-                            .font(.caption).padding(.horizontal, 8).padding(.vertical, 2)
-                            .background(.white.opacity(0.2), in: RoundedRectangle(cornerRadius: 8))
+                            .font(theme.fonts.meta).padding(.horizontal, 8).padding(.vertical, 2)
+                            .background(theme.colors.onMessage.opacity(0.2), in: RoundedRectangle(cornerRadius: 8))
                     }
                 }
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
-            .foregroundStyle(.white)
-            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 14))
+            .foregroundStyle(theme.colors.onMessage)
+            .background(theme.colors.message, in: RoundedRectangle(cornerRadius: 14))
         }
     }
 }
@@ -114,19 +172,25 @@ public struct ThoughtView: View {
     let item: JSON
     @State private var open = false
     @Environment(\.agentText) private var render
-    public init(item: JSON) { self.item = item }
+    @Environment(\.archipelTheme) private var theme
+    /// `open`: shown unfolded at first.
+    public init(item: JSON, open: Bool = false) {
+        self.item = item
+        _open = State(initialValue: open)
+    }
     public var body: some View {
         DisclosureGroup("Thinking", isExpanded: $open) {
             render(contentText(item["content"]).trimmingCharacters(in: .whitespacesAndNewlines))
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .font(.callout).foregroundStyle(.secondary)
+        .font(theme.fonts.secondary).foregroundStyle(theme.colors.secondary)
     }
 }
 
 /// The output of a command, with the command line and how it ended.
 public struct TerminalView: View {
     let item: JSON
+    @Environment(\.archipelTheme) private var theme
     public init(item: JSON) { self.item = item }
     public var body: some View {
         let output = (item.at("output.data")?.string).flatMap { Data(base64Encoded: $0) }.map { String(decoding: $0, as: UTF8.self) } ?? ""
@@ -136,7 +200,7 @@ public struct TerminalView: View {
         }()
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text("$ " + (item["command"]?.string ?? "")).font(.system(.callout, design: .monospaced)).lineLimit(1)
+                Text("$ " + (item["command"]?.string ?? "")).font(theme.fonts.mono).lineLimit(1)
                 Spacer()
                 Badge(text: ended)
             }
@@ -150,15 +214,16 @@ public struct TerminalView: View {
 public struct ToolCallView: View {
     let item: JSON
     var terminal: (String) -> JSON? = { _ in nil }
+    @Environment(\.archipelTheme) private var theme
     public init(item: JSON, terminal: @escaping (String) -> JSON? = { _ in nil }) {
         self.item = item
         self.terminal = terminal
     }
     public var body: some View {
         Card {
-            HStack {
+            HStack(alignment: .firstTextBaseline) {
                 Label2(text: item["kind"]?.string ?? item["name"]?.string ?? "tool")
-                Text(item["title"]?.string ?? item["name"]?.string ?? "").font(.system(.callout, design: .monospaced)).lineLimit(1)
+                Text(item["title"]?.string ?? item["name"]?.string ?? "").font(theme.fonts.mono).lineLimit(1)
                 Spacer()
                 Badge(text: item["status"]?.string ?? "pending")
             }
@@ -180,44 +245,51 @@ public struct ToolCallView: View {
 /// A plan: a document, or a list of entries with their status (which is also how todos arrive).
 public struct PlanView: View {
     let item: JSON
+    @Environment(\.archipelTheme) private var theme
     public init(item: JSON) { self.item = item }
     public var body: some View {
         Card {
             Label2(text: "Plan")
             let entries = item["entries"]?.array ?? []
             if entries.isEmpty {
-                Text(contentText(item["content"])).font(.callout)
+                Text(contentText(item["content"]))
             } else {
                 ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
-                    let status = entry["status"]?.string
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(status == "completed" ? "✓" : status == "in_progress" ? "…" : "○").frame(width: 16)
+                    let status = entry["status"]?.string ?? "pending"
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        PlanMark(status: status)
                         Text(entry["content"]?.string ?? "").strikethrough(status == "completed")
+                            .fontWeight(status == "in_progress" ? .semibold : .regular)
                     }
-                    .foregroundStyle(status == "completed" ? .secondary : .primary)
+                    .foregroundStyle(status == "completed" ? theme.colors.secondary : theme.colors.text)
                 }
             }
         }
     }
 }
 
-/// A subagent: its title and state, and its own session drawn inside.
+/// A subagent: its title and state, and its own session below. Not a card: its timeline hangs
+/// from its row on a guide line, so the cards in it are never inside another card.
 public struct SubagentView<Inner: View>: View {
     let item: JSON
     @ViewBuilder var inner: Inner
+    @Environment(\.archipelTheme) private var theme
     public init(item: JSON, @ViewBuilder inner: () -> Inner) {
         self.item = item
         self.inner = inner()
     }
     public var body: some View {
-        Card {
-            HStack {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Label2(text: "Subagent")
                 Text(item["title"]?.string ?? "")
-                Spacer()
                 Badge(text: item.at("state.state")?.string ?? "")
+                Spacer(minLength: 0)
             }
-            inner.padding(.leading, 10).overlay(alignment: .leading) { Rectangle().fill(.secondary.opacity(0.3)).frame(width: 2) }
+            inner
+                .padding(.leading, 18)
+                .overlay(alignment: .leading) { Rectangle().fill(theme.colors.edge).frame(width: 1) }
+                .padding(.leading, 6)
         }
     }
 }
@@ -225,11 +297,12 @@ public struct SubagentView<Inner: View>: View {
 /// A message between a session and its subagent: the task given, or the result returned.
 public struct SessionMessageView: View {
     let item: JSON
+    @Environment(\.archipelTheme) private var theme
     public init(item: JSON) { self.item = item }
     public var body: some View {
         Card {
-            Label2(text: "Between agents")
-            Text(contentText(item["content"])).font(.callout)
+            (Label2.text("Between agents", theme) + Text("  ") + Text(contentText(item["content"])))
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -237,12 +310,17 @@ public struct SessionMessageView: View {
 public struct CompactionView: View {
     let item: JSON
     @State private var open = false
-    public init(item: JSON) { self.item = item }
+    @Environment(\.archipelTheme) private var theme
+    /// `open`: shown unfolded at first.
+    public init(item: JSON, open: Bool = false) {
+        self.item = item
+        _open = State(initialValue: open)
+    }
     public var body: some View {
         DisclosureGroup("Conversation compacted (\(item["status"]?.string ?? ""))", isExpanded: $open) {
             Text(contentText(item["summary"])).frame(maxWidth: .infinity, alignment: .leading)
         }
-        .font(.callout).foregroundStyle(.secondary)
+        .font(theme.fonts.secondary).foregroundStyle(theme.colors.secondary)
     }
 }
 
@@ -250,6 +328,7 @@ public struct CompactionView: View {
 public struct ApprovalView: View {
     let request: Request
     var choose: (String) -> Void = { _ in }
+    @Environment(\.archipelTheme) private var theme
     public init(request: Request, choose: @escaping (String) -> Void = { _ in }) {
         self.request = request
         self.choose = choose
@@ -257,19 +336,21 @@ public struct ApprovalView: View {
     public var body: some View {
         let options = request.params["options"]?.array ?? []
         Card(highlighted: request.outcome == nil) {
-            Label2(text: "Permission")
-            Text(request.params["title"]?.string ?? "").bold()
+            LabelledTitle(label: "Permission", title: request.params["title"]?.string ?? "")
             if let outcome = request.outcome {
                 let chosen = outcome.at("outcome.optionId")?.string
                 let name = options.first { $0["optionId"]?.string == chosen }?["name"]?.string
                 Text(outcome.at("outcome.outcome")?.string == "cancelled" ? "Cancelled" : (name ?? chosen ?? ""))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.colors.secondary)
             } else {
                 HStack {
-                    ForEach(Array(options.enumerated()), id: \.offset) { _, option in
+                    // The first option is the one most often taken.
+                    ForEach(Array(options.enumerated()), id: \.offset) { index, option in
                         Button(option["name"]?.string ?? "") { choose(option["optionId"]?.string ?? "") }
+                            .archipelButton(primary: index == 0)
                     }
                 }
+                .padding(.top, 4)
             }
         }
     }
@@ -281,6 +362,7 @@ public struct QuestionView: View {
     /// Called with the form's content, or nil when the user skips the question.
     var answer: (JSON?) -> Void = { _ in }
     @State private var values: [String: String] = [:]
+    @Environment(\.archipelTheme) private var theme
     public init(request: Request, answer: @escaping (JSON?) -> Void = { _ in }) {
         self.request = request
         self.answer = answer
@@ -288,20 +370,20 @@ public struct QuestionView: View {
     public var body: some View {
         let fields = (request.params.at("requestedSchema.properties")?.object ?? [:]).sorted { $0.key < $1.key }
         Card(highlighted: request.outcome == nil) {
-            Label2(text: "Question")
-            Text(request.params["message"]?.string ?? "").bold()
+            LabelledTitle(label: "Question", title: request.params["message"]?.string ?? "")
             if let outcome = request.outcome {
                 let given = (outcome["content"]?.object ?? [:]).sorted { $0.key < $1.key }.compactMap { $0.value.string }
-                Text(outcome["action"]?.string == "accept" ? given.joined(separator: ", ") : "No answer").foregroundStyle(.secondary)
+                Text(outcome["action"]?.string == "accept" ? given.joined(separator: ", ") : "No answer").foregroundStyle(theme.colors.secondary)
             } else {
                 ForEach(fields, id: \.key) { key, field in
                     let choices = field["oneOf"]?.array ?? []
                     let binding = Binding(get: { values[key] ?? "" }, set: { values[key] = $0 })
                     if choices.isEmpty {
-                        TextField(field["title"]?.string ?? key, text: binding).textFieldStyle(.roundedBorder)
+                        TextField(field["title"]?.string ?? key, text: binding).archipelField()
                     } else {
                         Picker(field["title"]?.string ?? key, selection: binding) {
-                            Text("").tag("")
+                            // Not a choice: says that one is still to be made.
+                            Text("Choose…").tag("")
                             ForEach(Array(choices.enumerated()), id: \.offset) { _, choice in
                                 Text(choice["title"]?.string ?? choice["const"]?.string ?? "").tag(choice["const"]?.string ?? "")
                             }
@@ -310,9 +392,10 @@ public struct QuestionView: View {
                 }
                 HStack {
                     Button("Answer") { answer(.object(values.filter { !$0.value.isEmpty }.mapValues { .string($0) })) }
-                        .buttonStyle(.borderedProminent)
-                    Button("Skip") { answer(nil) }
+                        .archipelButton(primary: true)
+                    Button("Skip") { answer(nil) }.archipelButton()
                 }
+                .padding(.top, 4)
             }
         }
     }
@@ -323,13 +406,16 @@ public struct FallbackView: View {
     let kind: String
     let item: JSON
     @State private var open = false
-    public init(kind: String, item: JSON) {
+    @Environment(\.archipelTheme) private var theme
+    /// `open`: shown unfolded at first.
+    public init(kind: String, item: JSON, open: Bool = false) {
         self.kind = kind
         self.item = item
+        _open = State(initialValue: open)
     }
     public var body: some View {
         DisclosureGroup(kind, isExpanded: $open) { CodeBlock(text: item.text) }
-            .font(.callout).foregroundStyle(.secondary)
+            .font(theme.fonts.secondary).foregroundStyle(theme.colors.secondary)
     }
 }
 

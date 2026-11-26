@@ -79,6 +79,7 @@ public struct SettingsBar: View {
     /// What the user chose and the agent has not confirmed yet.
     @State private var asked: (id: String, value: Setting.Value)?
     @State private var problem: String?
+    @Environment(\.archipelTheme) private var theme
 
     public init(settings: [Setting], change: ((String, Setting.Value) async throws -> Void)? = nil) {
         self.settings = settings
@@ -88,16 +89,17 @@ public struct SettingsBar: View {
     public var body: some View {
         if !settings.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 14) {
+                // Wraps onto more lines when the controls do not fit beside each other.
+                Flow(spacing: 14, lineSpacing: 8) {
                     ForEach(settings) { setting in
                         control(setting).help(setting.description ?? "")
                     }
-                    Spacer(minLength: 0)
                 }
                 .disabled(change == nil || asked != nil)
-                if let problem { Text("Not changed: \(problem)").font(.callout).foregroundStyle(.red) }
+                if let problem { Text("Not changed: \(problem)").font(theme.fonts.secondary).foregroundStyle(theme.colors.bad) }
             }
-            .controlSize(.small)
+            .controlSize(theme.settingsControlSize)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -107,6 +109,7 @@ public struct SettingsBar: View {
         switch shown {
         case .on(let on):
             Toggle(setting.name, isOn: Binding(get: { on }, set: { set(setting, .on($0)) }))
+                .fixedSize()
         case .choice(let value):
             Picker(setting.name, selection: Binding(get: { value }, set: { set(setting, .choice($0)) })) {
                 ForEach(Array(setting.groups.enumerated()), id: \.offset) { _, group in
@@ -130,6 +133,43 @@ public struct SettingsBar: View {
             do { try await change(setting.id, value) } catch { problem = "\(setting.name): \(describe(error))" }
             asked = nil
         }
+    }
+}
+
+/// Lays its views out in a row, and starts a new row when the next one does not fit.
+struct Flow: Layout {
+    var spacing: CGFloat
+    var lineSpacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(subviews, width: proposal.width ?? .infinity)
+        return CGSize(width: rows.map(\.width).max() ?? 0, height: rows.map(\.height).reduce(0, +) + lineSpacing * CGFloat(max(rows.count - 1, 0)))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in arrange(subviews, width: bounds.width) {
+            var x = bounds.minX
+            for index in row.items {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y + (row.height - size.height) / 2), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + lineSpacing
+        }
+    }
+
+    private func arrange(_ subviews: Subviews, width: CGFloat) -> [(items: [Int], width: CGFloat, height: CGFloat)] {
+        var rows: [(items: [Int], width: CGFloat, height: CGFloat)] = []
+        for (index, subview) in subviews.enumerated() {
+            let size = subview.sizeThatFits(.unspecified)
+            if let last = rows.last, last.width + spacing + size.width <= width {
+                rows[rows.count - 1] = (last.items + [index], last.width + spacing + size.width, max(last.height, size.height))
+            } else {
+                rows.append(([index], size.width, size.height))
+            }
+        }
+        return rows
     }
 }
 

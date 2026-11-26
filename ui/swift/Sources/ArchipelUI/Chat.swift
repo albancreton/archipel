@@ -26,6 +26,7 @@ public struct OpenElsewhereNotice: View {
     var fork: (() async throws -> Void)?
     @State private var forking = false
     @State private var problem: String?
+    @Environment(\.archipelTheme) private var theme
 
     public init(holder: OpenElsewhere, fork: (() async throws -> Void)? = nil) {
         self.holder = holder
@@ -38,10 +39,10 @@ public struct OpenElsewhereNotice: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("This session is open in another window of the agent\(who.isEmpty ? "" : " (\(who))").").fontWeight(.semibold)
                 Text("Messages from here are refused so the two do not overwrite each other. Close it there and send again\(fork == nil ? "." : ", or continue here on a copy.")")
-                    .foregroundStyle(.secondary)
-                if let problem { Text("Could not fork: \(problem)").foregroundStyle(.red) }
+                    .foregroundStyle(theme.colors.secondary)
+                if let problem { Text("Could not fork: \(problem)").foregroundStyle(theme.colors.bad) }
             }
-            .font(.callout)
+            .font(theme.fonts.secondary)
             .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             if let fork {
@@ -53,13 +54,13 @@ public struct OpenElsewhereNotice: View {
                         forking = false
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .archipelButton(primary: true)
                 .disabled(forking)
             }
         }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.12)))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.orange.opacity(0.6)))
+        .padding(theme.cardPadding)
+        .background(RoundedRectangle(cornerRadius: theme.cardRadius).fill(theme.colors.attention.opacity(0.1)))
+        .overlay(RoundedRectangle(cornerRadius: theme.cardRadius).stroke(theme.colors.attention.opacity(0.7)))
     }
 }
 
@@ -72,6 +73,7 @@ public struct SessionTimeline: View {
     let state: SessionState
     var actions = ChatActions()
     var custom: ItemViews = [:]
+    @Environment(\.archipelTheme) private var theme
 
     public init(conversation: Conversation, state: SessionState, actions: ChatActions = ChatActions(), custom: ItemViews = [:]) {
         self.conversation = conversation
@@ -87,7 +89,7 @@ public struct SessionTimeline: View {
         })
         // Lazy: inside a scroll view only the rows on screen are built, so a long session
         // opens as quickly as a short one.
-        LazyVStack(alignment: .leading, spacing: 10) {
+        LazyVStack(alignment: .leading, spacing: theme.rowSpacing) {
             ForEach(state.timeline, id: \.self) { ref in
                 row(ref, inline: inline)
             }
@@ -136,10 +138,11 @@ public struct SessionTimeline: View {
 /// The session's title, turn state and context use.
 public struct StatusBar: View {
     let state: SessionState
+    @Environment(\.archipelTheme) private var theme
     public init(state: SessionState) { self.state = state }
     public var body: some View {
         HStack {
-            Text(state.values["sessionInfo"]?["title"]?.string ?? "New session").font(.headline).lineLimit(1)
+            Text(state.values["sessionInfo"]?["title"]?.string ?? "New session").font(theme.fonts.title).lineLimit(1)
             Spacer()
             UsageView(state: state)
             if let turn = state.values["state"]?["state"]?.string { Badge(text: turn) }
@@ -161,6 +164,7 @@ public struct ChatView: View {
     var mentions: ((String) async -> [Mention])?
     /// What the agent takes besides text (`Accepts(agent:)` of its entry in `client.agents()`).
     var accepts = Accepts()
+    @Environment(\.archipelTheme) private var theme
 
     public init(
         conversation: Conversation, sessionId: String? = nil, actions: ChatActions = ChatActions(), custom: ItemViews = [:],
@@ -182,7 +186,7 @@ public struct ChatView: View {
             let running = (state.values["state"]?["state"]?.string).map { $0 != "idle" } ?? false
             VStack(spacing: 0) {
                 StatusBar(state: state).padding(12)
-                Divider()
+                Rectangle().fill(theme.colors.line).frame(height: 1)
                 ScrollView {
                     SessionTimeline(conversation: conversation, state: state, actions: actions, custom: custom).padding(12)
                 }
@@ -192,7 +196,7 @@ public struct ChatView: View {
                     OpenElsewhereNotice(holder: openElsewhere, fork: actions.fork).padding([.horizontal, .bottom], 12)
                 }
                 if let error {
-                    Text(error).font(.callout).foregroundStyle(.red)
+                    Text(error).font(theme.fonts.secondary).foregroundStyle(theme.colors.bad)
                         .frame(maxWidth: .infinity, alignment: .leading).padding([.horizontal, .bottom], 12)
                 }
                 if let setOption = actions.setOption {
@@ -200,15 +204,17 @@ public struct ChatView: View {
                         .padding([.horizontal, .bottom], 12)
                 }
                 if let prompt = actions.prompt {
-                    Divider()
+                    Rectangle().fill(theme.colors.line).frame(height: 1)
                     Composer(
                         running: running, send: prompt, cancel: actions.cancel,
                         commands: Command.all(from: state.values["availableCommands"]), mentions: mentions, accepts: accepts)
                         .padding(12)
                 }
             }
+            .background(theme.colors.background ?? .clear)
+            .foregroundStyle(theme.colors.text)
         } else {
-            Text("No session").foregroundStyle(.secondary)
+            Text("No session").foregroundStyle(theme.colors.secondary)
         }
     }
 }

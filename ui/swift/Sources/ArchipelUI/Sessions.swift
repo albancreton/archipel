@@ -34,10 +34,10 @@ extension SessionSummary {
     }
 
     /// What a row says about the session's turn: only what is worth a look.
-    var attention: (text: String, color: Color)? {
+    var attention: (text: String, tone: Tone)? {
         switch state {
-        case "requires_action": ("needs you", .red)
-        case "running": ("running", .orange)
+        case "requires_action": ("needs you", .attention)
+        case "running": ("running", .running)
         default: nil
         }
     }
@@ -64,6 +64,7 @@ public struct SessionList: View {
     @State private var draft = ""
     @State private var deleting: SessionSummary?
     @State private var problem: String?
+    @Environment(\.archipelTheme) private var theme
 
     public init(
         sessions: [SessionSummary], selection: Binding<String?>, agents: [JSON]? = nil,
@@ -93,17 +94,21 @@ public struct SessionList: View {
                     Section {
                         ForEach(folder.sessions) { row($0) }
                     } header: {
-                        Text((folder.cwd as NSString).lastPathComponent).help(folder.cwd)
+                        let name = (folder.cwd as NSString).lastPathComponent
+                        Group { if theme.folderLabels { Label2(text: name) } else { Text(name) } }.help(folder.cwd)
                     }
                 }
             } else {
                 ForEach(sessions) { row($0) }
             }
             if let more {
-                Button("Show more") { Task { await more() } }.buttonStyle(.link)
+                Button("Show more") { Task { await more() } }
+                    .buttonStyle(.plain).foregroundStyle(theme.colors.accent).underline().font(theme.fonts.secondary)
             }
         }
-        .overlay { if sessions.isEmpty { Text("No sessions").foregroundStyle(.secondary) } }
+        .scrollContentBackground(theme.colors.background == nil ? .automatic : .hidden)
+        .background(theme.colors.background ?? .clear)
+        .overlay { if sessions.isEmpty { Text("No sessions").foregroundStyle(theme.colors.secondary) } }
         .alert("Rename session", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } }), presenting: renaming) { session in
             TextField("Title", text: $draft)
             Button("Save") {
@@ -157,6 +162,7 @@ public struct SessionList: View {
 public struct SessionRow: View {
     let session: SessionSummary
     var now: Date
+    @Environment(\.archipelTheme) private var theme
 
     public init(session: SessionSummary, now: Date = Date()) {
         self.session = session
@@ -165,24 +171,26 @@ public struct SessionRow: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(session.title ?? "Untitled").lineLimit(1)
+            // A list sets its own font on macOS: the theme's is set again here.
+            Text(session.title ?? "Untitled").font(theme.fonts.body).lineLimit(1)
             HStack(spacing: 6) {
-                if let attention = session.attention { Badge(text: attention.text, tint: attention.color) }
+                if let attention = session.attention { Badge(text: attention.text, tone: attention.tone) }
                 if session.openElsewhere {
-                    Badge(text: "open elsewhere", tint: .orange)
+                    Badge(text: "open elsewhere", tone: .attention)
                         .help("Another window of the agent has this session open. Fork it to continue here.")
                 }
                 if session.logged {
-                    Text(session.agentId)
+                    Text(session.agentId).lineLimit(1)
                 } else {
-                    Text("from \(session.agentId)").help("Started outside this app. Opening it loads its history from the agent.")
+                    Text("from \(session.agentId)").lineLimit(1).help("Started outside this app. Opening it loads its history from the agent.")
                 }
                 Spacer(minLength: 0)
                 Text(session.ago(now: now))
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .font(theme.fonts.meta)
+            .foregroundStyle(theme.colors.secondary)
         }
+        .foregroundStyle(theme.colors.text)
         .padding(.vertical, 2)
     }
 }

@@ -17,14 +17,14 @@ enum AnsiColor: Equatable {
         return .rgb(step(at / 36), step(at / 6 % 6), step(at % 6))
     }
 
-    var color: Color {
+    /// The colour, with the terminal's 16 taken from `palette` (the theme's; the standard one
+    /// uses the system's colours, so they follow light and dark by themselves).
+    func color(_ palette: [Color] = ArchipelTheme.standard.colors.ansi) -> Color {
         switch self {
         case .rgb(let red, let green, let blue):
             return Color(red: Double(red) / 255, green: Double(green) / 255, blue: Double(blue) / 255)
         case .palette(let index):
-            // The system's colours, so they follow light and dark by themselves.
-            let base: [Color] = [.primary, .red, .green, .yellow, .blue, .purple, .cyan, .secondary]
-            return index < 8 ? base[index] : (index == 8 ? .secondary : index == 15 ? .primary : base[index - 8])
+            return palette.indices.contains(index) ? palette[index] : .primary
         }
     }
 }
@@ -125,20 +125,23 @@ private func withReturns(_ text: String) -> String {
 /// Terminal output with its colours.
 public struct AnsiText: View {
     let output: String
+    @Environment(\.archipelTheme) private var theme
     public init(_ output: String) { self.output = output }
 
     public var body: some View {
-        Text(attributed)
+        Text(attributed(palette: theme.colors.ansi))
     }
 
-    var attributed: AttributedString {
+    var attributed: AttributedString { attributed(palette: ArchipelTheme.standard.colors.ansi) }
+
+    func attributed(palette: [Color]) -> AttributedString {
         var result = AttributedString()
         for piece in ansiPieces(output) {
             var part = AttributedString(piece.text)
             let style = piece.style
             let (fg, bg): (Color?, Color?) = style.inverse
-                ? (style.bg?.color ?? Color(white: 1), style.fg?.color ?? .primary)
-                : (style.fg?.color, style.bg?.color)
+                ? (style.bg?.color(palette) ?? Color(white: 1), style.fg?.color(palette) ?? .primary)
+                : (style.fg?.color(palette), style.bg?.color(palette))
             if let fg { part.foregroundColor = style.dim ? fg.opacity(0.65) : fg } else if style.dim { part.foregroundColor = .secondary }
             if let bg { part.backgroundColor = bg }
             var intent: InlinePresentationIntent = []

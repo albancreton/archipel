@@ -29,18 +29,19 @@ struct Notice: View {
     let text: String
     var tone: AgentProblem.Tone = .wait
     var action: (title: String, run: () -> Void)?
+    @Environment(\.archipelTheme) private var theme
 
     var body: some View {
-        let color: Color = tone == .bad ? .red : tone == .act ? .orange : .secondary
+        let color: Color = tone == .bad ? theme.colors.bad : tone == .act ? theme.colors.attention : theme.colors.secondary
         HStack(spacing: 12) {
-            Text(text).font(.callout).foregroundStyle(tone == .wait ? .secondary : .primary)
+            Text(text).font(theme.fonts.secondary).foregroundStyle(tone == .wait ? theme.colors.secondary : theme.colors.text)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
-            if let action { Button(action.title, action: action.run) }
+            if let action { Button(action.title, action: action.run).archipelButton() }
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 10).fill(color.opacity(0.1)))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(color.opacity(0.5)))
+        .background(RoundedRectangle(cornerRadius: theme.cardRadius).fill(color.opacity(0.1)))
+        .overlay(RoundedRectangle(cornerRadius: theme.cardRadius).stroke(color.opacity(0.6)))
     }
 }
 
@@ -103,22 +104,23 @@ public struct UsageSummary: Equatable {
 /// How full the context is, and what the session has cost when the agent says.
 public struct UsageView: View {
     let state: SessionState
+    @Environment(\.archipelTheme) private var theme
     public init(state: SessionState) { self.state = state }
 
     public var body: some View {
         let usage = UsageSummary(state: state)
         HStack(spacing: 6) {
             if let percent = usage.percent {
-                Capsule().fill(Color.secondary.opacity(0.25)).frame(width: 44, height: 5)
+                Capsule().fill(theme.colors.line).frame(width: 48, height: 6)
                     .overlay(alignment: .leading) {
-                        Capsule().fill(percent >= 80 ? Color.orange : Color.secondary).frame(width: 44 * CGFloat(min(percent, 100)) / 100)
+                        Capsule().fill(percent >= 80 ? theme.colors.attention : theme.colors.edge).frame(width: 48 * CGFloat(min(percent, 100)) / 100)
                     }
                     .accessibilityLabel("Context used").accessibilityValue("\(percent) percent")
                 Text("\(percent)% of context")
             }
             if let cost = usage.cost { Text(cost) }
         }
-        .font(.caption).foregroundStyle(.secondary)
+        .font(theme.fonts.meta).foregroundStyle(theme.colors.secondary)
         .help([
             usage.used.flatMap { used in usage.size.map { "\(used) of \($0) tokens of context" } },
             usage.turnTokens.map { "\($0) tokens in the last turn" },
@@ -162,7 +164,12 @@ public func todos(in state: SessionState) -> [(content: String, status: String)]
 public struct ActivityView: View {
     let state: SessionState
     @State private var open = false
-    public init(state: SessionState) { self.state = state }
+    @Environment(\.archipelTheme) private var theme
+    /// `open`: the todo list shown unfolded at first.
+    public init(state: SessionState, open: Bool = false) {
+        self.state = state
+        _open = State(initialValue: open)
+    }
 
     public var body: some View {
         let list = todos(in: state)
@@ -174,10 +181,11 @@ public struct ActivityView: View {
                     DisclosureGroup(isExpanded: $open) {
                         VStack(alignment: .leading, spacing: 2) {
                             ForEach(Array(list.enumerated()), id: \.offset) { _, todo in
-                                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                    Text(todo.status == "completed" ? "✓" : todo.status == "in_progress" ? "…" : "○").frame(width: 14)
+                                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                    PlanMark(status: todo.status)
                                     Text(todo.content).strikethrough(todo.status == "completed")
-                                        .foregroundStyle(todo.status == "completed" ? .secondary : .primary)
+                                        .fontWeight(todo.status == "in_progress" ? .semibold : .regular)
+                                        .foregroundStyle(todo.status == "completed" ? theme.colors.secondary : theme.colors.text)
                                 }
                             }
                         }
@@ -188,20 +196,22 @@ public struct ActivityView: View {
                 }
                 if !background.isEmpty {
                     HStack(spacing: 6) {
-                        Text("Running in the background").foregroundStyle(.secondary)
+                        Text("Running in the background").foregroundStyle(theme.colors.secondary)
                         ForEach(background) { work in
-                            Text(work.label).font(.system(.caption, design: .monospaced)).lineLimit(1)
+                            Text(work.label).font(theme.fonts.code).lineLimit(1)
                                 .padding(.horizontal, 8).padding(.vertical, 2)
-                                .background(Color.secondary.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+                                .background(theme.colors.sunken, in: RoundedRectangle(cornerRadius: theme.controlRadius))
+                                .overlay(RoundedRectangle(cornerRadius: theme.controlRadius).stroke(theme.colors.line))
                                 .help(work.kind)
                         }
                         Spacer(minLength: 0)
                     }
                 }
             }
-            .font(.callout)
-            .padding(.horizontal, 10).padding(.vertical, 8)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.08)))
+            .font(theme.fonts.secondary)
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: theme.cardRadius).fill(theme.colors.card))
+            .overlay(RoundedRectangle(cornerRadius: theme.cardRadius).stroke(theme.colors.line))
         }
     }
 }

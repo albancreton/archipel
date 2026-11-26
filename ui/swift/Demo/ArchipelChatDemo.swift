@@ -1,4 +1,5 @@
 import ArchipelClient
+import ArchipelMinitel
 import ArchipelUI
 import SwiftUI
 
@@ -6,6 +7,7 @@ import SwiftUI
 // It talks to the daemon on this machine through its local socket.
 //
 //   swift run ArchipelChatDemo [path of the daemon's home]     (default: ~/.archipel)
+//   swift run ArchipelChatDemo --theme minitel [home]           (the Minitel theme, ui/themes/minitel)
 
 @main
 struct ArchipelChatDemo: App {
@@ -13,12 +15,20 @@ struct ArchipelChatDemo: App {
     @State private var session: ArchipelSession?
     @State private var agents: [JSON] = []
     @State private var failure: String?
+    private let theme: ArchipelTheme
 
     init() {
         // Started from a terminal there is no app bundle: without this the window gets no keyboard.
         NSApplication.shared.setActivationPolicy(.regular)
         NSApplication.shared.activate(ignoringOtherApps: true)
-        let home = CommandLine.arguments.dropFirst().first ?? NSHomeDirectory() + "/.archipel"
+        var arguments = Array(CommandLine.arguments.dropFirst())
+        if let at = arguments.firstIndex(of: "--theme"), at + 1 < arguments.count {
+            theme = arguments[at + 1] == "minitel" ? .minitel() : .standard
+            arguments.removeSubrange(at...(at + 1))
+        } else {
+            theme = .standard
+        }
+        let home = arguments.first ?? NSHomeDirectory() + "/.archipel"
         _client = State(initialValue: ArchipelClient(name: "ArchipelChatDemo") {
             try UnixSocketTransport(path: home + "/daemon.sock")
         })
@@ -45,6 +55,7 @@ struct ArchipelChatDemo: App {
                     Text("Choose a session").foregroundStyle(.secondary)
                 }
             }
+            .archipelTheme(theme)
             .task {
                 do {
                     try await client.connect()
