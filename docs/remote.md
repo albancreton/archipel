@@ -19,7 +19,7 @@ archipel --via "ssh myhost archipel connect --stdio" sessions
 | Rust | `Endpoint::Command("ssh myhost archipel connect --stdio")` |
 | TypeScript (Node, Electron) | `commandTransport("ssh", ["myhost", "archipel", "connect", "--stdio"])` |
 | Swift on macOS | `CommandTransport(command: "ssh", arguments: ["myhost", "archipel", "connect", "--stdio"])` |
-| Swift on iOS, or any app with an SSH library of its own | `StreamTransport`: the app opens a channel that runs `archipel connect --stdio` and hands over its output and a way to write to it |
+| Swift on iOS, or any app with an SSH library of its own | `StreamTransport`: the app opens a channel that runs `archipel connect --stdio` and hands over its output and a way to write to it (`examples/swift-ssh` does it with Citadel) |
 
 Things to know:
 

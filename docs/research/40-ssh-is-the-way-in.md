@@ -25,7 +25,7 @@ The second was chosen. It removes a credential system from the remote path inste
 | Change | Checked by |
 |---|---|
 | `--ws` refuses an address that is not loopback, before the daemon listens anywhere. `--ws-exposed` lifts this, for a daemon behind something that encrypts | A test of the rule, and one of the daemon program refusing `0.0.0.0` |
-| Swift SDK: `StreamTransport`, a connection on bytes the app moves itself (an SSH channel of its own library), and `CommandTransport` on macOS, a connection on a command's input and output | A test with bytes cut anywhere; the live test, with a local command standing in for SSH; a real SSH hop (below) |
+| Swift SDK: `StreamTransport`, a connection on bytes the app moves itself (an SSH channel of its own library), and `CommandTransport` on macOS, a connection on a command's input and output | A test with bytes cut anywhere; the live test, with a local command standing in for SSH; a real SSH hop (below); a channel of an SSH library, in `examples/swift-ssh` |
 | `docs/remote.md` says SSH first, and the WebSocket for the same machine | |
 
 **The real SSH hop**, which milestone 7 had left out: the daemon of a Linux machine on the local network was reached from this Mac with `archipel --via`, with the TypeScript SDK's `commandTransport` and with the Swift SDK's `CommandTransport`, each listing its sessions. Only reads. The Swift check stays as a test that runs when `ARCHIPEL_TEST_VIA` names the command.
@@ -48,7 +48,7 @@ M2 (the prototype app) already reached its hosts this way. It now shares one SSH
 
 - **A scope and a name on `archipel connect --stdio`** (an `authorized_keys` line that gives a key the daemon only, or reading only). **Out of scope**, by the user's decision the same day: this is for giving someone or something less than the user's own access, and a daemon is one user's. Several users would be several daemons, each with its own harness accounts and configuration, not one daemon shared.
 - **Who is attached.** The server knows a connection's scope, not which device it is: a token's name is dropped before `connect_as`.
-- **`StreamTransport` on an SSH library's channel.** It was tested on bytes and through `CommandTransport`, not with Citadel on a phone.
+- **`StreamTransport` on a phone.** It was then tried on a channel of an SSH library (Citadel) on macOS, against the system's `sshd` started for the test on loopback: `examples/swift-ssh`, with its test. Not on iOS itself.
 - **The WebSocket through `ssh -L`**, and `wss://` behind a proxy: described in the guide, not run.
 - **A rate limit on failed handshakes, and tokens that expire.** They matter less with the port on loopback.
 - **Other programs running as the user** on the daemon's machine can open the socket, and read the log and the harness's own transcripts. Closing that takes sandboxing and encryption at rest, which is another project.

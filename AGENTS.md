@@ -19,6 +19,7 @@ Each of these is small. Copy the one that matches the task. The last column says
 | Follow and drive a session from Node, Electron or React Native | `examples/node/chat.ts` | A test runs it against the fake agent |
 | Start the daemon from the app when none is running | `examples/node/daemon.ts` | A test starts a daemon with it, then finds that one |
 | The same from a macOS app in Swift | `examples/swift/Daemon.swift` | A test starts a daemon with it, then finds that one |
+| Reach a daemon on another machine from an iOS app, or any app with its own SSH library | `examples/swift-ssh` (a package of its own) | Its own test, on macOS: a session through a real SSH server on loopback and the fake agent. Not run on a phone |
 | Add an item kind or a method from a separate program, in any language | `examples/node/extension.ts` | A test runs it and reads its item in an app |
 | Host the daemon inside a Rust program | `examples/embedded-daemon` | Its own test, in-process and through the socket |
 | Change, stop or answer what the harness and the apps say to each other; fix a harness fault | `examples/own-daemon` (an addon) | Its own test |
@@ -59,6 +60,7 @@ node examples/node/chat.ts --home /tmp/try --mode default --approve allow-once "
 | TypeScript | `pnpm -r check` | `pnpm -r test` (run `cargo build` first: several tests start `target/debug/archipeld`) |
 | React in a browser | | `pnpm test:browser` in `ui/react` (after `cargo build`, and once `npx playwright install chromium-headless-shell`) |
 | Swift | | `swift test` (also after `cargo build`) |
+| The SSH example (a package of its own, in `examples/swift-ssh`) | | `swift test` there (also after `cargo build`; downloads an SSH library the first time) |
 | GPUI kit (a workspace of its own, in `ui/gpui`) | `cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings` there | `cargo test --workspace` there (also after `cargo build` at the root) |
 
 On Linux the build needs the OpenSSL headers and `pkg-config` (`apt install libssl-dev pkg-config` on Debian and Ubuntu); the Rust client uses the system's TLS for `wss://` addresses. macOS needs nothing extra.
