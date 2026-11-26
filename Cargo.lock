@@ -35,14 +35,14 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "archipel-addon-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "archipel-addons"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "archipel-addon-api",
  "serde_json",
@@ -50,7 +50,7 @@ dependencies = [
 
 [[package]]
 name = "archipel-agents"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "archipel-core",
  "archipel-transport",
@@ -63,7 +63,7 @@ dependencies = [
 
 [[package]]
 name = "archipel-client"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "archipel-agents",
  "archipel-core",
@@ -77,7 +77,7 @@ dependencies = [
 
 [[package]]
 name = "archipel-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "archipel-schema",
  "base64",
@@ -88,7 +88,7 @@ dependencies = [
 
 [[package]]
 name = "archipel-schema"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "agent-client-protocol-schema",
  "schemars 1.2.3",
@@ -98,7 +98,7 @@ dependencies = [
 
 [[package]]
 name = "archipel-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "archipel-addon-api",
  "archipel-agents",
@@ -113,7 +113,7 @@ dependencies = [
 
 [[package]]
 name = "archipel-store-sqlite"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "archipel-core",
  "rusqlite",
@@ -122,7 +122,7 @@ dependencies = [
 
 [[package]]
 name = "archipel-transport"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "futures-util",
  "getrandom",
@@ -134,7 +134,7 @@ dependencies = [
 
 [[package]]
 name = "archipeld"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "archipel-addons",
  "archipel-agents",
@@ -385,7 +385,7 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
 name = "embedded-daemon"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "archipel-agents",
  "archipel-core",
@@ -885,7 +885,7 @@ dependencies = [
 
 [[package]]
 name = "own-daemon"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "archipel-addon-api",
  "archipel-addons",

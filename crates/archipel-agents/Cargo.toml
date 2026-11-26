@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 base64 = "0.23.1"
 archipel-core = { path = "../archipel-core" }
-archipel-transport = { version = "0.1.0", path = "../archipel-transport" }
+archipel-transport = { version = "0.2.0", path = "../archipel-transport" }
 getrandom = "0.4.3"
 serde_json = "1.0.154"
 similar = "3.2.1"
