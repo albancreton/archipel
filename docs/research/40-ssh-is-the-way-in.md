@@ -46,7 +46,7 @@ M2 (the prototype app) already reached its hosts this way. It now shares one SSH
 
 ## Not done
 
-- **A scope and a name on `archipel connect --stdio`**, for an `authorized_keys` line that gives a key the daemon only, or reading only (`restrict,command="archipel connect --stdio --scope observe --name phone"`). Today a connection through SSH has full control and no name. Not needed while every device is the user's own; needed before a key is handed to anyone else.
+- **A scope and a name on `archipel connect --stdio`** (an `authorized_keys` line that gives a key the daemon only, or reading only). **Out of scope**, by the user's decision the same day: this is for giving someone or something less than the user's own access, and a daemon is one user's. Several users would be several daemons, each with its own harness accounts and configuration, not one daemon shared.
 - **Who is attached.** The server knows a connection's scope, not which device it is: a token's name is dropped before `connect_as`.
 - **`StreamTransport` on an SSH library's channel.** It was tested on bytes and through `CommandTransport`, not with Citadel on a phone.
 - **The WebSocket through `ssh -L`**, and `wss://` behind a proxy: described in the guide, not run.

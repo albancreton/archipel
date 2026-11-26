@@ -66,6 +66,6 @@ A page cannot set the header the token normally travels in, so it sends it as a 
 ## What is not built
 
 - **Encryption in the daemon** (TLS, or a protocol of its own), and a relay. SSH covers remote access with maintained code; `docs/research/40-ssh-is-the-way-in.md` has the reasoning.
-- **Keys that may only reach the daemon, or only read.** Anyone who gets in through SSH has full control, as on the local socket. SSH can tie a key to one command in `authorized_keys`, so `archipel connect --stdio` could take a scope and a name there; it does not yet.
+- **Keys that may only reach the daemon, or only read.** Anyone who gets in through SSH has full control, as on the local socket. A daemon is one user's: it is not meant to be shared, and another user runs their own.
 - **Protection from other programs running as you** on the daemon's machine: they can open the socket, and read the session log.
 - Windows: the local socket is a Unix socket.
