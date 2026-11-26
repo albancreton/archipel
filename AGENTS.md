@@ -109,7 +109,7 @@ Node 22.18 or later runs the TypeScript sources directly; there is no build step
 |---|---|
 | `crates/` | The Rust workspace. `archipeld` is the daemon program, `archipel` a command-line client (both have `--help`), `archipel-server` the daemon as a library |
 | `clients/ts`, `clients/swift` | The client SDKs. Their READMEs have a ten-line example and a file table |
-| `ui/react`, `ui/swift` | The component kits |
+| `ui/react`, `ui/swift` | The component kits. `ui/COMPONENTS.md` describes every component a set needs, for anyone making or redesigning one |
 | `examples/` | What the table above points to |
 | `testdata/` | Recorded sessions, and the state each must produce |
 | `tools/watch/` | Looks for new versions of the adapters, harnesses and ACP, and writes down what changed |
