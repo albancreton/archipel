@@ -49,6 +49,7 @@ archipeld: the archipel daemon
   archipeld [--home DIR] token list
   archipeld [--home DIR] token remove NAME
   archipeld [--home DIR] addons
+  archipeld --version
 
   --home DIR         where the daemon keeps its files (default: $ARCHIPEL_HOME or ~/.archipel)
                        daemon.sock   the local socket apps connect to
@@ -494,6 +495,10 @@ pub async fn main(addons: Vec<Box<dyn Addon>>) -> ExitCode {
 async fn run(mut args: Vec<String>, addons: Vec<Box<dyn Addon>>) -> Result<(), Failure> {
     if switch(&mut args, "--help") || switch(&mut args, "-h") {
         print!("{USAGE}");
+        return Ok(());
+    }
+    if switch(&mut args, "--version") {
+        println!("archipeld {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
     let home = option(&mut args, "--home")

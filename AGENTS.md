@@ -63,6 +63,8 @@ node examples/node/chat.ts --home /tmp/try --mode default --approve allow-once "
 
 On Linux the build needs the OpenSSL headers and `pkg-config` (`apt install libssl-dev pkg-config` on Debian and Ubuntu); the Rust client uses the system's TLS for `wss://` addresses. macOS needs nothing extra.
 
+**Releases.** The version is `version` under `[workspace.package]` in `Cargo.toml`; `archipeld --version` and `archipel --version` print it. Pushing the tag `v<version>` makes `.github/workflows/release.yml` publish `archipeld` and `archipel` for Linux (x86-64 and ARM, static) and macOS (Apple silicon and Intel) with a `SHA256SUMS` file. `scripts/release-build.sh` is what it runs, and builds the same archives on a Mac. The version is also in the recorded daemon output (`testdata/daemon`), so after changing it run `UPDATE_VECTORS=1 cargo test -p archipel-server --test daemon` and check that nothing else moved.
+
 Node 22.18 or later runs the TypeScript sources directly; there is no build step. `just` lists the same commands if it is installed.
 
 ## What the types do not tell you

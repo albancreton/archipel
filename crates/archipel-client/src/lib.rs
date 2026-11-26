@@ -7,6 +7,10 @@ use archipel_transport::{Link, local, ws};
 use serde_json::{Value, json};
 use std::{collections::VecDeque, fmt, io, path::PathBuf};
 
+/// The version of archipel this was built from. Releases are tagged `v` and this, and the
+/// programs print it with `--version`.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// Where a daemon listens.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Endpoint {

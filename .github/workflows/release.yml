@@ -1,0 +1,36 @@
+# Publishes a release when a version tag is pushed: `archipeld` and `archipel` for Linux
+# (x86-64 and ARM, static) and macOS (Apple silicon and Intel), with their checksums.
+#
+# To release: set `version` under [workspace.package] in Cargo.toml (and in ui/gpui/Cargo.toml),
+# commit, then `git tag v<that version>` and push the tag. The tag has to match the version,
+# because the programs print it and apps ask for the release by it.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The tag is the version in Cargo.toml
+        run: |
+          version=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME, but Cargo.toml says $version"; exit 1
+          fi
+      - name: Tools for the Linux builds
+        run: |
+          brew install zig
+          cargo install --locked cargo-zigbuild
+      - name: Build
+        run: scripts/release-build.sh target/release-assets
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" target/release-assets/* --title "$GITHUB_REF_NAME" --generate-notes

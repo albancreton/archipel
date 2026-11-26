@@ -43,6 +43,7 @@ SESSION may be the first characters of a session id.
                                          exchange a code from `archipeld pair` for a token of
                                          your own; printed, or written to FILE
   archipel connect --stdio                 carry a connection on stdin and stdout, for --via
+  archipel --version
 
 Where the daemon is:
   --home DIR       the daemon's directory (default: $ARCHIPEL_HOME or ~/.archipel)
@@ -68,6 +69,10 @@ async fn main() -> ExitCode {
 async fn run(mut args: Vec<String>) -> Result<(), Failure> {
     if args.is_empty() || switch(&mut args, "--help") || switch(&mut args, "-h") {
         print!("{USAGE}");
+        return Ok(());
+    }
+    if switch(&mut args, "--version") {
+        println!("archipel {}", archipel_client::VERSION);
         return Ok(());
     }
     if args.first().map(String::as_str) == Some("pair") {

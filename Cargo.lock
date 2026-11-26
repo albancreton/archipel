@@ -35,14 +35,14 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "archipel-addon-api"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "archipel-addons"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "archipel-addon-api",
  "serde_json",
@@ -50,7 +50,7 @@ dependencies = [
 
 [[package]]
 name = "archipel-agents"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "archipel-core",
  "archipel-transport",
@@ -63,7 +63,7 @@ dependencies = [
 
 [[package]]
 name = "archipel-client"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "archipel-agents",
  "archipel-core",
@@ -77,7 +77,7 @@ dependencies = [
 
 [[package]]
 name = "archipel-core"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "archipel-schema",
  "base64",
@@ -88,7 +88,7 @@ dependencies = [
 
 [[package]]
 name = "archipel-schema"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "agent-client-protocol-schema",
  "schemars 1.2.3",
@@ -98,7 +98,7 @@ dependencies = [
 
 [[package]]
 name = "archipel-server"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "archipel-addon-api",
  "archipel-agents",
@@ -113,7 +113,7 @@ dependencies = [
 
 [[package]]
 name = "archipel-store-sqlite"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "archipel-core",
  "rusqlite",
@@ -122,10 +122,11 @@ dependencies = [
 
 [[package]]
 name = "archipel-transport"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "futures-util",
  "getrandom",
+ "native-tls",
  "serde_json",
  "tokio",
  "tokio-tungstenite",
@@ -133,7 +134,7 @@ dependencies = [
 
 [[package]]
 name = "archipeld"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "archipel-addons",
  "archipel-agents",
@@ -384,7 +385,7 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
 name = "embedded-daemon"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "archipel-agents",
  "archipel-core",
@@ -861,6 +862,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e036b411754132fd6b74e94b74e9a13c5cf606fa93d1885c35860d3060820b1"
 
 [[package]]
+name = "openssl-src"
+version = "300.6.1+3.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46eb8fb9fb3b61ce1c0f8a026c4c1a0714d3a9e138e7fbde78753ce2babc3846"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "openssl-sys"
 version = "0.9.118"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -868,13 +878,14 @@ checksum = "19c413d6ec9ebaf5e1c829d355cb3e9f783778d700f135be0921d52fce3c60ae"
 dependencies = [
  "cc",
  "libc",
+ "openssl-src",
  "pkg-config",
  "vcpkg",
 ]
 
 [[package]]
 name = "own-daemon"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "archipel-addon-api",
  "archipel-addons",
