@@ -1,8 +1,8 @@
 # Components of a session UI
 
-What a component set for archipel has to draw, what each part takes and gives back, and the rules every set keeps. The React kit (`ui/react`) and the SwiftUI kit (`ui/swift`) are two sets built to this. Start here to make a third, or to redesign one.
+What a component set for archipel has to draw, what each part takes and gives back, and the rules every set keeps. The React kit (`ui/react`), the SwiftUI kit (`ui/swift`) and the GPUI kit (`ui/gpui`) are three sets built to this. Start here to make another, or to redesign one.
 
-A set may also take a theme: a look for the same components, kept in `ui/themes/<name>` with a version per kit (`react`, `swift`) and its own DESIGN.md. Nothing here is tied to a platform. Names are the React ones; the Swift names are in [the last table](#names-in-the-kits). To see every component of the React kit in each of its states, run `pnpm catalog` in `ui/react` and open `demo/out/catalog.html`. The SwiftUI kit has the same page, with the same data and sections: `swift run ArchipelCatalog` from the repository's root writes `ui/swift/Catalog/out/catalog.html`, and `--live` opens it in a window.
+A set may also take a theme: a look for the same components, kept in `ui/themes/<name>` with a version per kit (`react`, `swift`, `gpui`) and its own DESIGN.md. Nothing here is tied to a platform. Names are the React ones; the Swift and GPUI names are in [the last table](#names-in-the-kits). To see every component of the React kit in each of its states, run `pnpm catalog` in `ui/react` and open `demo/out/catalog.html`. The SwiftUI kit has the same page, with the same data and sections: `swift run ArchipelCatalog` from the repository's root writes `ui/swift/Catalog/out/catalog.html`, and `--live` opens it in a window. The GPUI kit has it as a window only: `cargo run -p archipel-gpui-catalog` in `ui/gpui`.
 
 ## Where the data comes from
 
@@ -504,26 +504,26 @@ What a chat can do, as the app gives it. Each is optional; without it, its contr
 
 ## Names in the kits
 
-| Here | React | SwiftUI |
-|---|---|---|
-| ChatView | `ChatView` (+ `useSession`) | `ChatView`, `LiveChatView` |
-| StatusBar | `StatusBar` | `StatusBar` |
-| Timeline | `Timeline` | `SessionTimeline` |
-| UserMessage … Fallback | `UserMessage`, `AssistantMessage`, `Thought`, `ToolCall`, `Terminal`, `Diff`, `Plan`, `Subagent`, `SessionMessage`, `Compaction`, `Approval`, `Question`, `Fallback` | the same with `View` after (`DiffView` for Diff) |
-| Markdown | `Markdown` | `MarkdownText` |
-| AnsiText | `AnsiText` | `AnsiText` |
-| Usage | `Usage` | `UsageView` |
-| Activity | `Activity` | `ActivityView` |
-| OpenElsewhere | `OpenElsewhere` | `OpenElsewhereNotice` |
-| SettingsBar | `SettingsBar` | `SettingsBar` |
-| Composer | `Composer` | `Composer` |
-| SessionList, SessionRow | `SessionList`, `SessionRow` | `SessionList`, `SessionRow` |
-| AgentStatus, ConnectionStatus | `AgentStatus`, `ConnectionStatus` | `AgentStatus`, `ConnectionStatus` |
+| Here | React | SwiftUI | GPUI |
+|---|---|---|---|
+| ChatView | `ChatView` (+ `useSession`) | `ChatView`, `LiveChatView` | `ChatView` (an entity), `live_chat` |
+| StatusBar | `StatusBar` | `StatusBar` | `status::status_bar` |
+| Timeline | `Timeline` | `SessionTimeline` | `timeline`, `timeline_row` |
+| UserMessage … Fallback | `UserMessage`, `AssistantMessage`, `Thought`, `ToolCall`, `Terminal`, `Diff`, `Plan`, `Subagent`, `SessionMessage`, `Compaction`, `Approval`, `Question`, `Fallback` | the same with `View` after (`DiffView` for Diff) | functions of `items`, in snake case (`items::tool_call`); `diff::diff` for Diff |
+| Markdown | `Markdown` | `MarkdownText` | `markdown::markdown` |
+| AnsiText | `AnsiText` | `AnsiText` | `parts::ansi_text` |
+| Usage | `Usage` | `UsageView` | `status::usage` |
+| Activity | `Activity` | `ActivityView` | `status::activity` |
+| OpenElsewhere | `OpenElsewhere` | `OpenElsewhereNotice` | `status::open_elsewhere` |
+| SettingsBar | `SettingsBar` | `SettingsBar` | `settings_bar` |
+| Composer | `Composer` | `Composer` | `Composer` (an entity) |
+| SessionList, SessionRow | `SessionList`, `SessionRow` | `SessionList`, `SessionRow` | `SessionList` (an entity), `session_row` |
+| AgentStatus, ConnectionStatus | `AgentStatus`, `ConnectionStatus` | `AgentStatus`, `ConnectionStatus` | `status::agent_status`, `status::connection_status` |
 
-The two kits have the same components and say the same things, but do not look alike yet: React has its own colour variables, SwiftUI uses the system's; the session list's actions and the composer's menus are drawn differently. The React kit is the base the others will follow.
+The kits have the same components and say the same things, but do not look alike without a theme: React has its own colour variables, SwiftUI uses the system's, GPUI has React's colours and draws every control itself; the session list's actions and the composer's menus are drawn differently. The React kit is the base the others follow.
 
 ## Checking a new set
 
 - Draw every file of `testdata/states/`: they are real recorded sessions, the same the SDKs are tested against. `ui/react/demo/render.tsx` does it for React.
 - Drive a session end to end against the fake agent, with no model and no account (see `AGENTS.md`, "Check your work without spending money").
-- Compare the two catalogues (`pnpm catalog` in `ui/react`, `swift run ArchipelCatalog` at the root) for the states a recording does not reach: menus open, a row being renamed, a refused setting.
+- Compare the catalogues (`pnpm catalog` in `ui/react`, `swift run ArchipelCatalog` at the root, `cargo run -p archipel-gpui-catalog` in `ui/gpui`) for the states a recording does not reach: menus open, a row being renamed, a refused setting.

@@ -1,0 +1,42 @@
+[workspace]
+resolver = "3"
+members = [".", "catalog", "live", "../themes/minitel/gpui"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[workspace.dependencies]
+gpui = "0.2.2"
+archipel-core = { path = "../../crates/archipel-core" }
+archipel-schema = { path = "../../crates/archipel-schema" }
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+
+[package]
+name = "archipel-gpui"
+description = "Components that draw an archipel session with GPUI."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+gpui.workspace = true
+archipel-core.workspace = true
+serde_json.workspace = true
+base64 = "0.23.1"
+pulldown-cmark = { version = "0.13", default-features = false }
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+archipel-schema.workspace = true
+
+[lints]
+workspace = true

@@ -214,7 +214,13 @@ impl Connection {
             .await
     }
 
-    async fn send(&mut self, message: Value) -> Result<(), Error> {
+    /// Sends a message as it is. For a client that sends several requests at once and matches
+    /// the responses itself, as they come out of [`next`](Self::next): give such requests ids
+    /// that [`call`](Self::call) does not use, which counts up from 1.
+    ///
+    /// # Errors
+    /// When the connection is closed.
+    pub async fn send(&mut self, message: Value) -> Result<(), Error> {
         self.link.tx.send(message).await.map_err(|_| Error::Closed)
     }
 }

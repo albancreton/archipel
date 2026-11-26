@@ -7,7 +7,7 @@ Read this first if you were asked to build something with this library, or to ch
 A library for apps that show and drive the agent loop of terminal coding harnesses (Claude Code, Pi): messages, reasoning, tool calls, approvals, questions, plans, subagents.
 
 - A **daemon** (`archipeld`, Rust) runs the harnesses, logs everything they say, and keeps sessions alive while apps come and go.
-- **Apps** connect to it with a client SDK (TypeScript or Swift) and may draw sessions with a component kit (React or SwiftUI).
+- **Apps** connect to it with a client SDK (TypeScript or Swift) and may draw sessions with a component kit (React, SwiftUI or GPUI).
 - The messages are **ACP v2** plus a few additions under `_archipel/`.
 
 ## Start from an example
@@ -24,6 +24,7 @@ Each of these is small. Copy the one that matches the task. The last column says
 | Change, stop or answer what the harness and the apps say to each other; fix a harness fault | `examples/own-daemon` (an addon) | Its own test |
 | Draw a session in a browser with React | `ui/react/demo/live.tsx` | Tests click through it in a real browser against the fake agent |
 | Draw a session in a macOS or iOS app with SwiftUI | `ui/swift/Demo/ArchipelChatDemo.swift` | Compiled only. Tests press the views it uses |
+| Draw a session in a GPUI app (Rust) | `ui/gpui/live/examples/chat.rs` | Compiled, and started once by hand against the fake agent. A test drives the chat it uses through a whole turn against the fake agent |
 | Run the daemon as a service (launchd, systemd) | `examples/service/` | The launchd file is linted, and was loaded and exercised by hand once. The systemd file was never loaded |
 
 How to run each is at the top of the file, or in the README next to it.
@@ -58,6 +59,7 @@ node examples/node/chat.ts --home /tmp/try --mode default --approve allow-once "
 | TypeScript | `pnpm -r check` | `pnpm -r test` (run `cargo build` first: several tests start `target/debug/archipeld`) |
 | React in a browser | | `pnpm test:browser` in `ui/react` (after `cargo build`, and once `npx playwright install chromium-headless-shell`) |
 | Swift | | `swift test` (also after `cargo build`) |
+| GPUI kit (a workspace of its own, in `ui/gpui`) | `cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings` there | `cargo test --workspace` there (also after `cargo build` at the root) |
 
 On Linux the build needs the OpenSSL headers and `pkg-config` (`apt install libssl-dev pkg-config` on Debian and Ubuntu); the Rust client uses the system's TLS for `wss://` addresses. macOS needs nothing extra.
 
@@ -109,8 +111,8 @@ Node 22.18 or later runs the TypeScript sources directly; there is no build step
 |---|---|
 | `crates/` | The Rust workspace. `archipeld` is the daemon program, `archipel` a command-line client (both have `--help`), `archipel-server` the daemon as a library |
 | `clients/ts`, `clients/swift` | The client SDKs. Their READMEs have a ten-line example and a file table |
-| `ui/react`, `ui/swift` | The component kits. `ui/COMPONENTS.md` describes every component a set needs, for anyone making or redesigning one |
-| `ui/themes` | Looks for the kits, one folder per theme with its DESIGN.md and a version per kit (`minitel/react`, a stylesheet; `minitel/swift`, the `ArchipelMinitel` library) |
+| `ui/react`, `ui/swift`, `ui/gpui` | The component kits. `ui/gpui` is a Cargo workspace of its own, so the daemon's build does not carry GPUI; its `live` crate follows a daemon from a GPUI app. `ui/COMPONENTS.md` describes every component a set needs, for anyone making or redesigning one |
+| `ui/themes` | Looks for the kits, one folder per theme with its DESIGN.md and a version per kit (`minitel/react`, a stylesheet; `minitel/swift`, the `ArchipelMinitel` library; `minitel/gpui`, the `archipel-gpui-minitel` crate) |
 | `examples/` | What the table above points to |
 | `testdata/` | Recorded sessions, and the state each must produce |
 | `tools/watch/` | Looks for new versions of the adapters, harnesses and ACP, and writes down what changed |

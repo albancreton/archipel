@@ -1,0 +1,19 @@
+[package]
+name = "archipel-gpui-catalog"
+description = "Every component of the GPUI kit in each of its states, in a window."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+gpui.workspace = true
+archipel-core.workspace = true
+archipel-schema.workspace = true
+serde_json.workspace = true
+archipel-gpui = { path = ".." }
+archipel-gpui-minitel = { path = "../../themes/minitel/gpui" }
+base64 = "0.23.1"
+
+[lints]
+workspace = true

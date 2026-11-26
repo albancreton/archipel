@@ -24,11 +24,14 @@ demo scenario="approval_command":
 check:
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
+    cd ui/gpui && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings
     pnpm -r check
 
-# Run all tests: Rust, TypeScript, Swift. The browser tests need `npx playwright install chromium-headless-shell` once.
+# Run all tests: Rust, the GPUI kit, TypeScript, Swift. The browser tests need `npx playwright install chromium-headless-shell` once.
 test:
     cargo test --workspace
+    cargo build
+    cd ui/gpui && cargo test --workspace
     pnpm -r test
     cd ui/react && pnpm test:browser
     swift test
@@ -36,6 +39,7 @@ test:
 # Format the code.
 fmt:
     cargo fmt --all
+    cd ui/gpui && cargo fmt --all
 
 # What CI runs: generated code must be up to date, then check and test.
 ci: gen

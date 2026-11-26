@@ -1,0 +1,419 @@
+//! One session, assembled: the status bar, the timeline, what goes on beside it, the settings
+//! and the composer. An app that wants another layout assembles its own from the parts.
+
+use crate::composer::{Accepts, Command, Composer, FindMentions, Send};
+use crate::items::{self, text};
+use crate::memory;
+use crate::parts::{Handler, problem};
+use crate::settings::{Change, Setting, settings_bar};
+use crate::status::{Fork, OpenElsewhere, activity, open_elsewhere, status_bar};
+use crate::theme::theme;
+use archipel_core::state::{Conversation, ItemRef, REQUEST_TARGET, SessionState};
+use gpui::{
+    AnyElement, App, Context, Div, Entity, IntoElement, ListAlignment, ListState, Render, Window,
+    div, list, prelude::*, px, relative,
+};
+use serde_json::Value;
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
+
+/// Answers an approval: the request's id, and the id of the option taken.
+pub type Approve = Rc<dyn Fn(&str, &str, &mut Window, &mut App)>;
+/// Answers a question: the request's id, and the form's content or `None` to skip it.
+pub type AnswerRequest = Rc<dyn Fn(&str, Option<Value>, &mut Window, &mut App)>;
+
+/// What the user can do. Each is optional; without it, its control is not drawn.
+#[derive(Clone, Default)]
+pub struct ChatActions {
+    /// Answer an approval with one of its options: request id, option id.
+    pub approve: Option<Approve>,
+    /// Answer a question: request id, and the form's content or `None` to skip it.
+    pub answer: Option<AnswerRequest>,
+    /// Send a message, as content blocks. If it fails, the composer gives everything back.
+    pub prompt: Option<Send>,
+    /// Stop the running turn.
+    pub cancel: Option<Handler>,
+    /// Change a setting of the agent, such as the model. With it the chat draws the settings bar.
+    pub set_option: Option<Change>,
+    /// Continue on a copy of the session, when another process has this one open.
+    pub fork: Option<Fork>,
+}
+
+/// Views for kinds of item that this kit does not know, by target, such as `x.acme.checkpoint`.
+pub type ItemViews = HashMap<String, Rc<dyn Fn(&Value, &mut Window, &mut App) -> AnyElement>>;
+
+/// The terminals that a tool call of the session shows: they are not drawn a second time.
+#[must_use]
+pub fn inline_terminals(state: &SessionState) -> HashSet<String> {
+    state
+        .collections
+        .get("toolCall")
+        .into_iter()
+        .flat_map(|tools| tools.values())
+        .flat_map(|tool| {
+            tool.get("content")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+        })
+        .map(|block| text(block, "terminalId"))
+        .filter(|id| !id.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// One row of a timeline: the item `entry` points at, drawn by its kind. `None` for what is not
+/// drawn (a cursor, a terminal a tool call shows, an entry with no item).
+#[allow(clippy::too_many_arguments)]
+pub fn timeline_row(
+    conversation: &Conversation,
+    session_id: &str,
+    state: &SessionState,
+    entry: &ItemRef,
+    inline: &HashSet<String>,
+    actions: &ChatActions,
+    custom: &ItemViews,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<AnyElement> {
+    let key = format!("{session_id}/{}/{}", entry.target, entry.id);
+    if entry.target == REQUEST_TARGET {
+        let request = state.requests.get(&entry.id)?;
+        let id = entry.id.clone();
+        return Some(if request.method == "session/request_permission" {
+            let choose = actions.approve.clone().map(|approve| {
+                Rc::new(move |option: &str, window: &mut Window, cx: &mut App| {
+                    approve(&id, option, window, cx)
+                }) as items::Choose
+            });
+            items::approval(&key, request, choose, cx).into_any_element()
+        } else {
+            let answer = actions.answer.clone().map(|answer| {
+                Rc::new(
+                    move |content: Option<Value>, window: &mut Window, cx: &mut App| {
+                        answer(&id, content, window, cx)
+                    },
+                ) as items::Answer
+            });
+            items::question(&key, request, answer, window, cx).into_any_element()
+        });
+    }
+    let item = state.item(entry)?;
+    if let Some(view) = custom.get(&entry.target) {
+        return Some(view(item, window, cx));
+    }
+    Some(
+        match entry.target.as_str() {
+            "userMessage" => items::user_message(item, cx),
+            "agentMessage" => items::assistant_message(&key, item, window, cx),
+            "agentThought" => items::thought(&key, item, window, cx),
+            "toolCall" => items::tool_call(
+                &key,
+                item,
+                |id| state.collections.get("terminal")?.get(id),
+                cx,
+            ),
+            "terminal" if inline.contains(&entry.id) => return None,
+            "terminal" => items::terminal(item, cx),
+            "plan" => items::plan(item, cx),
+            "sessionMessage" => items::session_message(item, cx),
+            "compaction" => items::compaction(&key, item, cx),
+            "subagent" => {
+                let inner = conversation.sessions.get(&entry.id).map(|child| {
+                    timeline(conversation, &entry.id, child, actions, custom, window, cx)
+                        .into_any_element()
+                });
+                items::subagent(item, inner, cx)
+            }
+            // A cursor marks a place in the history; it is not content.
+            "cursor" => return None,
+            other => items::fallback(&key, other, item, cx),
+        }
+        .into_any_element(),
+    )
+}
+
+/// The items of one session, in order, all of them. A subagent's session is drawn inside its
+/// item. [`ChatView`] draws only the rows on screen; use this for a short timeline of your own.
+pub fn timeline(
+    conversation: &Conversation,
+    session_id: &str,
+    state: &SessionState,
+    actions: &ChatActions,
+    custom: &ItemViews,
+    window: &mut Window,
+    cx: &mut App,
+) -> Div {
+    let inline = inline_terminals(state);
+    let rows: Vec<AnyElement> = state
+        .timeline
+        .iter()
+        .filter_map(|entry| {
+            timeline_row(
+                conversation,
+                session_id,
+                state,
+                entry,
+                &inline,
+                actions,
+                custom,
+                window,
+                cx,
+            )
+        })
+        .collect();
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(theme(cx).row_spacing))
+        .w_full()
+        .children(rows)
+}
+
+/// A chat on one session. Give it the conversation again after each change
+/// ([`ChatView::set_conversation`]): it draws the items as they are now.
+pub struct ChatView {
+    conversation: Rc<Conversation>,
+    session_id: Option<String>,
+    actions: ChatActions,
+    custom: Rc<ItemViews>,
+    open_elsewhere: Option<OpenElsewhere>,
+    error: Option<String>,
+    inline: Rc<HashSet<String>>,
+    rows: ListState,
+    /// The session and the number of rows the list was told of.
+    listed: (Option<String>, usize),
+    composer: Option<Entity<Composer>>,
+}
+
+impl ChatView {
+    pub fn new(
+        conversation: Conversation,
+        actions: ChatActions,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let composer = actions
+            .prompt
+            .clone()
+            .map(|send| cx.new(|cx| Composer::new(send, window, cx)));
+        let mut view = Self {
+            conversation: Rc::new(Conversation::default()),
+            session_id: None,
+            actions,
+            custom: Rc::new(ItemViews::new()),
+            open_elsewhere: None,
+            error: None,
+            inline: Rc::new(HashSet::new()),
+            // A chat opens at its newest item, and stays there while more arrive.
+            rows: ListState::new(0, ListAlignment::Bottom, px(600.0)),
+            listed: (None, 0),
+            composer,
+        };
+        view.set_conversation(conversation, cx);
+        view
+    }
+
+    /// The id of the session that is drawn: the one that was set, or the conversation's first.
+    #[must_use]
+    pub fn session_id(&self) -> Option<&str> {
+        self.session_id
+            .as_deref()
+            .or_else(|| self.conversation.root().map(|(id, _)| id.as_str()))
+    }
+
+    fn state(&self) -> Option<&SessionState> {
+        self.conversation.sessions.get(self.session_id()?)
+    }
+
+    /// The state after a change. Rows are added to the list; what changed in place is drawn again.
+    pub fn set_conversation(&mut self, conversation: Conversation, cx: &mut Context<Self>) {
+        self.conversation = Rc::new(conversation);
+        self.sync(cx);
+    }
+
+    /// Which session of the conversation to draw; `None` is the first.
+    pub fn set_session(&mut self, session_id: Option<String>, cx: &mut Context<Self>) {
+        self.session_id = session_id;
+        self.sync(cx);
+    }
+
+    /// The app's components for kinds it knows, by target.
+    pub fn set_custom(&mut self, custom: ItemViews, cx: &mut Context<Self>) {
+        self.custom = Rc::new(custom);
+        cx.notify();
+    }
+
+    /// Set while another process has the session open: the chat says so and offers the fork.
+    pub fn set_open_elsewhere(&mut self, holder: Option<OpenElsewhere>, cx: &mut Context<Self>) {
+        self.open_elsewhere = holder;
+        cx.notify();
+    }
+
+    /// Something the daemon reported outside any request, such as a log it cannot write.
+    pub fn set_error(&mut self, error: Option<String>, cx: &mut Context<Self>) {
+        self.error = error;
+        cx.notify();
+    }
+
+    /// The composer, to give it what the agent accepts, a way to find mentions, or a draft.
+    #[must_use]
+    pub fn composer(&self) -> Option<&Entity<Composer>> {
+        self.composer.as_ref()
+    }
+
+    pub fn set_mentions(&mut self, mentions: Option<FindMentions>, cx: &mut Context<Self>) {
+        if let Some(composer) = &self.composer {
+            composer.update(cx, |composer, cx| composer.set_mentions(mentions, cx));
+        }
+    }
+
+    pub fn set_accepts(&mut self, accepts: Accepts, cx: &mut Context<Self>) {
+        if let Some(composer) = &self.composer {
+            composer.update(cx, |composer, cx| composer.set_accepts(accepts, cx));
+        }
+    }
+
+    fn sync(&mut self, cx: &mut Context<Self>) {
+        let session = self.session_id().map(str::to_owned);
+        let (count, inline, running, commands) = match self.state() {
+            Some(state) => (
+                state.timeline.len(),
+                inline_terminals(state),
+                state
+                    .values
+                    .get("state")
+                    .map(|turn| text(turn, "state"))
+                    .is_some_and(|turn| !turn.is_empty() && turn != "idle"),
+                Command::all(state.values.get("availableCommands")),
+            ),
+            None => (0, HashSet::new(), false, Vec::new()),
+        };
+        self.inline = Rc::new(inline);
+        if self.listed.0 != session || count < self.listed.1 {
+            self.rows.reset(count);
+        } else if count > self.listed.1 {
+            self.rows
+                .splice(self.listed.1..self.listed.1, count - self.listed.1);
+        }
+        self.listed = (session, count);
+        if let Some(composer) = &self.composer {
+            let cancel = self.actions.cancel.clone();
+            composer.update(cx, |composer, cx| {
+                composer.set_running(running, cx);
+                composer.set_commands(commands, cx);
+                composer.set_cancel(cancel, cx);
+            });
+        }
+        cx.notify();
+    }
+}
+
+impl Render for ChatView {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = theme(cx);
+        let base = div()
+            .flex()
+            .flex_col()
+            .size_full()
+            .bg(theme.colors.background)
+            .text_color(theme.colors.text)
+            .text_size(px(theme.text.body))
+            .line_height(relative(theme.text.line_height))
+            .when_some(theme.text.family.clone(), |base, family| {
+                base.font_family(family)
+            });
+        let Some(session_id) = self.session_id().map(str::to_owned) else {
+            return base
+                .items_center()
+                .justify_center()
+                .text_color(theme.colors.secondary)
+                .child("No session");
+        };
+        // A session that was just made holds nothing yet: it is drawn empty, with its composer,
+        // since the first message is what fills it.
+        let nothing = SessionState::default();
+        let state = self
+            .conversation
+            .sessions
+            .get(&session_id)
+            .unwrap_or(&nothing);
+        let (conversation, actions, custom, inline) = (
+            self.conversation.clone(),
+            self.actions.clone(),
+            self.custom.clone(),
+            self.inline.clone(),
+        );
+        let (id, spacing) = (session_id.clone(), theme.row_spacing);
+        // Only the rows on screen are built, so a long session opens as quickly as a short one.
+        let rows = list(self.rows.clone(), move |index, window, cx| {
+            let row = conversation.sessions.get(&id).and_then(|state| {
+                let entry = state.timeline.get(index)?;
+                timeline_row(
+                    &conversation,
+                    &id,
+                    state,
+                    entry,
+                    &inline,
+                    &actions,
+                    &custom,
+                    window,
+                    cx,
+                )
+            });
+            match row {
+                Some(row) => div()
+                    .w_full()
+                    .px(px(12.0))
+                    .pb(px(spacing))
+                    .child(row)
+                    .into_any_element(),
+                None => div().into_any_element(),
+            }
+        })
+        .size_full();
+        let below = |part: Div| div().w_full().px(px(12.0)).pb(px(12.0)).child(part);
+        base.child(
+            div()
+                .w_full()
+                .p(px(12.0))
+                .border_b_1()
+                .border_color(theme.colors.line)
+                .child(status_bar(state, cx)),
+        )
+        .child(div().flex_1().min_h_0().w_full().pt(px(12.0)).child(rows))
+        .children(activity(&session_id, state, cx).map(below))
+        .children(self.open_elsewhere.as_ref().map(|holder| {
+            below(open_elsewhere(
+                &format!("{session_id}/elsewhere"),
+                holder,
+                self.actions.fork.clone(),
+                cx,
+            ))
+        }))
+        .children(self.error.as_deref().map(|error| below(problem(error, cx))))
+        .children(self.actions.set_option.clone().and_then(|change| {
+            settings_bar(
+                &format!("{session_id}/settings"),
+                &Setting::all(state.values.get("configOptions")),
+                Some(change),
+                cx,
+            )
+            .map(below)
+        }))
+        .children(self.composer.clone().map(|composer| {
+            div()
+                .w_full()
+                .p(px(12.0))
+                .border_t_1()
+                .border_color(theme.colors.line)
+                .child(composer)
+        }))
+    }
+}
+
+/// Forgets what the kit remembered for a session (open folds, form values): call it when the
+/// session is closed for good.
+pub fn forget(session_id: &str, cx: &mut App) {
+    memory::forget(cx, &format!("{session_id}/"));
+}

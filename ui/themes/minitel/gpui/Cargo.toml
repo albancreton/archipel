@@ -1,0 +1,15 @@
+[package]
+name = "archipel-gpui-minitel"
+description = "The Minitel theme for the GPUI kit."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+workspace = "../../../gpui"
+
+[dependencies]
+gpui.workspace = true
+archipel-gpui = { path = "../../../gpui" }
+
+[lints]
+workspace = true

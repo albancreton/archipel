@@ -1,0 +1,24 @@
+[package]
+name = "archipel-gpui-live"
+description = "A daemon's sessions followed from a GPUI app, and a chat that acts on one."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+gpui.workspace = true
+archipel-core.workspace = true
+archipel-schema.workspace = true
+serde_json.workspace = true
+archipel-gpui = { path = ".." }
+archipel-client = { path = "../../../crates/archipel-client" }
+async-channel = "2"
+tokio = { version = "1.54.1", features = ["rt", "macros", "time", "sync"] }
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+archipel-gpui-minitel = { path = "../../themes/minitel/gpui" }
+
+[lints]
+workspace = true
