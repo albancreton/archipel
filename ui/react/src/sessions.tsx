@@ -150,8 +150,8 @@ export function SessionRow({ session, selected, now = new Date(), onOpen, onRena
           <button type="button" className="arc-session-open" aria-current={selected ? "true" : undefined} onClick={() => onOpen?.(session.sessionId)}>
             <span className="arc-session-title">{title}</span>
             <span className="arc-session-meta">
-              {state && <span className={`arc-badge arc-${state === "running" ? "running" : "failed"}`}>{state}</span>}
-              {session.openElsewhere && <span className="arc-badge arc-running" title="Another window of the agent has this session open. Fork it to continue here.">open elsewhere</span>}
+              {state && <span className={`arc-badge arc-${state === "running" ? "running" : "attn"}`}>{state}</span>}
+              {session.openElsewhere && <span className="arc-badge arc-attn" title="Another window of the agent has this session open. Fork it to continue here.">open elsewhere</span>}
               {!session.logged && <span className="arc-session-harness" title="Started outside this app. Opening it loads its history from the agent.">from {session.agentId}</span>}
               <span className="arc-session-agent">{session.logged ? session.agentId : ""}</span>
               <time dateTime={session.updatedAt ?? undefined}>{ago(session.updatedAt, now)}</time>
@@ -159,12 +159,14 @@ export function SessionRow({ session, selected, now = new Date(), onOpen, onRena
           </button>
           <span className="arc-session-actions">
             {onRename && (
-              <button type="button" className="arc-session-action" disabled={mode === "busy"} onClick={() => { setDraft(session.title ?? ""); setMode("renaming"); }}>
-                Rename
+              <button type="button" className="arc-session-action" title="Rename" disabled={mode === "busy"} onClick={() => { setDraft(session.title ?? ""); setMode("renaming"); }}>
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 2.5l3 3L5.5 13.5H2.5v-3z" /></svg><span className="arc-hidden">Rename</span>
               </button>
             )}
             {onDelete && (
-              <button type="button" className="arc-session-action" disabled={mode === "busy"} onClick={() => setMode("deleting")}>Delete</button>
+              <button type="button" className="arc-session-action" title="Delete" disabled={mode === "busy"} onClick={() => setMode("deleting")}>
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.75 9.5h6.5L12 4M6.75 6.5v4.5M9.25 6.5v4.5" /></svg><span className="arc-hidden">Delete</span>
+              </button>
             )}
           </span>
         </div>

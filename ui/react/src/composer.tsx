@@ -261,7 +261,7 @@ export function Composer({ running, onSend, onCancel, commands = [], mentions, a
             <li key={index}>
               {file.mimeType.startsWith("image/") && <img src={`data:${file.mimeType};base64,${file.data}`} alt="" />}
               <span>{file.name}</span>
-              <button type="button" aria-label={`Remove ${file.name}`} onClick={() => setAttached(attached.filter((_, other) => other !== index))}>×</button>
+              <button type="button" aria-label={`Remove ${file.name}`} onClick={() => setAttached(attached.filter((_, other) => other !== index))}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" /></svg></button>
             </li>
           ))}
         </ul>

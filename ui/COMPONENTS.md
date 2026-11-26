@@ -2,7 +2,7 @@
 
 What a component set for archipel has to draw, what each part takes and gives back, and the rules every set keeps. The React kit (`ui/react`) and the SwiftUI kit (`ui/swift`) are two sets built to this. Start here to make a third, or to redesign one.
 
-Nothing here is tied to a platform. Names are the React ones; the Swift names are in [the last table](#names-in-the-kits). To see every component of the React kit in each of its states, run `pnpm catalog` in `ui/react` and open `demo/out/catalog.html`.
+A set may also take a theme: a look for the same components, kept in `ui/themes/<name>` with a version per kit (`react`, `swift`) and its own DESIGN.md. Nothing here is tied to a platform. Names are the React ones; the Swift names are in [the last table](#names-in-the-kits). To see every component of the React kit in each of its states, run `pnpm catalog` in `ui/react` and open `demo/out/catalog.html`.
 
 ## Where the data comes from
 
@@ -67,17 +67,17 @@ Small pieces most components use. Keep them consistent; they are most of a set's
 
 | Part | What it is | Used by |
 |---|---|---|
-| **Badge** | A short word in a pill, coloured by tone: *ok* (`completed`, `idle`, `exit 0`), *bad* (`failed`, `cancelled`, other exits, `needs you`), *running* (anything else: `pending`, `in progress`, `running`, `requires action`). `_` is shown as a space. | ToolCall, Terminal, Subagent, StatusBar, SessionRow |
+| **Badge** | A short word in a pill, coloured by tone: *ok* (`completed`, `idle`, `exit 0`), *bad* (`failed`, `cancelled`, other exits), *attention* (`needs you`), *running* (anything else: `pending`, `in progress`, `running`, `requires action`). `_` is shown as a space. | ToolCall, Terminal, Subagent, StatusBar, SessionRow |
 | **Label** | A small uppercase word naming a part: `Plan`, `Permission`, `Question`, `Subagent`, `Between agents`, `Tasks`, a tool's kind. | Most cards |
-| **Card** | A bordered, softly filled box. Highlighted (running colour) while it waits for the user. | ToolCall, Plan, Subagent, SessionMessage, Approval, Question |
+| **Card** | A bordered, softly filled box. Highlighted (attention colour) while it waits for the user. | ToolCall, Plan, SessionMessage, Approval, Question. A Subagent is not a card: its timeline hangs from its row on a guide line, so its cards are never inside another card. |
 | **Fold** | A one-line summary that opens to show more. Closed by default. | Thought, Compaction, Fallback, Activity's tasks. Subagent is open by default. |
 | **Code block** | Monospaced text in a bordered box, wrapping long lines. | ToolCall output, Terminal, Fallback, Markdown code |
 | **Chip** | A small rounded name. | Attachments, background work |
-| **Meter** | A thin bar, full to a percentage. Running colour from 80%. | Usage |
+| **Meter** | A thin bar, full to a percentage. Attention colour from 80%. | Usage |
 | **Notice** | A line across the view with a tone (*wait*, *act*, *bad*) and maybe one button. | AgentStatus, ConnectionStatus, OpenElsewhere |
 | **Problem** | A line in the error colour, under the control that failed. | SettingsBar, Composer, SessionRow, OpenElsewhere |
 
-Colours a set needs, at least: text, secondary text, background, soft background (cards), line (borders), accent (the user's messages, primary buttons, links), ok, bad, running. Terminal output needs 16 more (ANSI 0 to 15), in both themes.
+Colours a set needs, at least: text, secondary text, background, soft background (cards), raised and sunken surfaces (the user's messages and menus; code, diffs and fields), line (borders), accent (primary buttons, links, focus), ok, bad, running, and attention (waiting for the user, warnings). Terminal output needs 16 more (ANSI 0 to 15), in both themes.
 
 ## Item kinds
 
@@ -161,7 +161,7 @@ Each item component takes the item (JSON as the SDK holds it) and, where the use
 |---|---|
 | `item.content` | A string, or content blocks: `text`; `image` (`mimeType`, base64 `data`); `resource_link` (`uri`, `name`), a mention; `resource` (`resource.uri`, and `text` or `blob`), an attached file |
 
-**Draws:** the text as written, aligned to the user's side, in the accent colour. Below it, a picture for each `image` (from its own bytes, only for an `image/*` type) and a chip with the name of each file or mention.
+**Draws:** the text as written, aligned to the user's side, set apart from the agent's text by its fill. Below it, a picture for each `image` (from its own bytes, only for an `image/*` type) and a chip with the name of each file or mention.
 
 ### AssistantMessage
 
@@ -455,7 +455,7 @@ These are not part of a chat. An app places them where it wants.
 
 **For:** one session in the list.
 
-**Draws:** the title ("Untitled" without one); then what needs the user first: `needs you` (bad; an approval or question waits), `running`, `open elsewhere`; the agent, or `from <agent>` for a session started outside the app (opening it loads its history); how long ago it changed (`now`, `5m`, `3h`, `2d`, then the date).
+**Draws:** the title ("Untitled" without one); then what needs the user first: `needs you` (attention; an approval or question waits), `running`, `open elsewhere`; the agent, or `from <agent>` for a session started outside the app (opening it loads its history); how long ago it changed (`now`, `5m`, `3h`, `2d`, then the date).
 
 **States:** shown; selected; renaming (a field with Save and Cancel; Escape cancels); confirming delete ("Delete “title”? It is removed from agent's own history too. This cannot be undone." with Delete and Cancel); busy; failed ("Not renamed: …", "Not deleted: …").
 

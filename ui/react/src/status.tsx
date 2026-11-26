@@ -3,6 +3,7 @@
 
 import type { Archipel, ArchipelClient, JsonObject, SessionState } from "@archipel/client";
 import { useSyncExternalStore } from "react";
+import { PlanMark } from "./items.tsx";
 
 /** What to tell the user about an agent that cannot be used as it is, or null when it can. */
 export function agentProblem(agent: Archipel.AgentInfo): { tone: "wait" | "act" | "bad"; text: string } | null {
@@ -146,7 +147,7 @@ export function Activity({ state }: { state: SessionState }) {
           <ul>
             {todos.map((todo, at) => (
               <li key={at} className={`arc-plan-${todo.status}`}>
-                <span className="arc-plan-mark">{todo.status === "completed" ? "✓" : todo.status === "in_progress" ? "…" : "○"}</span>{todo.content}
+                <PlanMark status={todo.status} />{todo.content}
               </li>
             ))}
           </ul>

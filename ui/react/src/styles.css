@@ -1,4 +1,5 @@
 /* Default look for @archipel/react. Every class starts with `arc-`; override freely. */
+/* @tokens light */
 .arc-chat, .arc-sessions, .arc-settings {
   --arc-fg: #1c1c1e; --arc-muted: #6b6b70; --arc-bg: #ffffff; --arc-soft: #f4f4f6; --arc-line: #e2e2e7;
   --arc-accent: #2f6feb; --arc-ok: #1a7f4b; --arc-bad: #c2362b; --arc-run: #9a6700;
@@ -7,6 +8,7 @@
 }
 .arc-chat { display: flex; flex-direction: column; gap: 12px; max-width: 760px; margin: 0 auto; padding: 16px; }
 @media (prefers-color-scheme: dark) {
+  /* @tokens dark */
   .arc-chat, .arc-sessions, .arc-settings { --arc-fg: #ececf1; --arc-muted: #9a9aa3; --arc-bg: #1b1b1f; --arc-soft: #26262c; --arc-line: #36363e; --arc-accent: #6ea0ff; --arc-ok: #4cc38a; --arc-bad: #ff7b72; --arc-run: #e3b341; }
 }
 .arc-status { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--arc-line); }
@@ -19,23 +21,32 @@
 .arc-thought, .arc-compaction, .arc-fallback { color: var(--arc-muted); font-size: 13px; }
 .arc-thought summary, .arc-compaction summary, .arc-fallback summary, .arc-subagent summary { cursor: pointer; }
 .arc-thought > div, .arc-compaction > div { margin-top: 4px; padding-left: 12px; border-left: 2px solid var(--arc-line); }
-.arc-tool, .arc-plan, .arc-request, .arc-subagent, .arc-session-message { border: 1px solid var(--arc-line); border-radius: 10px; padding: 8px 10px; background: var(--arc-soft); white-space: normal; }
+.arc-tool, .arc-plan, .arc-request, .arc-session-message { border: 1px solid var(--arc-line); border-radius: 10px; padding: 8px 10px; background: var(--arc-soft); white-space: normal; }
 .arc-tool-head, .arc-terminal-command { display: flex; align-items: center; gap: 8px; }
 .arc-tool-kind, .arc-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--arc-muted); }
 .arc-tool-title { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .arc-terminal-command code { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .arc-badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
 .arc-ok { color: var(--arc-ok); } .arc-failed { color: var(--arc-bad); } .arc-running { color: var(--arc-run); }
+/* Attention: waiting for the user. The default set draws it in the running colour. */
+.arc-attn { color: var(--arc-run); }
 .arc-chat pre { margin: 6px 0 0; padding: 8px; border-radius: 6px; background: var(--arc-bg); border: 1px solid var(--arc-line); font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; }
 .arc-diff-file { margin-top: 6px; font-size: 12px; color: var(--arc-muted); }
 .arc-added { color: var(--arc-ok); } .arc-removed { color: var(--arc-bad); }
 .arc-plan ul { list-style: none; margin: 4px 0 0; padding: 0; }
-.arc-plan-mark { display: inline-block; width: 1.4em; }
+.arc-plan-mark { width: 14px; height: 14px; flex: none; margin-top: 0.25em; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.arc-plan li, .arc-todos li { display: flex; align-items: flex-start; gap: 8px; }
+.arc-plan-dot { fill: var(--arc-run); stroke: none; }
+.arc-plan-completed .arc-plan-mark { stroke: var(--arc-ok); }
 .arc-plan-completed { color: var(--arc-muted); text-decoration: line-through; }
-.arc-subagent-body { margin-top: 8px; padding-left: 10px; border-left: 2px solid var(--arc-line); }
+.arc-subagent { white-space: normal; }
+/* Not a card: the subagent's timeline hangs from its row on a guide line, so cards never nest. */
+.arc-subagent-body { margin: 8px 0 0 5px; padding-left: 14px; border-left: 1px solid var(--arc-line); }
 .arc-subagent summary { display: flex; align-items: center; gap: 8px; }
 .arc-pending { border-color: var(--arc-run); }
-.arc-request-title { font-weight: 600; margin: 2px 0 6px; }
+.arc-request-head { margin: 2px 0 6px; }
+.arc-request-head .arc-label { margin-right: 6px; }
+.arc-request-title { font-weight: 600; }
 .arc-options { display: flex; flex-wrap: wrap; gap: 6px; }
 .arc-chat button, .arc-sessions button { font: inherit; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--arc-line); background: var(--arc-bg); color: var(--arc-fg); cursor: pointer; }
 .arc-chat button:first-child, .arc-composer button[type="submit"], .arc-elsewhere button { background: var(--arc-accent); border-color: var(--arc-accent); color: #fff; }
@@ -67,7 +78,9 @@
 .arc-session-line { position: relative; }
 .arc-session-actions { position: absolute; top: 4px; right: 4px; display: flex; gap: 4px; opacity: 0; }
 .arc-session:hover .arc-session-actions, .arc-session:focus-within .arc-session-actions { opacity: 1; }
-.arc-sessions .arc-session-action { padding: 2px 8px; font-size: 12px; }
+.arc-sessions .arc-session-action { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; color: var(--arc-muted); }
+.arc-session-action svg, .arc-attachments button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.arc-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .arc-session-rename input { flex: 1; min-width: 0; font: inherit; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--arc-line); background: var(--arc-bg); color: var(--arc-fg); }
 .arc-session-confirm { flex-wrap: wrap; padding: 6px 12px 8px; font-size: 13px; }
 .arc-session-confirm span { flex-basis: 100%; }
@@ -102,13 +115,14 @@
 .arc-attachments { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .arc-attachments li, .arc-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 8px; border: 1px solid var(--arc-line); background: var(--arc-soft); font-size: 12px; }
 .arc-attachments img { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; }
-.arc-chat .arc-attachments button { padding: 0 4px; border: 0; background: none; color: var(--arc-muted); }
+.arc-chat .arc-attachments button { display: grid; place-items: center; padding: 0 2px; border: 0; background: none; color: var(--arc-muted); }
 .arc-chat .arc-composer .arc-attach { background: var(--arc-bg); border-color: var(--arc-line); color: var(--arc-fg); }
 .arc-user-attached { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .arc-user-attached img { max-width: 220px; max-height: 160px; border-radius: 8px; }
 .arc-user .arc-chip { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 255, 255, 0.35); color: inherit; }
+/* @ansi light */
 .arc-chat { --arc-ansi-0: #1c1c1e; --arc-ansi-1: #c2362b; --arc-ansi-2: #1a7f4b; --arc-ansi-3: #9a6700; --arc-ansi-4: #2f6feb; --arc-ansi-5: #8250df; --arc-ansi-6: #1b7c83; --arc-ansi-7: #6b6b70; --arc-ansi-8: #4d4d52; --arc-ansi-9: #d1453b; --arc-ansi-10: #2a9d63; --arc-ansi-11: #b07d00; --arc-ansi-12: #4a84ff; --arc-ansi-13: #9a6bf0; --arc-ansi-14: #2a97a0; --arc-ansi-15: #9a9aa3; }
-@media (prefers-color-scheme: dark) { .arc-chat { --arc-ansi-0: #3b3b42; --arc-ansi-1: #ff7b72; --arc-ansi-2: #4cc38a; --arc-ansi-3: #e3b341; --arc-ansi-4: #6ea0ff; --arc-ansi-5: #d2a8ff; --arc-ansi-6: #56d4dd; --arc-ansi-7: #c9c9d1; --arc-ansi-8: #7d7d88; --arc-ansi-9: #ffa198; --arc-ansi-10: #7ee2a8; --arc-ansi-11: #f2cc60; --arc-ansi-12: #9ec1ff; --arc-ansi-13: #e2c5ff; --arc-ansi-14: #87e6ee; --arc-ansi-15: #ffffff; } }
+@media (prefers-color-scheme: dark) { /* @ansi dark */ .arc-chat { --arc-ansi-0: #3b3b42; --arc-ansi-1: #ff7b72; --arc-ansi-2: #4cc38a; --arc-ansi-3: #e3b341; --arc-ansi-4: #6ea0ff; --arc-ansi-5: #d2a8ff; --arc-ansi-6: #56d4dd; --arc-ansi-7: #c9c9d1; --arc-ansi-8: #7d7d88; --arc-ansi-9: #ffa198; --arc-ansi-10: #7ee2a8; --arc-ansi-11: #f2cc60; --arc-ansi-12: #9ec1ff; --arc-ansi-13: #e2c5ff; --arc-ansi-14: #87e6ee; --arc-ansi-15: #ffffff; } }
 .arc-ansi-fg-0 { color: var(--arc-ansi-0); } .arc-ansi-bg-0 { background: var(--arc-ansi-0); } .arc-ansi-fg-1 { color: var(--arc-ansi-1); } .arc-ansi-bg-1 { background: var(--arc-ansi-1); } .arc-ansi-fg-2 { color: var(--arc-ansi-2); } .arc-ansi-bg-2 { background: var(--arc-ansi-2); } .arc-ansi-fg-3 { color: var(--arc-ansi-3); } .arc-ansi-bg-3 { background: var(--arc-ansi-3); } .arc-ansi-fg-4 { color: var(--arc-ansi-4); } .arc-ansi-bg-4 { background: var(--arc-ansi-4); } .arc-ansi-fg-5 { color: var(--arc-ansi-5); } .arc-ansi-bg-5 { background: var(--arc-ansi-5); } .arc-ansi-fg-6 { color: var(--arc-ansi-6); } .arc-ansi-bg-6 { background: var(--arc-ansi-6); } .arc-ansi-fg-7 { color: var(--arc-ansi-7); } .arc-ansi-bg-7 { background: var(--arc-ansi-7); } .arc-ansi-fg-8 { color: var(--arc-ansi-8); } .arc-ansi-bg-8 { background: var(--arc-ansi-8); } .arc-ansi-fg-9 { color: var(--arc-ansi-9); } .arc-ansi-bg-9 { background: var(--arc-ansi-9); } .arc-ansi-fg-10 { color: var(--arc-ansi-10); } .arc-ansi-bg-10 { background: var(--arc-ansi-10); } .arc-ansi-fg-11 { color: var(--arc-ansi-11); } .arc-ansi-bg-11 { background: var(--arc-ansi-11); } .arc-ansi-fg-12 { color: var(--arc-ansi-12); } .arc-ansi-bg-12 { background: var(--arc-ansi-12); } .arc-ansi-fg-13 { color: var(--arc-ansi-13); } .arc-ansi-bg-13 { background: var(--arc-ansi-13); } .arc-ansi-fg-14 { color: var(--arc-ansi-14); } .arc-ansi-bg-14 { background: var(--arc-ansi-14); } .arc-ansi-fg-15 { color: var(--arc-ansi-15); } .arc-ansi-bg-15 { background: var(--arc-ansi-15); }
 .arc-ansi-fg-bg { color: var(--arc-bg); } .arc-ansi-bg-fg { background: var(--arc-fg); }
 .arc-ansi-bold { font-weight: 700; } .arc-ansi-dim { opacity: 0.65; } .arc-ansi-italic { font-style: italic; } .arc-ansi-underline { text-decoration: underline; }

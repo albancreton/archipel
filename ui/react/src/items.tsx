@@ -193,6 +193,15 @@ export function ToolCall({ item, terminal }: { item: Json; terminal?: (id: strin
   );
 }
 
+/** The mark before a plan entry or a todo: a tick when done, a filled dot while in progress, a ring before. */
+export function PlanMark({ status }: { status: string }) {
+  return (
+    <svg className="arc-plan-mark" viewBox="0 0 16 16" aria-label={status.replace(/_/g, " ")} role="img">
+      {status === "completed" ? <path d="M3.5 8.5l3 3 6-7" /> : status === "in_progress" ? <circle cx="8" cy="8" r="3.5" className="arc-plan-dot" /> : <circle cx="8" cy="8" r="4.5" />}
+    </svg>
+  );
+}
+
 /** A plan: a document, or a list of entries with their status (which is also how todos arrive). */
 export function Plan({ item }: { item: Json }) {
   const entries = list(item, "entries");
@@ -203,7 +212,7 @@ export function Plan({ item }: { item: Json }) {
         <ul>
           {entries.map((entry, at) => (
             <li key={at} className={`arc-plan-${text(entry, "status")}`}>
-              <span className="arc-plan-mark">{text(entry, "status") === "completed" ? "✓" : text(entry, "status") === "in_progress" ? "…" : "○"}</span>
+              <PlanMark status={text(entry, "status")} />
               {text(entry, "content")}
             </li>
           ))}
@@ -233,8 +242,7 @@ export function Subagent({ item, children }: { item: Json; children?: ReactNode 
 export function SessionMessage({ item }: { item: Json }) {
   return (
     <div className="arc-item arc-session-message">
-      <div className="arc-label">Between agents</div>
-      {contentText(isObject(item) ? item["content"] : undefined)}
+      <span className="arc-label">Between agents</span> {contentText(isObject(item) ? item["content"] : undefined)}
     </div>
   );
 }
@@ -256,8 +264,9 @@ export function Approval({ request, onChoose }: { request: Request; onChoose?: (
   const cancelled = isObject(outcome) && outcome["outcome"] === "cancelled";
   return (
     <div className={`arc-item arc-request ${request.outcome === null ? "arc-pending" : ""}`}>
-      <div className="arc-label">Permission</div>
-      <div className="arc-request-title">{text(request.params, "title")}</div>
+      <div className="arc-request-head">
+        <span className="arc-label">Permission</span> <span className="arc-request-title">{text(request.params, "title")}</span>
+      </div>
       {request.outcome === null ? (
         <div className="arc-options">
           {options.map((option) => (
@@ -283,8 +292,9 @@ export function Question({ request, onAnswer }: { request: Request; onAnswer?: (
   const answered = isObject(request.outcome) ? request.outcome : undefined;
   return (
     <div className={`arc-item arc-request ${request.outcome === null ? "arc-pending" : ""}`}>
-      <div className="arc-label">Question</div>
-      <div className="arc-request-title">{text(request.params, "message")}</div>
+      <div className="arc-request-head">
+        <span className="arc-label">Question</span> <span className="arc-request-title">{text(request.params, "message")}</span>
+      </div>
       {answered ? (
         <div className="arc-answer">
           {answered["action"] === "accept"
@@ -305,7 +315,7 @@ export function Question({ request, onAnswer }: { request: Request; onAnswer?: (
                 <span>{text(field, "title") || key}</span>
                 {choices.length > 0 ? (
                   <select value={String(values[key] ?? "")} onChange={(event) => setValues({ ...values, [key]: event.target.value })}>
-                    <option value="" />
+                    <option value="" disabled>Choose…</option>
                     {choices.map((choice) => (
                       <option key={text(choice, "const")} value={text(choice, "const")}>
                         {text(choice, "title") || text(choice, "const")}
