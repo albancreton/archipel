@@ -17,26 +17,35 @@ import {
 } from "../src/index.ts";
 
 const here = import.meta.dirname;
-const css = readFileSync(path.join(here, "../src/styles.css"), "utf8");
-const b64 = (text: string) => Buffer.from(text).toString("base64");
+// `--theme <name>` draws the kit with a theme's stylesheet, ui/themes/<name>/react/styles.css, instead of its own.
+const at = process.argv.indexOf("--theme");
+const themeName = at > 0 ? process.argv[at + 1] : undefined;
+const cssFile = themeName ? `ui/themes/${themeName}/react/styles.css` : "ui/react/src/styles.css";
+const css = readFileSync(path.join(here, "../../..", cssFile), "utf8");
+/** A stylesheet whose dark theme is under `prefers-color-scheme: dark` is light first; otherwise dark is its default. */
+const darkFirst = !/prefers-color-scheme:\s*dark/.test(css);
+const panes = darkFirst ? (["dark", "light"] as const) : (["light", "dark"] as const);
+/** Each pane's attributes: the light one also asks for light, for a stylesheet that is dark by default. */
+const paneAttrs = (pane: string) => `class="cat-pane cat-${pane}"${pane === "light" ? ' data-arc-theme="light"' : ""}`;
 
-// ---- The kit's CSS, with its dark theme under a class instead of the OS setting ----
+// ---- The kit's CSS, with a dark theme under the OS setting moved under a class, so both themes show at once ----
 
-/** Moves each `@media (prefers-color-scheme: dark)` block under `.cat-dark`, so both themes show at once. */
+/** Moves each `@media (prefers-color-scheme: dark)` block under `.cat-dark`. */
 function themed(source: string): string {
-  let light = "", dark = "", at = 0;
+  let light = "", dark = "", from = 0;
   const marker = /@media\s*\(prefers-color-scheme:\s*dark\)\s*\{/g;
   for (let found = marker.exec(source); found; found = marker.exec(source)) {
-    light += source.slice(at, found.index);
+    light += source.slice(from, found.index);
     let depth = 1, end = marker.lastIndex;
     for (; depth > 0; end++) depth += source[end] === "{" ? 1 : source[end] === "}" ? -1 : 0;
-    const inner = source.slice(marker.lastIndex, end - 1);
+    const inner = source.slice(marker.lastIndex, end - 1).replace(/\/\*[\s\S]*?\*\//g, "");
     dark += inner.replace(/([^{}]+)\{/g, (_, selectors: string) =>
       `${selectors.split(",").map((one) => `.cat-dark ${one.trim()}`).join(", ")} {`);
-    at = marker.lastIndex = end;
+    from = marker.lastIndex = end;
   }
-  return light + source.slice(at) + "\n/* dark */\n" + dark;
+  return light + source.slice(from) + "\n/* dark */\n" + dark;
 }
+const b64 = (text: string) => Buffer.from(text).toString("base64");
 
 // ---- Made-up data ----
 
@@ -224,7 +233,7 @@ const sections: { id: string; title: string; intro: string; specimens: Specimen[
   {
     id: "messages", title: "Messages", intro: "What the user and the agent say. The agent's text is Markdown, drawn as React elements.",
     specimens: [
-      { name: "UserMessage", code: "<UserMessage item={item} />", note: "Text as written, right-aligned in the accent colour.", draw: () => <UserMessage item={{ content: text("The session list puts answered sessions at the bottom. Can you fix it?") }} /> },
+      { name: "UserMessage", code: "<UserMessage item={item} />", note: "Text as written, right-aligned on the user's side.", draw: () => <UserMessage item={{ content: text("The session list puts answered sessions at the bottom. Can you fix it?") }} /> },
       { name: "UserMessage · with attachments", code: "<UserMessage item={item} />", note: "A picture the user sent is shown from its own bytes; files and mentions are chips.", draw: () => (
         <UserMessage item={{ content: [
           { type: "text", text: "This is what it looks like now." },
@@ -265,7 +274,7 @@ const sections: { id: string; title: string; intro: string; specimens: Specimen[
   {
     id: "structure", title: "Plans, subagents, compaction", intro: "Items that hold other content.",
     specimens: [
-      { name: "Plan · entries", code: "<Plan item={item} />", note: "Done (✓, struck through), in progress (…), pending (○). Todos arrive the same way.", draw: () => <Plan item={{ entries: planEntries }} /> },
+      { name: "Plan · entries", code: "<Plan item={item} />", note: "Done (a tick, struck through), in progress (a filled dot), pending (a ring). Todos arrive the same way.", draw: () => <Plan item={{ entries: planEntries }} /> },
       { name: "Plan · document", code: "<Plan item={item} />", draw: () => <Plan item={{ content: text("1. Sort by updated_at in the daemon.\n2. Leave the kits as they are.\n3. Add a test.") }} /> },
       { name: "Subagent · running", code: "<Subagent item={item}>{timeline}</Subagent>", note: "Open by default; its own session is drawn inside.", draw: () => (
         <Subagent item={{ title: "Find every place that sorts sessions", state: { state: "running" } }}>
@@ -284,7 +293,7 @@ const sections: { id: string; title: string; intro: string; specimens: Specimen[
     ],
   },
   {
-    id: "requests", title: "Approvals and questions", intro: "The turn waits on these. Pending ones have the running-colour border; once answered they show the answer.",
+    id: "requests", title: "Approvals and questions", intro: "The turn waits on these. Pending ones have the attention colour on their border; once answered they show the answer.",
     specimens: [
       { name: "Approval · pending", code: "<Approval request={request} onChoose={…} />", note: "The first option is the primary button.", draw: () => <Approval request={permission(null)} /> },
       { name: "Approval · answered", code: "<Approval request={request} />", draw: () => <Approval request={permission({ outcome: { outcome: "selected", optionId: "allow-once" } })} /> },
@@ -299,7 +308,7 @@ const sections: { id: string; title: string; intro: string; specimens: Specimen[
     specimens: [
       { name: "StatusBar · idle", code: "<StatusBar state={state} />", wide: true, draw: () => <StatusBar state={state({ state: { state: "idle" }, sessionInfo: { title: "Sort the session list by last update" }, usage: usage(24_000, 0.0081) })} /> },
       { name: "StatusBar · running", code: "<StatusBar state={state} />", wide: true, draw: () => <StatusBar state={state({ state: { state: "running" }, sessionInfo: { title: "Fix the diff fold in dark mode" }, usage: usage(92_000, 0.31) })} /> },
-      { name: "StatusBar · needs action, context nearly full", code: "<StatusBar state={state} />", note: "The meter turns to the running colour at 80%.", wide: true, draw: () => <StatusBar state={state({ state: { state: "requires_action" }, sessionInfo: { title: "Review the launchd plist" }, usage: usage(171_000, 2.4) })} /> },
+      { name: "StatusBar · needs action, context nearly full", code: "<StatusBar state={state} />", note: "The meter turns to the attention colour at 80%.", wide: true, draw: () => <StatusBar state={state({ state: { state: "requires_action" }, sessionInfo: { title: "Review the launchd plist" }, usage: usage(171_000, 2.4) })} /> },
       { name: "StatusBar · new session, no usage", code: "<StatusBar state={state} />", wide: true, draw: () => <StatusBar state={state({})} /> },
       { name: "Usage · context only (Pi)", code: "<Usage state={state} />", draw: () => <Usage state={state({ usage: { used: 12_000, size: 200_000 } })} /> },
       { name: "Activity · tasks and background work", code: "<Activity state={state} />", wide: true, draw: () => (
@@ -350,8 +359,8 @@ const sections: { id: string; title: string; intro: string; specimens: Specimen[
       { name: "Composer · with attachments and a problem", byHand: true, wide: true, draw: () => (
         <form className="arc-composer">
           <ul className="arc-attachments">
-            <li><img src={`data:image/svg+xml;base64,${PIXEL}`} alt="" /><span>screenshot.png</span><button type="button">×</button></li>
-            <li><span>order.md</span><button type="button">×</button></li>
+            <li><img src={`data:image/svg+xml;base64,${PIXEL}`} alt="" /><span>screenshot.png</span><button type="button" aria-label="Remove"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" /></svg></button></li>
+            <li><span>order.md</span><button type="button" aria-label="Remove"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" /></svg></button></li>
           </ul>
           <textarea defaultValue="This is what it looks like now." />
           <button type="button" className="arc-attach">Attach</button>
@@ -364,7 +373,7 @@ const sections: { id: string; title: string; intro: string; specimens: Specimen[
   {
     id: "notices", title: "Agent and connection", intro: "Notices for the app's own chrome. Both draw nothing when all is well.",
     specimens: [
-      { name: "AgentStatus", code: "<AgentStatus agents={agents} onRetry={…} />", note: "Three tones: wait (muted), act (running colour), bad (error colour).", frame: "bare", wide: true, draw: () => (
+      { name: "AgentStatus", code: "<AgentStatus agents={agents} onRetry={…} />", note: "Three tones: wait (muted), act (attention colour), bad (error colour).", frame: "bare", wide: true, draw: () => (
         <AgentStatus onRetry={() => {}} agents={[
           agent("claude", "Claude Code", "starting"),
           agent("codex", "Codex", "needs_login"),
@@ -432,58 +441,77 @@ function renderToStaticMarkupInline(node: ReactNode, pick: (html: string) => str
 
 // ---- Foundations: the variables, read from the CSS ----
 
-function variables(selector: RegExp): [string, string][] {
-  const block = css.match(selector)?.[1] ?? "";
-  return [...block.matchAll(/(--arc-[\w-]+):\s*([^;]+);/g)].map((found) => [found[1]!, found[2]!.trim()]);
+// The `--arc-*` variables of the block after a `@tokens dark`-style marker comment in the stylesheet.
+function variables(marker: string): [string, string][] {
+  const block = css.match(new RegExp(`/\\* ${marker} \\*/[^{]*\\{([^}]*)\\}`))?.[1] ?? "";
+  return [...block.matchAll(/(--arc-[\w-]+):\s*([^;]+);/g)].map((found): [string, string] => [found[1]!, found[2]!.trim()])
+    .filter(([, value]) => /^(#|rgb|hsl|oklch)/.test(value)); // colours only, not images such as a menu arrow
 }
-const lightVars = variables(/\.arc-chat, \.arc-sessions, \.arc-settings \{([^}]*)\}/);
-const darkVars = variables(/@media \(prefers-color-scheme: dark\) \{\s*\.arc-chat, \.arc-sessions, \.arc-settings \{([^}]*)\}/);
-const ansiVars = (selector: RegExp): [string, string][] =>
-  [...(css.match(selector)?.[1] ?? "").matchAll(/(--arc-ansi-\d+):\s*([^;]+);/g)].map((found) => [found[1]!, found[2]!.trim()]);
-const lightAnsi = ansiVars(/\n\.arc-chat \{ (--arc-ansi-0[^}]*)\}/);
-const darkAnsi = ansiVars(/@media \(prefers-color-scheme: dark\) \{ \.arc-chat \{ ([^}]*)\}/);
+const darkVars = variables("@tokens dark"), lightVars = variables("@tokens light");
+const darkAnsi = variables("@ansi dark"), lightAnsi = variables("@ansi light");
 
 const roles: Record<string, string> = {
-  "--arc-fg": "Text", "--arc-muted": "Secondary text, labels", "--arc-bg": "Page, buttons, code", "--arc-soft": "Cards, selected row",
-  "--arc-line": "Borders, meter track", "--arc-accent": "User bubble, primary button, links", "--arc-ok": "Completed, added lines",
-  "--arc-bad": "Failed, removed lines, errors", "--arc-run": "Running, pending requests, warnings",
+  "--arc-fg": "Text", "--arc-muted": "Secondary text, labels", "--arc-bg": "Page", "--arc-soft": "Cards, selected row",
+  "--arc-raised": "User message, buttons, menus", "--arc-sunken": "Code, diffs, terminal, fields", "--arc-line": "Borders, meter track",
+  "--arc-edge": "Hovered borders, meter", "--arc-accent": "Primary button, links, focus", "--arc-on-accent": "Text on accent and danger",
+  "--arc-ok": "Completed, added lines", "--arc-bad": "Failed, removed lines, errors", "--arc-run": "Running, selected session",
+  "--arc-attn": "Waiting for the user, warnings",
 };
 
-function swatches(light: [string, string][], dark: [string, string][], withRoles: boolean): string {
-  const darkOf = new Map(dark);
-  return `<div class="cat-swatches">${light.map(([name, value]) => `
+function swatches(dark: [string, string][], light: [string, string][], withRoles: boolean): string {
+  const [first, second] = darkFirst ? [dark, light] : [light, dark];
+  const lightOf = new Map(second);
+  return `<div class="cat-swatches">${first.map(([name, value]) => `
     <div class="cat-swatch">
-      <div class="cat-chip-pair"><span style="background:${value}"></span><span style="background:${darkOf.get(name) ?? value}"></span></div>
-      <div><code>${name}</code>${withRoles && roles[name] ? `<div class="cat-role">${roles[name]}</div>` : ""}<div class="cat-hex">${value} · ${darkOf.get(name) ?? ""}</div></div>
+      <div class="cat-chip-pair"><span style="background:${value}"></span><span style="background:${lightOf.get(name) ?? value}"></span></div>
+      <div><code>${name}</code>${withRoles && roles[name] ? `<div class="cat-role">${roles[name]}</div>` : ""}<div class="cat-hex">${value} · ${lightOf.get(name) ?? ""}</div></div>
     </div>`).join("")}</div>`;
 }
 
-const foundations = `
-<section id="foundations" class="cat-section">
-  <h2>Foundations</h2>
-  <p class="cat-intro">Nine colour variables on <code>.arc-chat</code>, <code>.arc-sessions</code> and <code>.arc-settings</code>, redefined for dark mode. Each swatch shows light, then dark. Every class starts with <code>arc-</code>; there is one stylesheet, <code>src/styles.css</code>.</p>
-  <h3>Colour</h3>
-  ${swatches(lightVars, darkVars, true)}
-  <h3>Terminal colours</h3>
-  ${swatches(lightAnsi, darkAnsi, false)}
-  <h3>Type</h3>
-  <div class="cat-pair">${["light", "dark"].map((theme) => `<div class="cat-pane cat-${theme}"><div class="cat-label">${theme}</div><div class="arc-chat cat-type">
+const BASE_INTRO = `Nine colour variables on <code>.arc-chat</code>, <code>.arc-sessions</code> and <code>.arc-settings</code>, redefined for dark mode. Each swatch shows light, then dark. Every class starts with <code>arc-</code>; there is one stylesheet, <code>src/styles.css</code>.`;
+const THEME_INTRO = `The <strong>${themeName}</strong> theme: <code>${cssFile}</code>, used in place of the kit's own stylesheet, with the same <code>arc-</code> classes. Its colour variables are on <code>.arc-chat</code>, <code>.arc-sessions</code> and <code>.arc-settings</code>; each swatch shows ${panes[0]}, then ${panes[1]}.${darkFirst ? ' Dark is the default; <code>data-arc-theme="light"</code> on the kit or an ancestor switches to light.' : ""}`;
+const BASE_TYPE = `
     <div><span class="cat-meta">Body · 14/1.5 system UI</span><div>The list is sorted by creation time.</div></div>
     <div><span class="cat-meta">Title · 14 semibold</span><div class="arc-status-title">Sort the session list by last update</div></div>
     <div><span class="cat-meta">Small · 13</span><div style="font-size:13px">Conversation compacted (completed)</div></div>
     <div><span class="cat-meta">Meta · 12 muted</span><div class="arc-status-usage">31% of context</div></div>
     <div><span class="cat-meta">Label · 11 uppercase, 0.04em</span><div class="arc-label">Permission</div></div>
-    <div><span class="cat-meta">Mono · 13 / 12</span><div class="arc-tool-title">crates/archipel-server/src/sessions.rs</div></div>
+    <div><span class="cat-meta">Mono · 13 / 12</span><div class="arc-tool-title">crates/archipel-server/src/sessions.rs</div></div>`;
+// The theme's type ramp is read from its stylesheet's own declarations where it can be; these are its specimens.
+const THEME_TYPE = `
+    <div><span class="cat-meta">Title</span><div class="arc-status-title">Sort the session list by last update</div></div>
+    <div><span class="cat-meta">Request</span><div class="arc-request-title">Allow running pnpm test?</div></div>
+    <div><span class="cat-meta">Body</span><div>The list is sorted by creation time.</div></div>
+    <div><span class="cat-meta">Secondary</span><div class="arc-thought">Conversation compacted (completed)</div></div>
+    <div><span class="cat-meta">Mono</span><div class="arc-tool-title">crates/archipel-server/src/sessions.rs</div></div>
+    <div><span class="cat-meta">Meta</span><div class="arc-status-usage">31% of context</div></div>
+    <div><span class="cat-meta">Label</span><div class="arc-label">Permission</div></div>`;
+
+// The catalogue's own page, in the theme's default mode.
+const DARK_CHROME = ":root { color-scheme: dark; --cat-fg: #E6E9EF; --cat-muted: #A9B0BF; --cat-bg: #16191D; --cat-card: #1E2127; --cat-line: #3A3F4B; --cat-dark-pane: #282C34; --cat-light-pane: #F3F4F7; --cat-light-meta: #545B6B; --cat-tag-bg: #3A3F4B; --cat-tag-fg: #E6E9EF; --cat-tag-line: #868EA2; }";
+const LIGHT_CHROME = ":root { --cat-fg: #1c1c1e; --cat-muted: #5f5f66; --cat-bg: #f7f7f9; --cat-card: #ffffff; --cat-line: #e2e2e7; --cat-dark-pane: #1b1b1f; --cat-light-pane: #ffffff; --cat-light-meta: #5f5f66; --cat-dark-meta: #a3a3ab; --cat-tag-bg: #ececf1; --cat-tag-fg: #1c1c1e; --cat-tag-line: #c9c9d1; }";
+
+const foundations = `
+<section id="foundations" class="cat-section">
+  <h2>Foundations</h2>
+  <p class="cat-intro">${themeName ? THEME_INTRO : BASE_INTRO}</p>
+  <h3>Colour</h3>
+  ${swatches(darkVars, lightVars, true)}
+  <h3>Terminal colours</h3>
+  ${swatches(darkAnsi, lightAnsi, false)}
+  <h3>Type</h3>
+  <div class="cat-pair">${panes.map((theme) => `<div ${paneAttrs(theme)}><div class="cat-label">${theme}</div><div class="arc-chat cat-type">
+${themeName ? THEME_TYPE : BASE_TYPE}
   </div></div>`).join("")}</div>
   <h3>Small parts</h3>
-  <div class="cat-pair">${["light", "dark"].map((theme) => `<div class="cat-pane cat-${theme}"><div class="cat-label">${theme}</div><div class="arc-chat cat-parts">
+  <div class="cat-pair">${panes.map((theme) => `<div ${paneAttrs(theme)}><div class="cat-label">${theme}</div><div class="arc-chat cat-parts">
     <div class="cat-row"><span class="cat-meta">Badges</span><span class="arc-badge arc-ok">completed</span><span class="arc-badge arc-running">in progress</span><span class="arc-badge arc-failed">failed</span></div>
     <div class="cat-row"><span class="cat-meta">Buttons</span><span class="arc-options"><button type="button">Primary</button><button type="button">Secondary</button><button type="button" disabled>Disabled</button></span></div>
     <div class="cat-row"><span class="cat-meta">Danger</span><span class="arc-sessions" style="padding:0;background:none"><span></span><button type="button" class="arc-danger">Delete</button></span></div>
     <div class="cat-row"><span class="cat-meta">Chip</span><span class="arc-chip">sessions.tsx</span></div>
     <div class="cat-row"><span class="cat-meta">Meter</span><span class="arc-status-usage"><span class="arc-meter"><span style="width:31%"></span></span>31% of context</span><span class="arc-status-usage"><span class="arc-meter arc-meter-high"><span style="width:86%"></span></span>86% of context</span></div>
     <div class="cat-row"><span class="cat-meta">Field</span><label class="arc-field" style="margin:0"><input value="text field" readonly></label></div>
-    <div class="cat-row"><span class="cat-meta">Card</span><div class="arc-plan" style="flex:1"><div class="arc-label">Card</div>Border, 10px radius, soft background.</div></div>
+    <div class="cat-row"><span class="cat-meta">Card</span><div class="arc-plan" style="flex:1">A bordered, softly filled box; its border takes the attention colour while it waits for the user.</div></div>
   </div></div>`).join("")}</div>
 </section>`;
 
@@ -499,13 +527,12 @@ function specimen(entry: Specimen): string {
   return `
   <article class="cat-specimen${entry.wide ? " cat-wide" : ""}" id="${slug}">
     <header>
-      <h4>${escape(entry.name)}${entry.byHand ? ' <span class="cat-tag" title="This state only exists after the user acts, so it is drawn by hand with the kit\'s classes.">drawn by hand</span>' : ""}</h4>
+      <h3>${escape(entry.name)}${entry.byHand ? ' <span class="cat-tag" title="This state only exists after the user acts, so it is drawn by hand with the kit\'s classes.">drawn by hand</span>' : ""}</h3>
       ${entry.code ? `<code class="cat-code">${escape(entry.code)}</code>` : ""}
       ${entry.note ? `<p>${escape(entry.note)}</p>` : ""}
     </header>
     <div class="cat-pair">
-      <div class="cat-pane cat-light"><div class="cat-label">light</div>${frame(html)}</div>
-      <div class="cat-pane cat-dark"><div class="cat-label">dark</div>${frame(html)}</div>
+      ${panes.map((pane) => `<div ${paneAttrs(pane)}><div class="cat-label">${pane}</div>${frame(html)}</div>`).join("\n      ")}
     </div>
   </article>`;
 }
@@ -524,60 +551,61 @@ const page = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Archipel components</title>
+<title>Archipel components${themeName ? ` · ${themeName}` : ""}</title>
 <style>
 ${themed(css)}
 /* ---- The catalogue's own page, not part of the kit ---- */
-:root { --cat-fg: #1c1c1e; --cat-muted: #6b6b70; --cat-bg: #f7f7f9; --cat-card: #ffffff; --cat-line: #e2e2e7; --cat-dark-pane: #1b1b1f; }
+${darkFirst ? DARK_CHROME : LIGHT_CHROME}
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--cat-bg); color: var(--cat-fg); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+body { margin: 0; background: var(--cat-bg); color: var(--cat-fg); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 .cat-top { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 12px 24px; background: color-mix(in srgb, var(--cat-bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--cat-line); }
-.cat-top h1 { margin: 0 12px 0 0; font-size: 15px; }
-.cat-top nav { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13px; }
+.cat-top h1 { margin: 0 12px 0 0; font-size: 18px; }
+.cat-top nav { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 14px; }
 .cat-top a { color: var(--cat-muted); text-decoration: none; } .cat-top a:hover { color: var(--cat-fg); }
 main { max-width: 1440px; margin: 0 auto; padding: 8px 24px 64px; }
-.cat-lede { color: var(--cat-muted); max-width: 760px; }
-.cat-section { scroll-margin-top: 64px; padding-top: 24px; }
-.cat-section h2 { margin: 16px 0 4px; font-size: 22px; }
-.cat-section h3 { margin: 24px 0 8px; font-size: 14px; color: var(--cat-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-.cat-intro { margin: 0 0 16px; color: var(--cat-muted); max-width: 760px; }
-.cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 640px), 1fr)); gap: 16px; }
-.cat-specimen { scroll-margin-top: 64px; background: var(--cat-card); border: 1px solid var(--cat-line); border-radius: 12px; overflow: hidden; }
+.cat-lede { color: var(--cat-muted); max-width: 60ch; text-wrap: pretty; }
+.cat-section { scroll-margin-top: 120px; padding-top: 24px; }
+.cat-section h2 { margin: 24px 0 6px; font-size: 26px; }
+.cat-section > h3 { margin: 28px 0 10px; font-size: 14px; color: var(--cat-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.cat-intro { margin: 0 0 16px; color: var(--cat-muted); max-width: 60ch; text-wrap: pretty; }
+.cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 640px), 1fr)); gap: 32px 24px; }
+.cat-specimen { scroll-margin-top: 120px; min-width: 0; }
 .cat-specimen.cat-wide { grid-column: 1 / -1; }
-.cat-specimen header { padding: 12px 16px 10px; border-bottom: 1px solid var(--cat-line); }
-.cat-specimen h4 { margin: 0; font-size: 14px; }
-.cat-specimen header p { margin: 4px 0 0; color: var(--cat-muted); font-size: 13px; }
-.cat-code { display: block; margin-top: 4px; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--cat-muted); overflow-wrap: anywhere; }
-.cat-tag { margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: #fff4d6; color: #7a5600; font-size: 11px; font-weight: 500; cursor: help; }
+.cat-specimen header { padding: 4px 0 10px; }
+.cat-specimen header h3 { margin: 0; font-size: 16px; }
+.cat-specimen header p { margin: 4px 0 0; color: var(--cat-muted); font-size: 14px; }
+.cat-code { display: block; margin-top: 4px; font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--cat-muted); overflow-wrap: anywhere; }
+.cat-tag { white-space: nowrap; margin-left: 6px; padding: 1px 6px; border-radius: 5px; background: var(--cat-tag-bg); color: var(--cat-tag-fg); border: 1px solid var(--cat-tag-line); font-size: 14px; font-weight: 500; cursor: help; }
 .cat-pair { display: grid; grid-template-columns: 1fr 1fr; }
 @media (max-width: 900px) { .cat-pair { grid-template-columns: 1fr; } }
-.cat-pane { position: relative; padding: 28px 16px 16px; min-width: 0; }
-.cat-pane.cat-light { background: #ffffff; } .cat-pane.cat-dark { background: var(--cat-dark-pane); }
-.cat-label { position: absolute; top: 6px; left: 12px; font: 10px ui-monospace, Menlo, monospace; text-transform: uppercase; letter-spacing: 0.06em; color: #9a9aa3; }
+.cat-pane { position: relative; padding: 36px 16px 16px; min-width: 0; }
+.cat-pane.cat-light { background: var(--cat-light-pane); } .cat-pane.cat-dark { background: var(--cat-dark-pane); }
+.cat-label { position: absolute; top: 6px; left: 12px; font: 14px ui-monospace, Menlo, monospace; text-transform: uppercase; letter-spacing: 0.06em; color: var(--cat-muted); }
 .cat-pane .arc-chat.cat-frame { max-width: none; margin: 0; padding: 0; }
 .cat-pane .arc-chat:not(.cat-frame) { max-width: none; }
-.cat-pane > .arc-chat:not(.cat-frame):not(.arc-notices) { border: 1px solid var(--arc-line); border-radius: 10px; }
 .cat-pane .arc-sessions { border-radius: 10px; }
 .cat-hover .arc-session-actions { opacity: 1; }
 .cat-inline { display: contents; }
 /* Every row is drawn, so the page can be screenshotted or imported whole. */
 .arc-row { content-visibility: visible; }
-.cat-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.cat-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
 .cat-swatch { display: flex; gap: 10px; align-items: center; padding: 8px; background: var(--cat-card); border: 1px solid var(--cat-line); border-radius: 10px; }
-.cat-swatch code { font: 12px ui-monospace, Menlo, monospace; }
+.cat-swatch code { font: 14px ui-monospace, Menlo, monospace; }
 .cat-chip-pair { display: flex; flex: none; border-radius: 8px; overflow: hidden; border: 1px solid var(--cat-line); }
 .cat-chip-pair span { width: 28px; height: 40px; }
-.cat-role { font-size: 12px; } .cat-hex { font: 11px ui-monospace, Menlo, monospace; color: var(--cat-muted); }
+.cat-role { font-size: 14px; } .cat-hex { font: 14px ui-monospace, Menlo, monospace; color: var(--cat-muted); }
 .cat-type, .cat-parts { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
-.cat-meta { display: block; font: 10px ui-monospace, Menlo, monospace; color: #9a9aa3; margin-bottom: 2px; }
+.cat-meta { display: block; font: 14px ui-monospace, Menlo, monospace; color: var(--cat-muted); margin-bottom: 2px; }
 .cat-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.cat-row > .cat-meta { width: 64px; margin: 0; }
+.cat-row > .cat-meta { width: 80px; margin: 0; }
+.cat-light .cat-meta, .cat-light .cat-label { color: var(--cat-light-meta); }
+.cat-dark .cat-meta, .cat-dark .cat-label { color: var(--cat-dark-meta, var(--cat-muted)); }
 </style>
 </head>
 <body>
-<header class="cat-top"><h1>Archipel components</h1><nav>${nav}</nav></header>
+<header class="cat-top"><h1>Archipel components${themeName ? ` · ${themeName}` : ""}</h1><nav>${nav}</nav></header>
 <main>
-<p class="cat-lede">Every component of <code>@archipel/react</code> in each of its states, drawn by the components themselves with the kit's stylesheet, light and dark side by side. ${count} specimens. Generated by <code>ui/react/demo/catalog.tsx</code>; states marked <span class="cat-tag">drawn by hand</span> only exist after the user acts and are copies of the components' markup.</p>
+<p class="cat-lede">Every component of <code>@archipel/react</code> in each of its states, drawn by the components themselves with ${themeName ? `the ${themeName} theme's stylesheet` : "the kit's stylesheet"}, ${panes.join(" and ")} side by side. ${count} specimens. Generated by <code>ui/react/demo/catalog.tsx</code>; states marked <span class="cat-tag">drawn by hand</span> only exist after the user acts and are copies of the components' markup.</p>
 ${foundations}
 ${body}
 </main>
@@ -585,6 +613,6 @@ ${body}
 </html>`;
 
 mkdirSync(path.join(here, "out"), { recursive: true });
-const out = path.join(here, "out", "catalog.html");
+const out = path.join(here, "out", themeName ? `catalog-${themeName}.html` : "catalog.html");
 writeFileSync(out, page);
 console.log(`wrote ${count} specimens to ${out}`);

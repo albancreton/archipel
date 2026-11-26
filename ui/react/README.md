@@ -74,7 +74,7 @@ With any of these, `actions.prompt` receives content blocks instead of a string;
 - **Terminal output** (`Terminal`, `AnsiText`) shows the colours and styles a command prints; other control codes are dropped, and a progress line shows its last state. It is not a terminal emulator. The 16 terminal colours are CSS variables (`--arc-ansi-0` to `--arc-ansi-15`).
 - Each component takes an item and, where the user can act, a callback. Nothing else.
 - `components={{ "x.acme.checkpoint": Checkpoint }}` draws an extension's kind with your component. Without it the item gets a generic fallback.
-- Styles are one CSS file with `arc-` classes and a few variables.
+- Styles are one CSS file with `arc-` classes and a few variables. A theme replaces it with its own stylesheet for the same classes: see `ui/themes/` (Minitel: `ui/themes/minitel/react`). `pnpm catalog:minitel` and `pnpm demo:minitel` draw the catalogue and the recorded sessions with it.
 - **The agent's text is drawn as Markdown** (`Markdown`, parsed with `marked`): headings, lists, tables, quotes, code blocks. It is built as React elements, never as HTML, so markup the agent writes is shown as text, links go only to `http`, `https` and `mailto`, and images are named, not fetched. Text that is still arriving is fine: an open code fence is code up to where the text ends. There is no code highlighting. `renderText={(text) => …}` on `ChatView` (or the `RenderText` context) swaps the renderer; `(text) => text` shows the text as written. The user's own messages are always as written.
 - **Long sessions:** `Timeline` draws the newest 200 items and a "Show earlier" button (`pageSize`), and rows off screen are skipped by the browser (`content-visibility`). A session of 5000 items draws in the time of 200.
 

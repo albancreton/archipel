@@ -15,8 +15,10 @@
     "check": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.tsx",
     "demo": "node --import tsx demo/render.tsx",
+    "demo:minitel": "node --import tsx demo/render.tsx --theme minitel",
     "demo:live": "node demo/serve.mjs",
     "catalog": "node --import tsx demo/catalog.tsx",
+    "catalog:minitel": "node --import tsx demo/catalog.tsx --theme minitel",
     "test:browser": "node --import tsx --test test/browser/*.test.ts"
   },
   "dependencies": {

@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-25T00:00:00Z",
+  "title": "Design System: archipel component kit",
+  "extensions": {
+    "colorMeta": {
+      "fg": { "role": "neutral", "displayName": "Text", "canonical": "#E6E9EF", "tonalRamp": ["#1E2024", "#3A3D44", "#5A5E67", "#7D818B", "#A2A6AF", "#C4C7CE", "#E6E9EF", "#F6F7F9"] },
+      "muted": { "role": "neutral", "displayName": "Muted", "canonical": "#A9B0BF", "tonalRamp": ["#1D2027", "#363B46", "#535A69", "#737B8C", "#949BAA", "#A9B0BF", "#CDD1DA", "#EEF0F4"] },
+      "bg": { "role": "neutral", "displayName": "Ground", "canonical": "#282C34", "tonalRamp": ["#16191D", "#282C34", "#30343E", "#3A3F4B", "#444A58", "#868EA2", "#C8CDD8", "#F3F4F7"] },
+      "soft": { "role": "neutral", "displayName": "Card Slate", "canonical": "#30343E", "tonalRamp": ["#16191D", "#282C34", "#30343E", "#3A3F4B", "#444A58", "#868EA2", "#C8CDD8", "#F3F4F7"] },
+      "raised": { "role": "neutral", "displayName": "Raised Slate", "canonical": "#3A3F4B", "tonalRamp": ["#16191D", "#282C34", "#30343E", "#3A3F4B", "#444A58", "#868EA2", "#C8CDD8", "#F3F4F7"] },
+      "sunken": { "role": "neutral", "displayName": "Well", "canonical": "#16191D", "tonalRamp": ["#16191D", "#282C34", "#30343E", "#3A3F4B", "#444A58", "#868EA2", "#C8CDD8", "#F3F4F7"] },
+      "line": { "role": "neutral", "displayName": "Hairline", "canonical": "#444A58", "tonalRamp": ["#16191D", "#282C34", "#30343E", "#3A3F4B", "#444A58", "#868EA2", "#C8CDD8", "#F3F4F7"] },
+      "edge": { "role": "neutral", "displayName": "Edge", "canonical": "#868EA2", "tonalRamp": ["#16191D", "#282C34", "#30343E", "#3A3F4B", "#444A58", "#868EA2", "#C8CDD8", "#F3F4F7"] },
+      "accent": { "role": "primary", "displayName": "Periwinkle", "canonical": "#8799DE", "tonalRamp": ["#1A1F3A", "#28316A", "#3F55B0", "#4F66C7", "#6B80D6", "#8799DE", "#AAB7EC", "#DCE2F8"] },
+      "on-accent": { "role": "neutral", "displayName": "Ink", "canonical": "#16191D" },
+      "run": { "role": "secondary", "displayName": "Amethyst", "canonical": "#BA8AF5", "tonalRamp": ["#2A1645", "#4A2580", "#7A3FC9", "#8E52DA", "#A56EEA", "#BA8AF5", "#D2B1F9", "#EEE2FD"] },
+      "attn": { "role": "secondary", "displayName": "Amber", "canonical": "#F2A640", "tonalRamp": ["#2E1E05", "#5A3A00", "#8A5300", "#9E6200", "#D08A20", "#F2A640", "#F7C47A", "#FCEACC"] },
+      "ok": { "role": "secondary", "displayName": "Signal Green", "canonical": "#59C780", "tonalRamp": ["#0C2A17", "#14512C", "#1D7A45", "#23914F", "#3BAF66", "#59C780", "#84DDA4", "#D4F3DF"] },
+      "bad": { "role": "secondary", "displayName": "Coral", "canonical": "#F2777A", "tonalRamp": ["#3A1110", "#701F1C", "#B33833", "#C9463F", "#E0605F", "#F2777A", "#FF9A9C", "#FDDCDD"] }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Title", "purpose": "The session title in the status bar." },
+      "title-request": { "displayName": "Request title", "purpose": "The question or action an approval or question asks about." },
+      "body": { "displayName": "Body", "purpose": "Messages and Markdown; session titles at 500." },
+      "secondary": { "displayName": "Secondary", "purpose": "Thoughts, notices, activity, settings, buttons." },
+      "mono": { "displayName": "Mono", "purpose": "Tool titles, commands, code, diffs, menu commands." },
+      "meta": { "displayName": "Meta", "purpose": "Usage, cost, session meta, chips, badges. The 14px floor." },
+      "label": { "displayName": "Label", "purpose": "Uppercase muted name of a record's kind, inline with it; folder headings." },
+      "button": { "displayName": "Button", "purpose": "Every button's text." }
+    },
+    "themes": {
+      "default": "dark",
+      "light": "data-arc-theme=\"light\" on .arc-chat/.arc-sessions/.arc-settings or any ancestor; swaps the fourteen roles to the light-* values and the ANSI set"
+    },
+    "shadows": [
+      { "name": "floating-menu", "value": "0 12px 32px rgba(0, 0, 0, 0.35)", "purpose": "The composer's command menu, the only element that floats over content." }
+    ],
+    "focus": [
+      { "name": "focus-ring", "value": "outline: 2px solid var(--arc-accent); outline-offset: 2px", "purpose": "Every focusable element." }
+    ],
+    "motion": [
+      { "name": "control-hover", "value": "120ms ease-out", "purpose": "Button background and border colour changes; chevron rotation. Removed under reduced motion." },
+      { "name": "running-pulse", "value": "arc-pulse 1.6s ease-in-out infinite (opacity to 0.35)", "purpose": "The dot of a running badge, only when motion is allowed." }
+    ],
+    "breakpoints": [
+      { "name": "narrow", "value": "600px" }
+    ],
+    "icons": { "grid": "16x16", "size": "16px", "stroke": 1.4, "linecap": "round", "linejoin": "round", "fill": "none", "color": "currentColor" }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The default choice of a request, Send, Fork.",
+      "html": "<button class=\"ds-btn-primary\">Allow once</button>",
+      "css": ".ds-btn-primary { font: 600 15px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 7px 14px; border-radius: 8px; border: 1px solid #8799DE; background: #8799DE; color: #16191D; cursor: pointer; transition: background-color 120ms ease-out, border-color 120ms ease-out; } .ds-btn-primary:hover { background: color-mix(in srgb, #8799DE 85%, #E6E9EF); border-color: transparent; } .ds-btn-primary:focus-visible { outline: 2px solid #8799DE; outline-offset: 2px; }"
+    },
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Every other choice and action.",
+      "html": "<button class=\"ds-btn\">Reject</button>",
+      "css": ".ds-btn { font: 500 15px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 7px 14px; border-radius: 8px; border: 1px solid #444A58; background: #3A3F4B; color: #E6E9EF; cursor: pointer; transition: border-color 120ms ease-out; } .ds-btn:hover { border-color: #868EA2; } .ds-btn:focus-visible { outline: 2px solid #8799DE; outline-offset: 2px; }"
+    },
+    {
+      "name": "Composer",
+      "kind": "input",
+      "refersTo": "composer",
+      "description": "The message field and Send at the bottom of the chat.",
+      "html": "<div class=\"ds-composer\"><textarea placeholder=\"Message the agent…\"></textarea><button>Send</button></div>",
+      "css": ".ds-composer { display: flex; gap: 10px; align-items: flex-end; padding: 14px; background: #282C34; } .ds-composer textarea { flex: 1; min-height: 52px; font: 16px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 12px 14px; border-radius: 10px; border: 1px solid #444A58; background: #16191D; color: #E6E9EF; } .ds-composer textarea::placeholder { color: #A9B0BF; } .ds-composer textarea:hover { border-color: #868EA2; } .ds-composer textarea:focus-visible { outline: 2px solid #8799DE; outline-offset: 2px; } .ds-composer button { font: 600 15px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 12px 20px; border-radius: 10px; border: 1px solid #8799DE; background: #8799DE; color: #16191D; cursor: pointer; }"
+    },
+    {
+      "name": "Status Badges",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Tinted pill with a dot: running, completed, failed, waiting.",
+      "html": "<div class=\"ds-badges\"><span class=\"ds-badge\" style=\"--t:#BA8AF5\">running</span><span class=\"ds-badge\" style=\"--t:#59C780\">completed</span><span class=\"ds-badge\" style=\"--t:#F2777A\">failed</span><span class=\"ds-badge\" style=\"--t:#F2A640\">waiting</span></div>",
+      "css": ".ds-badges { display: flex; gap: 8px; padding: 12px; background: #282C34; } .ds-badge { display: inline-flex; align-items: center; gap: 6px; font: 500 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 1px 10px; border-radius: 999px; color: color-mix(in srgb, var(--t) 70%, #E6E9EF); background: color-mix(in srgb, var(--t) 12%, transparent); } .ds-badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--t); }"
+    },
+    {
+      "name": "Tool Call Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Label, mono title and badge over output in a sunken well.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-head\"><span class=\"ds-label\">Execute</span><span class=\"ds-title\">ls -la</span><span class=\"ds-badge\">completed</span></div><pre class=\"ds-pre\">total 40\npackage.json</pre></div>",
+      "css": ".ds-card { border: 1px solid #444A58; border-radius: 10px; padding: 12px 16px; background: #30343E; color: #E6E9EF; } .ds-head { display: flex; align-items: center; gap: 10px; } .ds-label { font: 600 14px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-transform: uppercase; letter-spacing: 0.05em; color: #A9B0BF; } .ds-title { flex: 1; font: 15px/1.5 ui-monospace, 'SF Mono', Menlo, monospace; } .ds-badge { font: 500 14px/1.5 -apple-system, sans-serif; padding: 1px 10px; border-radius: 999px; color: color-mix(in srgb, #59C780 70%, #E6E9EF); background: color-mix(in srgb, #59C780 12%, transparent); } .ds-pre { margin: 10px 0 0; padding: 12px 14px; border-radius: 8px; background: #16191D; border: 1px solid #444A58; font: 15px/1.55 ui-monospace, 'SF Mono', Menlo, monospace; white-space: pre-wrap; }"
+    },
+    {
+      "name": "Pending Request",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "An approval waiting on the user: the one amber thing on the page.",
+      "html": "<div class=\"ds-pending\"><div class=\"ds-rh\"><span class=\"ds-label\">Permission</span><span class=\"ds-rt\">Run rm -rf build?</span></div><div class=\"ds-opts\"><button class=\"ds-p\">Allow once</button><button class=\"ds-b\">Reject</button></div></div>",
+      "css": ".ds-pending { border: 2px solid #F2A640; border-radius: 10px; padding: 11px 15px; background: color-mix(in srgb, #F2A640 8%, #30343E); color: #E6E9EF; } .ds-rh { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; } .ds-label { font: 600 14px/1.4 -apple-system, sans-serif; text-transform: uppercase; letter-spacing: 0.05em; color: #A9B0BF; } .ds-rt { font: 600 17px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; } .ds-opts { display: flex; gap: 8px; } .ds-opts button { font: 500 15px/1.4 -apple-system, sans-serif; padding: 7px 14px; border-radius: 8px; border: 1px solid #444A58; background: #3A3F4B; color: #E6E9EF; cursor: pointer; } .ds-opts .ds-p { background: #8799DE; border-color: #8799DE; color: #16191D; font-weight: 600; } .ds-opts button:focus-visible { outline: 2px solid #8799DE; outline-offset: 2px; }"
+    },
+    {
+      "name": "User Message",
+      "kind": "custom",
+      "refersTo": "user-message",
+      "description": "The user's turn, right-aligned bubble on raised slate.",
+      "html": "<div class=\"ds-user\">Plan how to add a NOTES.md to this directory.</div>",
+      "css": ".ds-user { margin-left: auto; max-width: 85%; padding: 10px 16px; border-radius: 14px 14px 4px 14px; background: #3A3F4B; color: #E6E9EF; font: 16px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }"
+    },
+    {
+      "name": "Session Row",
+      "kind": "nav",
+      "refersTo": "session-row-selected",
+      "description": "A row in the session list; selected rows carry an amethyst border.",
+      "html": "<ul class=\"ds-list\"><li class=\"ds-row ds-sel\"><div class=\"ds-st\">NOTES.md directory plan</div><div class=\"ds-meta\">Claude Code <span>2m</span></div></li><li class=\"ds-row\" tabindex=\"0\"><div class=\"ds-st\">Fix flaky test</div><div class=\"ds-meta\">Pi <span>1h</span></div></li></ul>",
+      "css": ".ds-list { list-style: none; margin: 0; padding: 16px; display: flex; flex-direction: column; gap: 4px; background: #282C34; } .ds-row { padding: 10px 12px; border: 1px solid transparent; border-radius: 10px; color: #E6E9EF; font: 16px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; cursor: pointer; } .ds-row:hover, .ds-row:focus-visible { background: #30343E; } .ds-sel { background: #30343E; border-color: #BA8AF5; } .ds-st { font-weight: 500; } .ds-meta { display: flex; gap: 8px; font-size: 14px; color: #A9B0BF; } .ds-meta span { margin-left: auto; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Terminal's Other Half",
+    "overview": "A session is drawn on the same ground as the terminal beside it. Minitel's terminal background (#282C34) is the kit's background, so chat and terminal read as one window, and everything the agent does sits on that ground as quiet, bordered cards one step lighter. The world is calm by default: neutrals carry almost everything, colour appears only to say something (running, done, failed, waiting on you).\n\nReadability decides every size. People follow these runs for hours, so nothing is small: body text is 16px at 1.6, secondary text and code are 15px, and the smallest text anywhere (meta, labels, badges) is 14px. Density comes from tight vertical rhythm and one 820px column, never from shrinking type.\n\nDark is the default identity. A light theme built from the same hues ships behind `data-arc-theme=\"light\"` on the kit's root or any ancestor; it swaps the token values and nothing else. Every colour is a CSS variable on `.arc-chat`, `.arc-sessions` and `.arc-settings`, so an app restyles the kit by overriding tokens, not rules.",
+    "keyCharacteristics": [
+      "Ground is #282C34, shared with the terminal; cards are one tonal step up, code one step down.",
+      "Four signal colours with one meaning each; amber is reserved for \"waiting for the user\".",
+      "No text under 14px; body 16/1.6.",
+      "Flat: 1px quiet borders and tonal steps, one shadow in the whole kit (the floating menu).",
+      "Soft 10px corners on cards, 8px on controls, pills only for status badges.",
+      "Two themes from one set of fourteen roles."
+    ],
+    "rules": [
+      { "name": "The Amber Means You Rule", "body": "Amber (attn) appears only where the user is being waited on: a pending request, a session waiting for an answer, a session open in another window, a notice that needs an action, a nearly full context. Never use it for warnings in general, decoration or emphasis. If a screen shows amber, the user has something to do.", "section": "colors" },
+      { "name": "The One Meaning Rule", "body": "Purple is running (and the selected session), green is done, coral is failed, periwinkle is action. A hue never borrows another's meaning, and none is used decoratively.", "section": "colors" },
+      { "name": "The Tinted Badge Rule", "body": "A status badge is a pill on a 12% tint of its tone, with a 7px dot in the full tone and text mixed 70% tone toward fg. That keeps status text readable on both themes without saturated fills.", "section": "colors" },
+      { "name": "The Shared Ground Rule", "body": "The kit's background is the terminal's background. Do not lighten, gradient or texture the ground; depth comes from cards on it.", "section": "colors" },
+      { "name": "The Fourteen Floor Rule", "body": "No text is ever under 14px, in either kit. Secondary information is made quieter with muted colour, not with a smaller size.", "section": "typography" },
+      { "name": "The Label Names Data Rule", "body": "An uppercase label always names what the record is, inline with it; it is never a decorative kicker over a heading.", "section": "typography" },
+      { "name": "The One Float Rule", "body": "Only something that overlaps content gets a shadow. Cards, buttons and messages are flat.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep the ground at #282C34 in the dark theme so the kit and the terminal read as one surface.",
+      "Do keep every text size at 14px or more; reach for muted colour, not smaller type, to quiet something.",
+      "Do reserve amber for what waits on the user.",
+      "Do draw status as a tinted pill with a dot (12% tint, 70% text mix).",
+      "Do put raw output and anything typed into on the sunken Well, and cards on Card Slate.",
+      "Do use authored 16px SVG icons with a 1.4 round stroke in currentColor.",
+      "Do read every colour from a token so the light theme and app overrides follow."
+    ],
+    "donts": [
+      "Don't use amber for generic warnings, highlights or decoration.",
+      "Don't give purple, green, coral or periwinkle a second meaning.",
+      "Don't add shadows to cards, buttons or messages; only the floating menu has one.",
+      "Don't make the kit a light chat app by default (white page, blue bubbles, tiny grey metadata); light is opt-in.",
+      "Don't fill status badges with saturated colour or put status text in the full tone on a tint.",
+      "Don't use icon fonts or glyph characters as icons."
+    ]
+  }
+}
