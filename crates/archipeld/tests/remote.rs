@@ -143,3 +143,26 @@ async fn a_code_expires() {
     assert!(ws::connect(&url, &format!("pair:{code}")).await.is_err());
     fs::remove_dir_all(&home).unwrap();
 }
+
+/// The WebSocket is not encrypted: the daemon does not put it on the network. (That
+/// `--ws-exposed` lifts this is checked next to the rule, without opening a port to the network.)
+#[tokio::test]
+async fn a_websocket_other_machines_can_reach_is_refused() {
+    let dir = home("exposed");
+    let refused = Command::new(ARCHIPELD)
+        .args(["--home", dir.to_str().unwrap(), "--ws", "0.0.0.0:0"])
+        .output()
+        .await
+        .unwrap();
+    assert!(!refused.status.success());
+    let said = String::from_utf8_lossy(&refused.stderr);
+    assert!(
+        said.contains("loopback") && said.contains("--ws-exposed"),
+        "{said}"
+    );
+    assert!(
+        !dir.join("daemon.sock").exists(),
+        "it stopped before listening anywhere"
+    );
+    fs::remove_dir_all(&dir).ok();
+}

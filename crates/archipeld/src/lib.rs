@@ -29,6 +29,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     fs,
+    net::SocketAddr,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     process::ExitCode,
@@ -43,7 +44,8 @@ use tokio::{
 const USAGE: &str = "\
 archipeld: the archipel daemon
 
-  archipeld [--home DIR] [--ws ADDR] [--fake TRANSCRIPT [--fake-speed N]] [--agent-stderr]
+  archipeld [--home DIR] [--ws ADDR [--ws-exposed]] [--fake TRANSCRIPT [--fake-speed N]]
+            [--agent-stderr]
   archipeld [--home DIR] pair [--scope SCOPE] [--name NAME] [--minutes N]
   archipeld [--home DIR] token add NAME [--scope observe|interact|extend|admin]
   archipeld [--home DIR] token list
@@ -58,6 +60,12 @@ archipeld: the archipel daemon
                        ws-token      the owner's WebSocket token (written when --ws is used)
                        tokens.json   further WebSocket tokens, made with `archipeld token add`
   --ws ADDR          also listen for WebSocket clients, e.g. 127.0.0.1:7890. Off by default.
+                     The WebSocket is not encrypted, so ADDR must be a loopback address. From
+                     another machine, reach the daemon through SSH instead: nothing to set up
+                     here, see `archipel --help` (--via).
+  --ws-exposed       accept an ADDR other machines can reach. Only when something in front
+                     encrypts the traffic and decides who gets in: without that, anyone on the
+                     network can read the sessions and take the tokens.
   --ws-origin ORIGIN let pages served from this web origin connect, e.g. http://localhost:5173.
                      May be given several times. Without it no browser page can connect.
   --fake TRANSCRIPT  use a fake agent that replays a recorded session instead of the config
@@ -341,6 +349,24 @@ struct AgentConfig {
     env: BTreeMap<String, String>,
 }
 
+/// Where the WebSocket may listen. Nothing here encrypts, so on the network the sessions and
+/// the tokens could be read: an address other machines can reach has to be asked for.
+fn ws_address(text: &str, exposed: bool) -> Result<SocketAddr, Failure> {
+    let addr: SocketAddr = text
+        .parse()
+        .map_err(|_| format!("--ws {text}: not an address such as 127.0.0.1:7890"))?;
+    if addr.ip().is_loopback() || exposed {
+        return Ok(addr);
+    }
+    Err(format!(
+        "--ws {addr}: the WebSocket is not encrypted, so it listens on a loopback address only \
+         (127.0.0.1 or [::1]). From another machine, use SSH: \
+         archipel --via 'ssh HOST archipel connect --stdio'. \
+         --ws-exposed lifts this, for when something in front encrypts the traffic"
+    )
+    .into())
+}
+
 /// Removes `--name VALUE` from the arguments and returns the value.
 fn option(args: &mut Vec<String>, name: &str) -> Option<String> {
     let at = args.iter().position(|arg| arg == name)?;
@@ -508,6 +534,7 @@ async fn run(mut args: Vec<String>, addons: Vec<Box<dyn Addon>>) -> Result<(), F
             PathBuf::from,
         );
     let ws_addr = option(&mut args, "--ws");
+    let ws_exposed = switch(&mut args, "--ws-exposed");
     fs::create_dir_all(&home)?;
     // Only the owner may enter: the socket inside gives the power to run commands as them.
     fs::set_permissions(&home, fs::Permissions::from_mode(0o700))?;
@@ -524,6 +551,9 @@ async fn run(mut args: Vec<String>, addons: Vec<Box<dyn Addon>>) -> Result<(), F
     if list_addons {
         args.remove(0);
     }
+    let ws_addr = ws_addr
+        .map(|addr| ws_address(&addr, ws_exposed))
+        .transpose()?;
     let (agents, settings) = agents(&home, &mut args)?;
     if let Some(unknown) = args.first() {
         return Err(format!("unknown argument `{unknown}`; try --help").into());
@@ -579,7 +609,7 @@ async fn run(mut args: Vec<String>, addons: Vec<Box<dyn Addon>>) -> Result<(), F
         let tokens_home = home.clone();
         let authorize: ws::Authorize<Grant> =
             Arc::new(move |presented| grant(&tokens_home, presented));
-        let ws_server = ws::WsServer::bind(addr.parse()?, authorize)
+        let ws_server = ws::WsServer::bind(addr, authorize)
             .await?
             .allow_origins(origins);
         eprintln!(
@@ -608,4 +638,20 @@ async fn run(mut args: Vec<String>, addons: Vec<Box<dyn Addon>>) -> Result<(), F
     eprintln!("archipeld: stopping");
     server.shutdown().await;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ws_address;
+
+    #[test]
+    fn the_websocket_listens_on_loopback_unless_exposed_is_asked_for() {
+        assert!(ws_address("127.0.0.1:7890", false).is_ok());
+        assert!(ws_address("[::1]:7890", false).is_ok());
+        for reachable in ["0.0.0.0:7890", "192.168.1.20:7890", "[::]:7890"] {
+            assert!(ws_address(reachable, false).is_err(), "{reachable}");
+            assert!(ws_address(reachable, true).is_ok(), "{reachable}");
+        }
+        assert!(ws_address("localhost", false).is_err());
+    }
 }
