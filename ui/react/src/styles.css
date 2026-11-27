@@ -36,6 +36,11 @@
 /* One chevron for everything that opens in a turn's work: a call, a group of calls, a thought. */
 .arc-tool-head::before, .arc-tool-group > summary::before, .arc-thought > summary::before { content: ""; flex: none; display: inline-block; width: 5px; height: 5px; margin: 0 4px 0 2px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); transition: transform 120ms ease-out; }
 div.arc-tool-head::before { visibility: hidden; }
+/* Open, the title is all there, on as many lines as it takes; the chevron and the kind stay at its top. */
+.arc-chat .arc-tool .arc-tool-head[aria-expanded="true"] { align-items: flex-start; }
+.arc-tool-head[aria-expanded="true"] .arc-tool-title { white-space: pre-wrap; overflow-wrap: anywhere; }
+.arc-tool-head[aria-expanded="true"]::before { margin-top: 6px; }
+.arc-tool-head[aria-expanded="true"] .arc-tool-kind { margin-top: 2px; }
 .arc-tool-head[aria-expanded="true"]::before, .arc-tool-group[open] > summary::before, .arc-thought[open] > summary::before { transform: rotate(45deg); }
 .arc-tool-group > summary, .arc-thought > summary { display: flex; align-items: center; gap: 8px; list-style: none; }
 .arc-tool-group > summary::-webkit-details-marker, .arc-thought > summary::-webkit-details-marker { display: none; }

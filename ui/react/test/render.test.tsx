@@ -6,7 +6,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ChatView, contentText } from "../src/index.ts";
+import { ChatView, ToolCall, contentText } from "../src/index.ts";
 
 const states = path.join(import.meta.dirname, "../../../testdata/states");
 const load = (name: string) => Conversation.fromJSON(JSON.parse(readFileSync(path.join(states, `${name}.json`), "utf8")));
@@ -134,4 +134,13 @@ test("answered approvals go into the group of the call they follow", () => {
 
 test("one tool call alone is not a group", () => {
   assert.doesNotMatch(renderToStaticMarkup(<ChatView conversation={load("claude-v2/command_output")} />), /arc-tool-group/);
+});
+
+test("a command written on several lines opens to all of it, even with no output", () => {
+  const command = "cd /work && python3 - <<'EOF'\nprint(1)\nEOF";
+  const closed = renderToStaticMarkup(<ToolCall item={{ kind: "execute", title: command, status: "completed" }} />);
+  assert.match(closed, /<button type="button" class="arc-tool-head" aria-expanded="false">/);
+  assert.doesNotMatch(closed, /arc-tool-body/);
+  assert.match(renderToStaticMarkup(<ToolCall item={{ kind: "execute", title: command, status: "in_progress" }} />), /aria-expanded="true"/);
+  assert.match(renderToStaticMarkup(<ToolCall item={{ kind: "read", title: "notes.md", status: "completed" }} />), /<div class="arc-tool-head">/);
 });

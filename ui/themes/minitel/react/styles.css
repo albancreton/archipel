@@ -85,6 +85,11 @@
 .arc-chat .arc-tool div.arc-tool-head { cursor: default; }
 .arc-tool-head::before { margin-right: -2px; }
 div.arc-tool-head::before { visibility: hidden; }
+/* Open, the title is all there, on as many lines as it takes; the chevron and the kind stay at its top. */
+.arc-chat .arc-tool .arc-tool-head[aria-expanded="true"] { align-items: flex-start; }
+.arc-tool-head[aria-expanded="true"] .arc-tool-title { white-space: pre-wrap; overflow-wrap: anywhere; }
+.arc-tool-head[aria-expanded="true"]::before { margin-top: 3px; }
+.arc-tool-head[aria-expanded="true"] .arc-tool-kind { margin-top: 1px; }
 .arc-tool-group > summary { display: flex; align-items: center; }
 /* An approval that has its answer is a line of the same kind, in from where a chevron would be. */
 .arc-approved { display: flex; align-items: center; gap: 10px; padding-left: 24px; white-space: normal; }

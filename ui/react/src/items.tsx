@@ -199,11 +199,15 @@ export function ToolCall({ item, terminal, running = toolRunning(item), chosen: 
     const body = contentText(block);
     return body ? <pre key={at} className="arc-tool-output">{body}</pre> : null;
   }).filter(Boolean);
-  const open = blocks.length > 0 && (chosen ?? running);
+  // Closed, the title is one line. Open, it is all there, so a call whose title is written
+  // on several lines opens even when it produced nothing.
+  const title = (text(item, "title") || text(item, "name")).trimEnd();
+  const opens = blocks.length > 0 || title.includes("\n");
+  const open = opens && (chosen ?? running);
   const head = (
     <>
       <span className="arc-tool-kind">{text(item, "kind") || text(item, "name") || "tool"}</span>
-      <span className="arc-tool-title">{text(item, "title") || text(item, "name")}</span>
+      <span className="arc-tool-title">{title}</span>
       {/* A call that went well says nothing more: only what runs or went wrong is marked. */}
       {status !== "completed" && (
         <span className={`arc-badge arc-${toolFailed(item) ? "failed" : "running"}`}>{status.replace("_", " ")}</span>
@@ -212,10 +216,10 @@ export function ToolCall({ item, terminal, running = toolRunning(item), chosen: 
   );
   return (
     <div className={`arc-item arc-tool arc-tool-${status}`}>
-      {blocks.length > 0
+      {opens
         ? <button type="button" className="arc-tool-head" aria-expanded={open} onClick={() => setChosen(!open)}>{head}</button>
         : <div className="arc-tool-head">{head}</div>}
-      {open && <div className="arc-tool-body">{blocks}</div>}
+      {open && blocks.length > 0 && <div className="arc-tool-body">{blocks}</div>}
     </div>
   );
 }

@@ -248,8 +248,13 @@ pub fn tool_call<'a>(
         _ => !content_text(Some(block)).is_empty(),
     };
     let has_output = blocks.iter().any(shows);
-    let is_open = has_output && memory::flag(cx, key, running);
-    let mark = if !has_output {
+    // Closed, the title is one line: the first of a command written on several. Open, it is
+    // all there, so a call with such a title opens even when it produced nothing.
+    let title = name("title").or(name("name")).unwrap_or("").trim_end();
+    let first = title.lines().next().unwrap_or("");
+    let opens = has_output || first.len() < title.len();
+    let is_open = opens && memory::flag(cx, key, running);
+    let mark = if !opens {
         // Keeps the kind under the kinds of the calls that open.
         div().flex_none().size(px(12.0)).into_any_element()
     } else {
@@ -270,36 +275,65 @@ pub fn tool_call<'a>(
         .id(id.clone())
         .debug_selector(move || selector)
         .flex()
-        .items_center()
+        // The mark and the kind stay at the top of a title that takes several lines.
+        .map(|line| {
+            if is_open {
+                line.items_start()
+            } else {
+                line.items_center()
+            }
+        })
         .gap(px(6.0))
         .w_full()
         .text_size(px(theme.text.secondary))
         .text_color(theme.colors.secondary)
-        .child(mark)
-        .child(label(name("kind").or(name("name")).unwrap_or("tool"), cx))
+        .child(
+            div()
+                .flex_none()
+                .h(px(theme.text.mono * 1.5))
+                .flex()
+                .items_center()
+                .child(mark),
+        )
+        .child(
+            div()
+                .flex_none()
+                .h(px(theme.text.mono * 1.5))
+                .flex()
+                .items_center()
+                .child(label(name("kind").or(name("name")).unwrap_or("tool"), cx)),
+        )
         .child(
             div()
                 .flex_1()
                 .min_w_0()
-                .truncate()
                 .font_family(theme.text.mono_family.clone())
                 .text_size(px(theme.text.mono))
+                .line_height(px(theme.text.mono * 1.5))
                 // What runs is read as it goes; what is over steps back.
                 .when(running, |title| title.text_color(theme.colors.text))
-                .child(shared(name("title").or(name("name")).unwrap_or(""))),
+                .map(|shown| {
+                    if is_open {
+                        shown.child(shared(title))
+                    } else if first.len() < title.len() {
+                        shown.truncate().child(shared(&format!("{first} …")))
+                    } else {
+                        shown.truncate().child(shared(first))
+                    }
+                }),
         )
         // A call that went well says nothing more: only what runs or went wrong is marked.
         .when(status != "completed", |line| {
             line.child(badge(status, None, cx))
         });
-    if has_output {
+    if opens {
         line = line
             .cursor_pointer()
             .hover(|line| line.text_color(theme.colors.text))
             .on_click(move |_, _, cx| memory::set_flag(cx, &id, !is_open));
     }
     let column = div().flex().flex_col().w_full().child(line);
-    if !is_open {
+    if !is_open || !has_output {
         return column;
     }
     let mut body = div().flex().flex_col().gap(px(6.0)).w_full();

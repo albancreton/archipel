@@ -200,7 +200,7 @@ Each item component takes the item (JSON as the SDK holds it) and, where the use
 | In | |
 |---|---|
 | `item.kind` | `read`, `edit`, `delete`, `move`, `search`, `execute`, `think`, `fetch`, `switch_mode`, `other` (as a Label; falls back to `item.name`) |
-| `item.title` | What it did, such as a path or a command; monospaced, one line |
+| `item.title` | What it did, such as a path or a command; monospaced. One line while the call is closed (the first, when a command is written on several); all of it, on as many lines as it takes, when open |
 | `item.status` | `pending`, `in_progress`, `completed`, `failed` (also `cancelled`). A Badge, except `completed`: a call that went well says nothing more |
 | `item.content` | A list of: `{ type: "content", content }` text output; `{ type: "diff", … }` a [Diff](#diff); `{ type: "terminal", terminalId }` a [Terminal](#terminal) |
 | `terminal(id)` | Finds a terminal item by id, for the last kind |
@@ -213,7 +213,8 @@ Each item component takes the item (JSON as the SDK holds it) and, where the use
 - **Running:** open. The output is in view while it is produced, and so is the diff an approval asks about.
 - **Over** (completed, failed, cancelled): closed. Only the line stays.
 - **Toggled:** the line opens and closes the output, and says which it is to assistive technology. Once the user has pressed it, their choice stays: a call they opened does not close when it ends, and one they closed does not open again.
-- **Nothing to show** (no content, or only a terminal that is not found): the line alone, and it is not a control.
+- **Open:** the title is shown whole, and the mark and the kind stay at its top.
+- **Nothing to show** (no content, or only a terminal that is not found, and a title of one line): the line alone, and it is not a control.
 
 **Related:** contains Terminal and Diff. Approvals often ask about a tool call just before it runs. Finished calls in a row are drawn in a [ToolGroup](#toolgroup).
 

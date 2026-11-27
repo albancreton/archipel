@@ -116,11 +116,13 @@ struct FoldLine<Words: View>: View {
     let open: Bool
     /// What assistive technology reads for the line.
     let label: String
+    /// The words take several lines: the chevron and what comes first stay at their top.
+    var tall = false
     var toggle: (() -> Void)?
     @ViewBuilder var words: Words
     @Environment(\.archipelTheme) private var theme
     var body: some View {
-        let line = HStack(alignment: .center, spacing: 8) {
+        let line = HStack(alignment: tall ? .firstTextBaseline : .center, spacing: 8) {
             Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold))
                 .rotationEffect(.degrees(open ? 90 : 0))
                 .frame(width: 10)
@@ -316,20 +318,25 @@ public struct ToolCallView: View {
         let blocks = blocks
         let status = item["status"]?.string ?? "pending"
         let kind = item["kind"]?.string ?? item["name"]?.string ?? "tool"
-        let title = item["title"]?.string ?? item["name"]?.string ?? ""
+        // Closed, the title is one line: the first of a command written on several. Open, it
+        // is all there, so a call with such a title opens even when it produced nothing.
+        let title = (item["title"]?.string ?? item["name"]?.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let first = title.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? ""
+        let opens = !blocks.isEmpty || first != title
         let chosen = choice ?? $own
-        let open = !blocks.isEmpty && (chosen.wrappedValue ?? running)
+        let open = opens && (chosen.wrappedValue ?? running)
         // A call that went well says nothing more: only what runs or went wrong is marked.
         let said = status == "completed" ? "" : ", " + status.replacingOccurrences(of: "_", with: " ")
         VStack(alignment: .leading, spacing: 4) {
-            FoldLine(open: open, label: "\(kind), \(title)\(said)", toggle: blocks.isEmpty ? nil : { chosen.wrappedValue = !open }) {
+            FoldLine(open: open, label: "\(kind), \(title)\(said)", tall: open, toggle: opens ? { chosen.wrappedValue = !open } : nil) {
                 Label2(text: kind)
-                Text(title).font(theme.fonts.mono).lineLimit(1)
+                Text(open ? title : first == title ? first : first + " …").font(theme.fonts.mono).lineLimit(open ? nil : 1)
+                    .multilineTextAlignment(.leading)
                     .foregroundStyle(toolRunning(item) ? theme.colors.text : theme.colors.secondary)
                     .layoutPriority(-1)
                 if status != "completed" { Badge(text: status, tone: toolFailed(item) ? .bad : .running) }
             }
-            if open {
+            if open && !blocks.isEmpty {
                 FoldBody {
                     ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                         switch block["type"]?.string {
