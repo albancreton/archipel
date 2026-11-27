@@ -6,7 +6,8 @@
   color: var(--arc-fg); background: var(--arc-bg);
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
-.arc-chat { display: flex; flex-direction: column; gap: 12px; max-width: 760px; margin: 0 auto; padding: 16px; }
+/* The chat is at most about 150 characters wide (a character counted at 0.55em), and a message's text about 70. */
+.arc-chat { display: flex; flex-direction: column; gap: 12px; max-width: 82.5em; margin: 0 auto; padding: 16px; }
 @media (prefers-color-scheme: dark) {
   /* @tokens dark */
   .arc-chat, .arc-sessions, .arc-settings { --arc-fg: #ececf1; --arc-muted: #9a9aa3; --arc-bg: #1b1b1f; --arc-soft: #26262c; --arc-line: #36363e; --arc-accent: #6ea0ff; --arc-ok: #4cc38a; --arc-bad: #ff7b72; --arc-run: #e3b341; }
@@ -23,7 +24,9 @@
 .arc-row:has(> .arc-user):first-child { margin-top: 0; }
 .arc-thought, .arc-compaction, .arc-fallback { color: var(--arc-muted); font-size: 13px; }
 /* What the agent said is the largest and darkest text of a turn. What it did and thought is small and muted. */
-.arc-assistant { font-size: 15px; line-height: 1.6; max-width: 38.5em; }
+.arc-assistant { font-size: 15px; line-height: 1.6; }
+/* The agent's prose keeps to its column; code and tables may take the whole width of the chat. */
+.arc-assistant:not(:has(> .arc-md)), .arc-assistant > .arc-md > :not(pre, .arc-md-table) { max-width: 38.5em; }
 .arc-row:has(> .arc-assistant) { margin: 4px 0; }
 .arc-thought summary, .arc-compaction summary, .arc-fallback summary, .arc-subagent summary, .arc-tool-group summary { cursor: pointer; }
 .arc-thought > div, .arc-compaction > div { margin-top: 4px; padding-left: 12px; border-left: 2px solid var(--arc-line); }

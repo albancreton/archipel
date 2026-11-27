@@ -287,6 +287,8 @@ struct Drawing<'a> {
     key: &'a str,
     /// Counts the texts with links, to give each its own id.
     links: usize,
+    /// How wide the text's own prose gets; code and tables are not held to it.
+    column: Option<f32>,
 }
 
 impl Drawing<'_> {
@@ -347,6 +349,9 @@ impl Drawing<'_> {
 
     fn blocks(&mut self, blocks: &[Block]) -> Div {
         let theme = self.theme;
+        // Only the text's own blocks keep to the column, not those inside a list or a quote,
+        // which are already in one.
+        let limit = self.column.take();
         let mut column = div()
             .flex()
             .flex_col()
@@ -354,7 +359,8 @@ impl Drawing<'_> {
             .w_full()
             .min_w_0();
         for block in blocks {
-            column = column.child(match block {
+            let wide = matches!(block, Block::Code(_) | Block::Table(..));
+            let drawn = match block {
                 Block::Paragraph(inline) => div().w_full().child(self.inline(inline, None)),
                 // Kept close to the text's size: this is a chat, not a document.
                 Block::Heading(level, inline) => div()
@@ -432,10 +438,26 @@ impl Drawing<'_> {
                     }
                     table
                 }
+            };
+            column = column.child(match limit {
+                Some(width) if !wide => in_column(drawn, width),
+                _ => drawn,
             });
         }
         column
     }
+}
+
+/// A block in a column of its own width, limited to the row's. Not a limit in pixels on the
+/// block: GPUI then measures its text as one line.
+fn in_column(block: Div, width: f32) -> Div {
+    div().flex().w_full().child(
+        div()
+            .w(px(width))
+            .max_w(gpui::relative(1.0))
+            .min_w_0()
+            .child(block),
+    )
 }
 
 fn code_block_themed(code: &str, theme: &Theme) -> Div {
@@ -454,6 +476,30 @@ fn code_block_themed(code: &str, theme: &Theme) -> Div {
 /// The agent's text, drawn. `key` names it among the other texts of the view (links need an id
 /// of their own); `color` is the text's colour, the secondary one for reasoning.
 pub fn markdown(key: &str, source: &str, color: Hsla, window: &Window, cx: &App) -> Div {
+    draw(key, source, color, None, window, cx)
+}
+
+/// The same, with its prose (paragraphs, headings, lists, quotes) in a column `column` wide
+/// at most. Code blocks and tables take the whole width they are given.
+pub fn markdown_in_column(
+    key: &str,
+    source: &str,
+    color: Hsla,
+    column: f32,
+    window: &Window,
+    cx: &App,
+) -> Div {
+    draw(key, source, color, Some(column), window, cx)
+}
+
+fn draw(
+    key: &str,
+    source: &str,
+    color: Hsla,
+    column: Option<f32>,
+    window: &Window,
+    cx: &App,
+) -> Div {
     let theme = theme(cx);
     let mut font = window.text_style().font();
     if let Some(family) = &theme.text.family {
@@ -465,6 +511,7 @@ pub fn markdown(key: &str, source: &str, color: Hsla, window: &Window, cx: &App)
         color,
         key,
         links: 0,
+        column,
     };
     drawing.blocks(&parse(source)).text_color(color)
 }

@@ -725,3 +725,34 @@ fn a_message_column_holds_all_of_a_long_message(cx: &mut TestAppContext) {
         );
     }
 }
+
+/// In the agent's text, prose keeps to the column and code takes the width it is given: a
+/// long line of code wraps less in a wide window than the column would make it.
+#[gpui::test]
+fn code_in_an_answer_takes_the_whole_width(cx: &mut TestAppContext) {
+    let code = format!("```\n{}\n```", "word ".repeat(300));
+    let item = json!({ "content": [{ "type": "text", "text": code }] });
+    let cx = host(cx, move |window, cx| {
+        let column = items::column_width(archipel_gpui::theme(cx).text.answer);
+        let mark = |name: &'static str| div().debug_selector(move || name.into()).h(px(1.0));
+        div()
+            .flex()
+            .flex_col()
+            .w(px(1400.0))
+            .child(items::assistant_message("wide", &item, window, cx))
+            .child(mark("under-wide"))
+            .child(
+                div()
+                    .w(px(column))
+                    .child(items::assistant_message("narrow", &item, window, cx)),
+            )
+            .child(mark("under-narrow"))
+    });
+    let wide = cx.debug_bounds("under-wide").expect("drawn").origin.y;
+    let narrow = cx.debug_bounds("under-narrow").expect("drawn").origin.y - wide;
+    assert!(wide > px(40.0), "the code wraps: {wide:?}");
+    assert!(
+        narrow > wide * 1.5,
+        "{narrow:?} in the column, {wide:?} in the whole width"
+    );
+}

@@ -265,31 +265,33 @@ public struct ChatView: View {
     public var body: some View {
         if let state = (sessionId ?? conversation.rootId).flatMap({ conversation.sessions[$0] }) {
             let running = (state.values["state"]?["state"]?.string).map { $0 != "idle" } ?? false
+            // Every part keeps to the chat's width, in the middle of a wider window.
+            let area = ChatArea(width: theme.chatWidth)
             VStack(spacing: 0) {
-                StatusBar(state: state).padding(12)
+                StatusBar(state: state).padding(12).modifier(area)
                 Rectangle().fill(theme.colors.line).frame(height: 1)
                 ScrollView {
-                    SessionTimeline(conversation: conversation, state: state, actions: actions, custom: custom).padding(12)
+                    SessionTimeline(conversation: conversation, state: state, actions: actions, custom: custom).padding(12).modifier(area)
                 }
                 .defaultScrollAnchor(.bottom)
-                ActivityView(state: state).padding([.horizontal, .bottom], 12)
+                ActivityView(state: state).padding([.horizontal, .bottom], 12).modifier(area)
                 if let openElsewhere {
-                    OpenElsewhereNotice(holder: openElsewhere, fork: actions.fork).padding([.horizontal, .bottom], 12)
+                    OpenElsewhereNotice(holder: openElsewhere, fork: actions.fork).padding([.horizontal, .bottom], 12).modifier(area)
                 }
                 if let error {
                     Text(error).font(theme.fonts.secondary).foregroundStyle(theme.colors.bad)
-                        .frame(maxWidth: .infinity, alignment: .leading).padding([.horizontal, .bottom], 12)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding([.horizontal, .bottom], 12).modifier(area)
                 }
                 if let setOption = actions.setOption {
                     SettingsBar(settings: Setting.all(from: state.values["configOptions"]), change: setOption)
-                        .padding([.horizontal, .bottom], 12)
+                        .padding([.horizontal, .bottom], 12).modifier(area)
                 }
                 if let prompt = actions.prompt {
                     Rectangle().fill(theme.colors.line).frame(height: 1)
                     Composer(
                         running: running, send: prompt, cancel: actions.cancel,
                         commands: Command.all(from: state.values["availableCommands"]), mentions: mentions, accepts: accepts)
-                        .padding(12)
+                        .padding(12).modifier(area)
                 }
             }
             .background(theme.colors.background ?? .clear)
@@ -339,5 +341,13 @@ public struct LiveChatView: View {
         return ChatView(
             conversation: session.conversation, sessionId: session.id, actions: actions, custom: custom,
             openElsewhere: session.openElsewhere, error: session.error?.message, mentions: mentions, accepts: accepts)
+    }
+}
+
+/// Holds a part of the chat to the chat's width, in the middle of what is wider.
+private struct ChatArea: ViewModifier {
+    let width: CGFloat
+    func body(content: Content) -> some View {
+        content.frame(maxWidth: width).frame(maxWidth: .infinity)
     }
 }

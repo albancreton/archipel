@@ -107,17 +107,26 @@ func markdownBlocks(_ text: String) -> [MarkdownBlock] {
 public struct MarkdownText: View {
     let text: String
     @Environment(\.archipelTheme) private var theme
+    @Environment(\.textColumn) private var column
 
     public init(_ text: String) { self.text = text }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(Array(markdownBlocks(text).enumerated()), id: \.offset) { _, block in
-                view(block)
+                // Prose keeps to the column it is given; code and tables take the whole width.
+                view(block).frame(maxWidth: wide(block) ? .infinity : column ?? .infinity, alignment: .leading)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .textSelection(.enabled)
+    }
+
+    private func wide(_ block: MarkdownBlock) -> Bool {
+        switch block {
+        case .code, .table: return true
+        default: return false
+        }
     }
 
     @ViewBuilder
@@ -154,6 +163,19 @@ public struct MarkdownText: View {
         case .rule:
             Divider()
         }
+    }
+}
+
+private struct TextColumnKey: EnvironmentKey {
+    static let defaultValue: CGFloat? = nil
+}
+
+extension EnvironmentValues {
+    /// How wide the prose of the agent's text gets, when it is held to a column: an answer's
+    /// is, a thought's is not. An app's own renderer of the agent's text may read it.
+    public var textColumn: CGFloat? {
+        get { self[TextColumnKey.self] }
+        set { self[TextColumnKey.self] = newValue }
     }
 }
 

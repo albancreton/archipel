@@ -530,6 +530,16 @@ impl Render for ChatView {
             self.listed.1.clone(),
         );
         let (id, spacing) = (session_id.clone(), theme.row_spacing);
+        // The chat keeps to a width of its own in the middle of a wider window. A width limited
+        // to the row's, not a limit in pixels, which GPUI measures text wrongly under.
+        let area = items::chat_width(theme.text.body);
+        let centered = move |part: AnyElement| {
+            div()
+                .flex()
+                .justify_center()
+                .w_full()
+                .child(div().w(px(area)).max_w(relative(1.0)).min_w_0().child(part))
+        };
         // Only the rows on screen are built, so a long session opens as quickly as a short one.
         let rows = list(self.rows.clone(), move |index, window, cx| {
             let row = conversation.sessions.get(&id).and_then(|state| {
@@ -555,21 +565,27 @@ impl Render for ChatView {
                         .px(px(12.0))
                         .pt(px(above))
                         .pb(px(spacing + below))
-                        .child(row)
+                        .child(centered(row))
                         .into_any_element()
                 }
                 None => div().into_any_element(),
             }
         })
         .size_full();
-        let below = |part: Div| div().w_full().px(px(12.0)).pb(px(12.0)).child(part);
+        let below = |part: Div| {
+            div()
+                .w_full()
+                .px(px(12.0))
+                .pb(px(12.0))
+                .child(centered(part.into_any_element()))
+        };
         base.child(
             div()
                 .w_full()
                 .p(px(12.0))
                 .border_b_1()
                 .border_color(theme.colors.line)
-                .child(status_bar(state, cx)),
+                .child(centered(status_bar(state, cx).into_any_element())),
         )
         .child(div().flex_1().min_h_0().w_full().pt(px(12.0)).child(rows))
         .children(activity(&session_id, state, cx).map(below))
@@ -597,7 +613,7 @@ impl Render for ChatView {
                 .p(px(12.0))
                 .border_t_1()
                 .border_color(theme.colors.line)
-                .child(composer)
+                .child(centered(composer.into_any_element()))
         }))
     }
 }

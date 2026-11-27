@@ -7,7 +7,7 @@
 
 use crate::diff::diff;
 use crate::input::TextField;
-use crate::markdown::markdown;
+use crate::markdown::{markdown, markdown_in_column};
 use crate::memory;
 use crate::parts::{
     Icon, MenuChoice, MenuGroup, badge, button, card, code_block, fold, guided, guided_fold, icon,
@@ -73,6 +73,12 @@ fn picture(block: &Value) -> Option<Arc<Image>> {
 #[must_use]
 pub fn column_width(text_size: f32) -> f32 {
     70.0 * 0.55 * text_size
+}
+
+/// How wide a chat gets: about 150 characters of its text, counted the same way.
+#[must_use]
+pub fn chat_width(text_size: f32) -> f32 {
+    150.0 * 0.55 * text_size
 }
 
 pub fn user_message(item: &Value, cx: &App) -> Div {
@@ -151,22 +157,16 @@ pub fn user_message(item: &Value, cx: &App) -> Div {
 /// the largest size, so that it stands out from what the agent did and thought.
 pub fn assistant_message(key: &str, item: &Value, window: &Window, cx: &App) -> Div {
     let theme = theme(cx);
-    // A width of its own, limited to the row's: see `user_message` for why not a limit in pixels.
-    div().flex().w_full().child(
-        div()
-            .w(px(column_width(theme.text.answer)))
-            .max_w(relative(1.0))
-            .child(
-                markdown(
-                    key,
-                    &content_text(item.get("content")),
-                    theme.colors.text,
-                    window,
-                    cx,
-                )
-                .text_size(px(theme.text.answer)),
-            ),
+    // Its prose keeps to the column; code and tables may take the whole width of the chat.
+    markdown_in_column(
+        key,
+        &content_text(item.get("content")),
+        theme.colors.text,
+        column_width(theme.text.answer),
+        window,
+        cx,
     )
+    .text_size(px(theme.text.answer))
 }
 
 /// The agent's reasoning: a fold titled "Thinking", closed. The same quiet line as a tool call.

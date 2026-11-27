@@ -94,6 +94,8 @@ public struct ArchipelTheme {
     /// How wide a message's column gets, the user's or the agent's: about 70 characters of the
     /// body font.
     public var columnWidth: CGFloat
+    /// How wide a chat gets, in the middle of a wider window: about 150 characters of the body font.
+    public var chatWidth: CGFloat
     /// The border of a card waiting for the user, and how much of the attention colour fills it.
     public var waitingBorder: CGFloat
     public var waitingFill: Double
@@ -110,13 +112,14 @@ public struct ArchipelTheme {
         colors: Colors, fonts: Fonts, badge: BadgeStyle = .outlined, cardRadius: CGFloat = 10, controlRadius: CGFloat = 6,
         cardPadding: EdgeInsets = EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10), rowSpacing: CGFloat = 10,
         waitingBorder: CGFloat = 1, waitingFill: Double = 0, drawsControls: Bool = false, settingsControlSize: ControlSize = .small,
-        folderLabels: Bool = false, colorScheme: ColorScheme? = nil, columnWidth: CGFloat = 540
+        folderLabels: Bool = false, colorScheme: ColorScheme? = nil, columnWidth: CGFloat = 540,
+        chatWidth: CGFloat = 1155
     ) {
         (self.colors, self.fonts, self.badge, self.cardRadius, self.controlRadius, self.cardPadding) =
             (colors, fonts, badge, cardRadius, controlRadius, cardPadding)
         (self.rowSpacing, self.waitingBorder, self.waitingFill, self.drawsControls, self.settingsControlSize) =
             (rowSpacing, waitingBorder, waitingFill, drawsControls, settingsControlSize)
-        (self.folderLabels, self.colorScheme, self.columnWidth) = (folderLabels, colorScheme, columnWidth)
+        (self.folderLabels, self.colorScheme, self.columnWidth, self.chatWidth) = (folderLabels, colorScheme, columnWidth, chatWidth)
     }
 
     /// The system's look: its text styles, semantic colours and controls, light or dark as the system is.

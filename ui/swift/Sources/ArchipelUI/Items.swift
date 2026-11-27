@@ -216,7 +216,8 @@ public struct AssistantMessageView: View {
     public var body: some View {
         // The strongest text of a turn: the body font in the text colour. What the agent did
         // and thought is drawn smaller and in the secondary colour.
-        render(contentText(item["content"])).frame(maxWidth: theme.columnWidth, alignment: .leading)
+        // Its prose keeps to the column; code and tables may take the whole width of the chat.
+        render(contentText(item["content"])).environment(\.textColumn, theme.columnWidth)
             .frame(maxWidth: .infinity, alignment: .leading)
             .font(theme.fonts.body).foregroundStyle(theme.colors.text)
     }

@@ -58,7 +58,8 @@ extension ArchipelTheme {
             settingsControlSize: .regular,
             folderLabels: true,
             colorScheme: scheme,
-            columnWidth: 616)
+            columnWidth: 616,
+            chatWidth: 1320)
     }
 
     private static let ansiDark: [UInt32] = [
