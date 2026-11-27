@@ -16,11 +16,14 @@
 .arc-status-usage { color: var(--arc-muted); font-size: 12px; }
 .arc-timeline { display: flex; flex-direction: column; gap: 10px; }
 .arc-item { white-space: pre-wrap; overflow-wrap: anywhere; }
-.arc-user { align-self: flex-end; max-width: 85%; margin-left: auto; padding: 8px 12px; border-radius: 14px; background: var(--arc-accent); color: #fff; }
+.arc-user { align-self: flex-end; max-width: min(85%, 38.5em); margin-left: auto; padding: 8px 12px; border-radius: 14px; background: var(--arc-accent); color: #fff; }
 .arc-row:has(.arc-user) { display: flex; }
+/* A turn starts at the user's message: four times the rows' gap above and below it. */
+.arc-row:has(> .arc-user) { margin: 30px 0; }
+.arc-row:has(> .arc-user):first-child { margin-top: 0; }
 .arc-thought, .arc-compaction, .arc-fallback { color: var(--arc-muted); font-size: 13px; }
 /* What the agent said is the largest and darkest text of a turn. What it did and thought is small and muted. */
-.arc-assistant { font-size: 15px; line-height: 1.6; }
+.arc-assistant { font-size: 15px; line-height: 1.6; max-width: 38.5em; }
 .arc-row:has(> .arc-assistant) { margin: 4px 0; }
 .arc-thought summary, .arc-compaction summary, .arc-fallback summary, .arc-subagent summary, .arc-tool-group summary { cursor: pointer; }
 .arc-thought > div, .arc-compaction > div { margin-top: 4px; padding-left: 12px; border-left: 2px solid var(--arc-line); }

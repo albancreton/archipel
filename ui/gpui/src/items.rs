@@ -68,6 +68,13 @@ fn picture(block: &Value) -> Option<Arc<Image>> {
 
 /// What the user sent: the text as written, on the user's side, then a picture for each image
 /// (from its own bytes) and the name of each file or mention.
+/// How wide a message's column gets, the user's or the agent's: about 70 characters of text
+/// of that size, counted at 0.55 em each.
+#[must_use]
+pub fn column_width(text_size: f32) -> f32 {
+    70.0 * 0.55 * text_size
+}
+
 pub fn user_message(item: &Value, cx: &App) -> Div {
     let theme = theme(cx);
     let blocks: Vec<&Value> = match item.get("content") {
@@ -85,7 +92,7 @@ pub fn user_message(item: &Value, cx: &App) -> Div {
         .flex()
         .flex_col()
         .gap(px(6.0))
-        .max_w(relative(0.85))
+        .max_w(px(column_width(theme.text.body)))
         .px(px(12.0))
         .py(px(8.0))
         .rounded(px(14.0))
@@ -127,7 +134,13 @@ pub fn user_message(item: &Value, cx: &App) -> Div {
                 .child(shared(name)),
         );
     }
-    div().flex().w_full().justify_end().child(bubble)
+    div().flex().w_full().justify_end().child(
+        div()
+            .flex()
+            .justify_end()
+            .max_w(relative(0.85))
+            .child(bubble),
+    )
 }
 
 /// What the agent said, as Markdown: the strongest text of a turn, in the primary colour and
@@ -142,6 +155,7 @@ pub fn assistant_message(key: &str, item: &Value, window: &Window, cx: &App) -> 
         cx,
     )
     .text_size(px(theme.text.answer))
+    .max_w(px(column_width(theme.text.answer)))
 }
 
 /// The agent's reasoning: a fold titled "Thinking", closed. The same quiet line as a tool call.

@@ -57,7 +57,8 @@ extension ArchipelTheme {
             drawsControls: true,
             settingsControlSize: .regular,
             folderLabels: true,
-            colorScheme: scheme)
+            colorScheme: scheme,
+            columnWidth: 616)
     }
 
     private static let ansiDark: [UInt32] = [

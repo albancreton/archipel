@@ -158,10 +158,16 @@ public struct SessionTimeline: View {
         let inline = inline
         // Lazy: inside a scroll view only the rows on screen are built, so a long session
         // opens as quickly as a short one.
+        let rows = rows
         LazyVStack(alignment: .leading, spacing: theme.rowSpacing) {
             ForEach(rows) { row in
                 switch row {
-                case .item(let ref): self.row(ref, inline: inline)
+                case .item(let ref):
+                    // A turn starts at the user's message: four times the rows' spacing above
+                    // and below it, except above the first row.
+                    let apart = ref.target == "userMessage" ? 3 * theme.rowSpacing : 0
+                    self.row(ref, inline: inline)
+                        .padding(.top, row.id == rows.first?.id ? 0 : apart).padding(.bottom, apart)
                 case .group(let refs):
                     ToolGroupView(calls: refs.filter { $0.target == "toolCall" }.compactMap { state.item($0) }) {
                         ForEach(refs, id: \.self) { self.row($0, inline: inline) }

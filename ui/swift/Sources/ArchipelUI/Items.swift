@@ -203,6 +203,7 @@ public struct UserMessageView: View {
             .padding(.horizontal, 12).padding(.vertical, 8)
             .foregroundStyle(theme.colors.onMessage)
             .background(theme.colors.message, in: RoundedRectangle(cornerRadius: 14))
+            .frame(maxWidth: theme.columnWidth, alignment: .trailing)
         }
     }
 }
@@ -215,7 +216,8 @@ public struct AssistantMessageView: View {
     public var body: some View {
         // The strongest text of a turn: the body font in the text colour. What the agent did
         // and thought is drawn smaller and in the secondary colour.
-        render(contentText(item["content"])).frame(maxWidth: .infinity, alignment: .leading)
+        render(contentText(item["content"])).frame(maxWidth: theme.columnWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .font(theme.fonts.body).foregroundStyle(theme.colors.text)
     }
 }

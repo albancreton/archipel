@@ -84,6 +84,7 @@ What the agent **said** is what the user came for; what it **did and thought** o
 
 - AssistantMessage is the strongest text of a turn: the primary colour, the largest size.
 - ToolCall, ToolGroup, Thought and an Approval that has its answer are quiet: one line each, secondary colour, smaller, no card and no fill, with the same mark on those that open.
+- A message's column, the user's or the agent's, is at most about 70 characters wide: 38.5 times the text's size, which counts a character at 0.55 em. Lines longer than that are hard to read, and a wide window otherwise stretches the two sides apart.
 - What a finished turn leaves on screen is the user's message, a few quiet lines, and the answer. Output is on screen only while it is being produced, or when the user opens it.
 
 Colours a set needs, at least: text, secondary text, background, soft background (cards), raised and sunken surfaces (the user's messages and menus; code, diffs and fields), line (borders), accent (primary buttons, links, focus), ok, bad, running, and attention (waiting for the user, warnings). Terminal output needs 16 more (ANSI 0 to 15), in both themes.
@@ -172,7 +173,7 @@ Each item component takes the item (JSON as the SDK holds it) and, where the use
 |---|---|
 | `item.content` | A string, or content blocks: `text`; `image` (`mimeType`, base64 `data`); `resource_link` (`uri`, `name`), a mention; `resource` (`resource.uri`, and `text` or `blob`), an attached file |
 
-**Draws:** the text as written, aligned to the user's side, set apart from the agent's text by its fill. Below it, a picture for each `image` (from its own bytes, only for an `image/*` type) and a chip with the name of each file or mention.
+**Draws:** the text as written, aligned to the user's side, set apart from the agent's text by its fill, in a column of at most about 70 characters. A turn starts here: the Timeline leaves four times the rows' spacing above and below it (nothing more above the first row). Below it, a picture for each `image` (from its own bytes, only for an `image/*` type) and a chip with the name of each file or mention.
 
 ### AssistantMessage
 
@@ -182,7 +183,7 @@ Each item component takes the item (JSON as the SDK holds it) and, where the use
 |---|---|
 | `item.content` | Text blocks; their text joined is Markdown |
 
-**Draws:** the text through [Markdown](#markdown), or through the app's renderer if it gave one. The strongest text of the turn (see [the weight of a turn's parts](#the-weight-of-a-turns-parts)).
+**Draws:** the text through [Markdown](#markdown), or through the app's renderer if it gave one. On the agent's side, in a column of at most about 70 characters. The strongest text of the turn (see [the weight of a turn's parts](#the-weight-of-a-turns-parts)).
 
 ### Thought
 

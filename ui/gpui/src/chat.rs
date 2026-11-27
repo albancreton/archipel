@@ -286,6 +286,18 @@ pub fn timeline_row(
     )
 }
 
+/// The space a row takes above and below itself, besides the rows' own spacing. A turn starts
+/// at the user's message: with this it stands four times the spacing from its neighbours,
+/// except above the first row.
+fn turn_space(row: &TimelineRow, index: usize, spacing: f32) -> (f32, f32) {
+    match row {
+        TimelineRow::Item(entry) if entry.target == "userMessage" => {
+            (if index == 0 { 0.0 } else { 3.0 * spacing }, 3.0 * spacing)
+        }
+        _ => (0.0, 0.0),
+    }
+}
+
 /// The items of one session, in order, all of them, finished tool calls in a row as one group.
 /// A subagent's session is drawn inside its item. [`ChatView`] draws only the rows on screen; use this for a short timeline of your own.
 pub fn timeline(
@@ -298,10 +310,12 @@ pub fn timeline(
     cx: &mut App,
 ) -> Div {
     let inline = inline_terminals(state);
+    let spacing = theme(cx).row_spacing;
     let rows: Vec<AnyElement> = timeline_rows(state, &inline)
         .iter()
-        .filter_map(|row| {
-            timeline_row_of(
+        .enumerate()
+        .filter_map(|(index, row)| {
+            let drawn = timeline_row_of(
                 conversation,
                 session_id,
                 state,
@@ -311,6 +325,15 @@ pub fn timeline(
                 custom,
                 window,
                 cx,
+            )?;
+            let (above, below) = turn_space(row, index, spacing);
+            Some(
+                div()
+                    .w_full()
+                    .pt(px(above))
+                    .pb(px(below))
+                    .child(drawn)
+                    .into_any_element(),
             )
         })
         .collect();
@@ -523,12 +546,18 @@ impl Render for ChatView {
                 )
             });
             match row {
-                Some(row) => div()
-                    .w_full()
-                    .px(px(12.0))
-                    .pb(px(spacing))
-                    .child(row)
-                    .into_any_element(),
+                Some(row) => {
+                    let (above, below) = listed
+                        .get(index)
+                        .map_or((0.0, 0.0), |listed| turn_space(listed, index, spacing));
+                    div()
+                        .w_full()
+                        .px(px(12.0))
+                        .pt(px(above))
+                        .pb(px(spacing + below))
+                        .child(row)
+                        .into_any_element()
+                }
                 None => div().into_any_element(),
             }
         })
