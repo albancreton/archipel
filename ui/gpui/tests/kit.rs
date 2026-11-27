@@ -671,3 +671,57 @@ fn a_session_list_opens_what_is_pressed(cx: &mut TestAppContext) {
         Some("s2".to_owned())
     );
 }
+
+/// A message's column is as tall as its text at the width it is drawn at: text that wraps at
+/// the column's width must not hang out under a box measured for a wider one. In a window
+/// narrower than the column, the column is the window's width.
+#[gpui::test]
+fn a_message_column_holds_all_of_a_long_message(cx: &mut TestAppContext) {
+    for wide in [1400.0, 300.0] {
+        let said = "word ".repeat(400);
+        let item = json!({ "content": [{ "type": "text", "text": said }] });
+        let cx = host(cx, move |window, cx| {
+            let theme = archipel_gpui::theme(cx);
+            let column = |size: f32| items::column_width(size).min(wide);
+            let mark = |name: &'static str| div().debug_selector(move || name.into()).h(px(1.0));
+            div()
+                .flex()
+                .flex_col()
+                .w(px(wide))
+                .child(items::user_message(&item, cx))
+                .child(mark("under-bubble"))
+                .child(
+                    div()
+                        .w(px(column(theme.text.body) - 24.0))
+                        .child(said.clone()),
+                )
+                .child(mark("under-text"))
+                .child(items::assistant_message("said", &item, window, cx))
+                .child(mark("under-answer"))
+                .child(
+                    div()
+                        .w(px(column(theme.text.answer)))
+                        .child(items::assistant_message("said-again", &item, window, cx)),
+                )
+                .child(mark("under-answer-again"))
+        });
+        let under = |cx: &mut VisualTestContext, name: &'static str| {
+            cx.debug_bounds(name).expect(name).origin.y
+        };
+        let bubble = under(cx, "under-bubble");
+        let text = under(cx, "under-text") - bubble - px(1.0);
+        assert!(text > px(100.0), "the text wraps: {text:?}");
+        assert_eq!(
+            bubble,
+            text + px(16.0),
+            "the bubble is its text and its padding, at {wide}"
+        );
+        let answer = under(cx, "under-answer") - under(cx, "under-text") - px(1.0);
+        let again = under(cx, "under-answer-again") - under(cx, "under-answer") - px(1.0);
+        assert!(answer > px(100.0), "the answer wraps: {answer:?}");
+        assert!(
+            (answer - again).abs() < px(1.0),
+            "the answer is as tall as in a box of the column's width, at {wide}: {answer:?}, {again:?}"
+        );
+    }
+}

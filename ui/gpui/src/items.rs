@@ -92,7 +92,7 @@ pub fn user_message(item: &Value, cx: &App) -> Div {
         .flex()
         .flex_col()
         .gap(px(6.0))
-        .max_w(px(column_width(theme.text.body)))
+        .max_w(relative(1.0))
         .px(px(12.0))
         .py(px(8.0))
         .rounded(px(14.0))
@@ -134,11 +134,15 @@ pub fn user_message(item: &Value, cx: &App) -> Div {
                 .child(shared(name)),
         );
     }
+    // The column has a width of its own, limited to the row's, and the bubble is limited to
+    // all of it. A limit in pixels on the bubble itself does not do: GPUI then measures the
+    // text as one line, and the bubble is one line tall under text that wraps.
     div().flex().w_full().justify_end().child(
         div()
             .flex()
             .justify_end()
-            .max_w(relative(0.85))
+            .w(px(column_width(theme.text.body)))
+            .max_w(relative(1.0))
             .child(bubble),
     )
 }
@@ -147,15 +151,22 @@ pub fn user_message(item: &Value, cx: &App) -> Div {
 /// the largest size, so that it stands out from what the agent did and thought.
 pub fn assistant_message(key: &str, item: &Value, window: &Window, cx: &App) -> Div {
     let theme = theme(cx);
-    markdown(
-        key,
-        &content_text(item.get("content")),
-        theme.colors.text,
-        window,
-        cx,
+    // A width of its own, limited to the row's: see `user_message` for why not a limit in pixels.
+    div().flex().w_full().child(
+        div()
+            .w(px(column_width(theme.text.answer)))
+            .max_w(relative(1.0))
+            .child(
+                markdown(
+                    key,
+                    &content_text(item.get("content")),
+                    theme.colors.text,
+                    window,
+                    cx,
+                )
+                .text_size(px(theme.text.answer)),
+            ),
     )
-    .text_size(px(theme.text.answer))
-    .max_w(px(column_width(theme.text.answer)))
 }
 
 /// The agent's reasoning: a fold titled "Thinking", closed. The same quiet line as a tool call.
