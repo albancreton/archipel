@@ -85,7 +85,7 @@ What the agent **said** is what the user came for; what it **did and thought** o
 - AssistantMessage is the strongest text of a turn: the primary colour, the largest size.
 - ToolCall, ToolGroup, Thought and an Approval that has its answer are quiet: one line each, secondary colour, smaller, no card and no fill, with the same mark on those that open.
 - A message's column, the user's or the agent's, is at most about 70 characters wide: 38.5 times the text's size, which counts a character at 0.55 em. Lines longer than that are hard to read, and a wide window otherwise stretches the two sides apart. The column holds prose only: a code block or a table in the agent's text may take the whole width of the chat, since code that wraps and a table squeezed into columns of a few words are harder to read than long lines of them.
-- The chat itself (ChatView, every part of it) is at most about 150 characters wide, counted the same way (82.5 times the text's size), in the middle of a wider window.
+- The chat itself (ChatView, every part of it) is at most about 100 characters wide, counted the same way (55 times the text's size), in the middle of a wider window.
 - What a finished turn leaves on screen is the user's message, a few quiet lines, and the answer. Output is on screen only while it is being produced, or when the user opens it.
 
 Colours a set needs, at least: text, secondary text, background, soft background (cards), raised and sunken surfaces (the user's messages and menus; code, diffs and fields), line (borders), accent (primary buttons, links, focus), ok, bad, running, and attention (waiting for the user, warnings). Terminal output needs 16 more (ANSI 0 to 15), in both themes.
@@ -132,7 +132,7 @@ How each `target` of the timeline is drawn.
 
 **States:** no session (says so). Turn running: the Composer offers Stop.
 
-**Width:** at most about 150 characters, centred (see [the weight of a turn's parts](#the-weight-of-a-turns-parts)).
+**Width:** at most about 100 characters, centred (see [the weight of a turn's parts](#the-weight-of-a-turns-parts)).
 
 **Order, top to bottom:** StatusBar, Timeline, Activity, OpenElsewhere, session error, SettingsBar (when `setOption` is given), Composer (when `prompt` is given). The timeline scrolls; the rest stays in place. A chat opens at its newest item.
 

@@ -33,8 +33,8 @@
 [data-arc-theme="light"] :is(.arc-chat, .arc-sessions, .arc-settings), :is(.arc-chat, .arc-sessions, .arc-settings)[data-arc-theme="light"] { color-scheme: light; }
 :is(.arc-chat, .arc-sessions, .arc-settings) ::selection { background: color-mix(in srgb, var(--arc-accent) 40%, transparent); }
 :is(.arc-chat, .arc-sessions, .arc-settings) :focus-visible { outline: 2px solid var(--arc-accent); outline-offset: 2px; }
-/* The chat is at most about 150 characters wide (a character counted at 0.55em), and a message's text about 70. */
-.arc-chat { display: flex; flex-direction: column; gap: 16px; max-width: 82.5em; margin: 0 auto; padding: 20px 24px; }
+/* The chat is at most about 100 characters wide (a character counted at 0.55em), and a message's text about 70. */
+.arc-chat { display: flex; flex-direction: column; gap: 16px; max-width: 55em; margin: 0 auto; padding: 20px 24px; }
 @media (max-width: 600px) { .arc-chat { padding: 16px; } .arc-row:has(> .arc-user) { margin: 28px 0; } .arc-plan, .arc-request, .arc-session-message { padding: 10px 12px; } .arc-pending { padding: 9px 11px; } .arc-user { max-width: 92%; } }
 
 /* ---- Shared parts: label, badge, card, fold, code block, chip ---- */

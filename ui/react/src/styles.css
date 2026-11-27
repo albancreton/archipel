@@ -6,8 +6,8 @@
   color: var(--arc-fg); background: var(--arc-bg);
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
-/* The chat is at most about 150 characters wide (a character counted at 0.55em), and a message's text about 70. */
-.arc-chat { display: flex; flex-direction: column; gap: 12px; max-width: 82.5em; margin: 0 auto; padding: 16px; }
+/* The chat is at most about 100 characters wide (a character counted at 0.55em), and a message's text about 70. */
+.arc-chat { display: flex; flex-direction: column; gap: 12px; max-width: 55em; margin: 0 auto; padding: 16px; }
 @media (prefers-color-scheme: dark) {
   /* @tokens dark */
   .arc-chat, .arc-sessions, .arc-settings { --arc-fg: #ececf1; --arc-muted: #9a9aa3; --arc-bg: #1b1b1f; --arc-soft: #26262c; --arc-line: #36363e; --arc-accent: #6ea0ff; --arc-ok: #4cc38a; --arc-bad: #ff7b72; --arc-run: #e3b341; }

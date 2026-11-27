@@ -94,7 +94,7 @@ public struct ArchipelTheme {
     /// How wide a message's column gets, the user's or the agent's: about 70 characters of the
     /// body font.
     public var columnWidth: CGFloat
-    /// How wide a chat gets, in the middle of a wider window: about 150 characters of the body font.
+    /// How wide a chat gets, in the middle of a wider window: about 100 characters of the body font.
     public var chatWidth: CGFloat
     /// The border of a card waiting for the user, and how much of the attention colour fills it.
     public var waitingBorder: CGFloat
@@ -113,7 +113,7 @@ public struct ArchipelTheme {
         cardPadding: EdgeInsets = EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10), rowSpacing: CGFloat = 10,
         waitingBorder: CGFloat = 1, waitingFill: Double = 0, drawsControls: Bool = false, settingsControlSize: ControlSize = .small,
         folderLabels: Bool = false, colorScheme: ColorScheme? = nil, columnWidth: CGFloat = 540,
-        chatWidth: CGFloat = 1155
+        chatWidth: CGFloat = 770
     ) {
         (self.colors, self.fonts, self.badge, self.cardRadius, self.controlRadius, self.cardPadding) =
             (colors, fonts, badge, cardRadius, controlRadius, cardPadding)

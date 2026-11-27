@@ -75,10 +75,10 @@ pub fn column_width(text_size: f32) -> f32 {
     70.0 * 0.55 * text_size
 }
 
-/// How wide a chat gets: about 150 characters of its text, counted the same way.
+/// How wide a chat gets: about 100 characters of its text, counted the same way.
 #[must_use]
 pub fn chat_width(text_size: f32) -> f32 {
-    150.0 * 0.55 * text_size
+    100.0 * 0.55 * text_size
 }
 
 pub fn user_message(item: &Value, cx: &App) -> Div {
