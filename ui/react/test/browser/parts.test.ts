@@ -239,6 +239,39 @@ test("an approval is answered with one click, a question with its form", async (
   await question.close();
 });
 
+test("tool calls: output while running, one group when over, and both open on a click", async () => {
+  const page = await part("tools");
+  const group = page.locator(".arc-tool-group");
+  const running = page.locator(".arc-timeline > .arc-row > .arc-tool");
+  // Two calls are over and grouped; the edit still runs and shows its diff.
+  assert.equal(await group.locator("summary").textContent(), "2 tool calls");
+  assert.equal(await group.locator(".arc-tool-head").first().isVisible(), false);
+  assert.equal(await running.locator(".arc-diff").isVisible(), true);
+
+  // The group opens to its calls, each closed; a call opens to its output and closes again.
+  await group.locator("summary").click();
+  const read = group.getByRole("button", { name: /Read package\.json/ });
+  assert.equal(await read.getAttribute("aria-expanded"), "false");
+  assert.equal(await group.locator(".arc-tool-output").count(), 0);
+  await read.click();
+  await group.locator(".arc-tool-output").waitFor();
+  assert.equal(await read.getAttribute("aria-expanded"), "true");
+  await read.click();
+  await group.locator(".arc-tool-output").waitFor({ state: "detached" });
+
+  // What the user chose stays when the call ends: the read they opened, the edit they left open
+  // closes by itself, and the group they opened stays open with the third call in it.
+  await read.click();
+  await page.getByRole("button", { name: "Finish" }).click();
+  await page.locator(".arc-tool-group summary", { hasText: "3 tool calls" }).waitFor();
+  assert.equal(await group.locator(".arc-tool-head").nth(2).isVisible(), true);
+  assert.equal(await group.locator(".arc-tool-output").count(), 1);
+  assert.equal(await page.locator(".arc-diff").count(), 0);
+  await group.getByRole("button", { name: /Edit package\.json/ }).click();
+  await group.locator(".arc-diff").waitFor();
+  await page.close();
+});
+
 test("a long session shows its end first and earlier messages on request, keeping the place", async () => {
   const page = await part("long");
   const rows = page.locator(".arc-row");

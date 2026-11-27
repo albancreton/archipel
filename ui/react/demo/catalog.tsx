@@ -13,7 +13,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   Activity, AgentStatus, Approval, AssistantMessage, ChatView, Compaction, Composer, ConnectionStatus, Diff, Fallback,
   OpenElsewhere, Plan, Question, SessionList, SessionMessage, SettingsBar, StatusBar, Subagent, Terminal, Thought,
-  Timeline, ToolCall, Usage, UserMessage, settingsOf,
+  Timeline, ToolCall, ToolGroup, Usage, UserMessage, settingsOf,
 } from "../src/index.ts";
 
 const here = import.meta.dirname;
@@ -115,6 +115,13 @@ const tool = (status: string, extra: JsonObject = {}): Json => ({
   toolCallId: status, name: "Read", kind: "read", title: "crates/archipel-server/src/sessions.rs", status, ...extra,
 });
 
+/** Three finished calls in a row, as a turn leaves them. */
+const grouped: Json[] = [
+  tool("completed", { content: [{ type: "content", content: { type: "text", text: "pub fn list(&self) -> Vec<Summary> {" } }] }),
+  { toolCallId: "g", kind: "search", title: "Search \"sort_by\" in crates/", status: "completed", content: [{ type: "content", content: { type: "text", text: "crates/archipel-server/src/sessions.rs:88" } }] },
+  { toolCallId: "e", kind: "edit", title: "Edit crates/archipel-server/src/sessions.rs", status: "completed", content: [{ type: "diff", changes: [{ path: "src/sessions.rs", operation: "modify" }], patch: { text: patch } }] },
+];
+
 const planEntries: Json = [
   { content: "Find where the list is sorted", status: "completed", priority: "high" },
   { content: "Sort by the last update", status: "in_progress", priority: "high" },
@@ -197,13 +204,14 @@ const conversation = (() => {
     agentThought: { t1: { content: text("The list is probably sorted on the daemon side. Let me look at sessions.rs first.") } },
     subagent: { sub: { sessionId: "sub", title: "Read package.json name field", state: { state: "idle" } } },
     toolCall: {
+      look: grouped[0]!, find: grouped[1]!,
       edit: { toolCallId: "edit", name: "Edit", kind: "edit", title: "Edit crates/archipel-server/src/sessions.rs", status: "completed", content: [{ type: "diff", changes: [{ path: "src/sessions.rs", operation: "modify" }], patch: { text: patch } }] },
       test: { toolCallId: "test", name: "Bash", kind: "execute", title: "cargo test --workspace", status: "in_progress", content: [{ type: "terminal", terminalId: "running" }] },
     },
     terminal: { running: terminals["running"]! },
     plan: { p1: { entries: planEntries } },
     agentMessage: { a1: { content: text("The list is sorted by creation time. I changed it to the last update and am running the tests.") } },
-  }, [["userMessage", "u1"], ["agentThought", "t1"], ["subagent", "sub"], ["plan", "p1"], ["toolCall", "edit"], ["agentMessage", "a1"], ["toolCall", "test"], ["request", "r1"]]);
+  }, [["userMessage", "u1"], ["agentThought", "t1"], ["subagent", "sub"], ["plan", "p1"], ["toolCall", "look"], ["toolCall", "find"], ["toolCall", "edit"], ["agentMessage", "a1"], ["toolCall", "test"], ["request", "r1"]]);
   root.requests.set("r1", permission(null));
   made.sessions.set("root", root);
   made.sessions.set("sub", child);
@@ -250,15 +258,18 @@ const sections: { id: string; title: string; intro: string; specimens: Specimen[
     ],
   },
   {
-    id: "tools", title: "Tool calls", intro: "A tool call has a kind, a title, a status badge and what it produced: text, a diff, or a terminal.",
+    id: "tools", title: "Tool calls", intro: "A tool call is one quiet line: its kind, its title, and a badge unless it went well. What it produced (text, a diff, a terminal) shows while it runs and folds away when it is over; the line opens it again. Finished calls in a row become one group.",
     specimens: [
-      { name: "ToolCall · pending", code: "<ToolCall item={item} />", draw: () => <ToolCall item={tool("pending")} /> },
-      { name: "ToolCall · in progress", code: "<ToolCall item={item} />", draw: () => <ToolCall item={tool("in_progress")} /> },
-      { name: "ToolCall · completed, with output", code: "<ToolCall item={item} />", draw: () => <ToolCall item={tool("completed", { content: [{ type: "content", content: { type: "text", text: "pub fn list(&self) -> Vec<Summary> {\n    let mut sessions = …;\n    sessions.sort_by(|a, b| a.created_at.cmp(&b.created_at));" } }] })} /> },
+      { name: "ToolCall · pending", code: "<ToolCall item={item} />", note: "Nothing to show yet, so the line is not a control.", draw: () => <ToolCall item={tool("pending")} /> },
+      { name: "ToolCall · running", code: "<ToolCall item={item} terminal={find} />", note: "Open while it runs.", wide: true, draw: () => <ToolCall item={{ toolCallId: "t", kind: "execute", title: "cargo test --workspace", status: "in_progress", content: [{ type: "terminal", terminalId: "running" }] }} terminal={(id) => terminals[id]} /> },
+      { name: "ToolCall · completed", code: "<ToolCall item={item} />", note: "Over: only the line stays, and no badge.", draw: () => <ToolCall item={tool("completed", { content: [{ type: "content", content: { type: "text", text: "pub fn list(&self) -> Vec<Summary> {\n    let mut sessions = …;\n    sessions.sort_by(|a, b| a.created_at.cmp(&b.created_at));" } }] })} /> },
+      { name: "ToolCall · completed, opened", code: "<ToolCall item={item} />", note: "After the user pressed the line.", draw: () => <ToolCall running item={tool("completed", { content: [{ type: "content", content: { type: "text", text: "pub fn list(&self) -> Vec<Summary> {\n    let mut sessions = …;\n    sessions.sort_by(|a, b| a.created_at.cmp(&b.created_at));" } }] })} /> },
       { name: "ToolCall · failed", code: "<ToolCall item={item} />", draw: () => <ToolCall item={tool("failed", { content: [{ type: "content", content: { type: "text", text: "File does not exist: crates/archipel-server/src/session.rs" } }] })} /> },
       { name: "ToolCall · cancelled", code: "<ToolCall item={item} />", draw: () => <ToolCall item={{ toolCallId: "x", kind: "search", title: "Search \"sort_by\" in crates/", status: "cancelled" }} /> },
-      { name: "ToolCall · with a diff", code: "<ToolCall item={item} />", wide: true, draw: () => <ToolCall item={{ toolCallId: "e", kind: "edit", title: "Edit crates/archipel-server/src/sessions.rs", status: "completed", content: [{ type: "diff", changes: [{ path: "src/sessions.rs", operation: "modify" }], patch: { text: patch } }] }} /> },
-      { name: "ToolCall · with a terminal", code: "<ToolCall item={item} terminal={find} />", wide: true, draw: () => <ToolCall item={{ toolCallId: "t", kind: "execute", title: "cargo test -p archipel-server sessions", status: "failed", content: [{ type: "terminal", terminalId: "failed" }] }} terminal={(id) => terminals[id]} /> },
+      { name: "ToolCall · with a diff, opened", code: "<ToolCall item={item} />", wide: true, draw: () => <ToolCall running item={{ toolCallId: "e", kind: "edit", title: "Edit crates/archipel-server/src/sessions.rs", status: "completed", content: [{ type: "diff", changes: [{ path: "src/sessions.rs", operation: "modify" }], patch: { text: patch } }] }} /> },
+      { name: "ToolCall · with a terminal, opened", code: "<ToolCall item={item} terminal={find} />", wide: true, draw: () => <ToolCall running item={{ toolCallId: "t", kind: "execute", title: "cargo test -p archipel-server sessions", status: "failed", content: [{ type: "terminal", terminalId: "failed" }] }} terminal={(id) => terminals[id]} /> },
+      { name: "ToolGroup", code: "<ToolGroup calls={calls}>{rows}</ToolGroup>", note: "Finished calls that followed one another. The Timeline makes the groups.", draw: () => <ToolGroup calls={grouped}>{grouped.map((item, at) => <ToolCall key={at} item={item} />)}</ToolGroup> },
+      { name: "ToolGroup · open, one failed", code: "<ToolGroup calls={calls}>{rows}</ToolGroup>", after: opened, draw: () => <ToolGroup calls={[...grouped, tool("failed")]}>{[...grouped, tool("failed")].map((item, at) => <ToolCall key={at} item={item} />)}</ToolGroup> },
     ],
   },
   {

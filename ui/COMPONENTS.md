@@ -44,6 +44,7 @@ App
     │   ├── UserMessage
     │   ├── AssistantMessage ─── Markdown
     │   ├── Thought ─── Markdown
+    │   ├── ToolGroup ─── ToolCall, Thought, Approval   (finished calls that followed one another)
     │   ├── ToolCall ─┬─ Terminal ─── AnsiText
     │   │             └─ Diff
     │   ├── Terminal                           (only when no tool call shows it)
@@ -67,15 +68,23 @@ Small pieces most components use. Keep them consistent; they are most of a set's
 
 | Part | What it is | Used by |
 |---|---|---|
-| **Badge** | A short word in a pill, coloured by tone: *ok* (`completed`, `idle`, `exit 0`), *bad* (`failed`, `cancelled`, other exits), *attention* (`needs you`), *running* (anything else: `pending`, `in progress`, `running`, `requires action`). `_` is shown as a space. | ToolCall, Terminal, Subagent, StatusBar, SessionRow |
-| **Label** | A small uppercase word naming a part: `Plan`, `Permission`, `Question`, `Subagent`, `Between agents`, `Tasks`, a tool's kind. | Most cards |
-| **Card** | A bordered, softly filled box. Highlighted (attention colour) while it waits for the user. | ToolCall, Plan, SessionMessage, Approval, Question. A Subagent is not a card: its timeline hangs from its row on a guide line, so its cards are never inside another card. |
-| **Fold** | A one-line summary that opens to show more. Closed by default. | Thought, Compaction, Fallback, Activity's tasks. Subagent is open by default. |
+| **Badge** | A short word in a pill, coloured by tone: *ok* (`completed`, `idle`, `exit 0`), *bad* (`failed`, `cancelled`, other exits), *attention* (`needs you`), *running* (anything else: `pending`, `in progress`, `running`, `requires action`). `_` is shown as a space. | ToolCall (unless it completed), Terminal, Subagent, StatusBar, SessionRow |
+| **Label** | A small uppercase word naming a part: `Plan`, `Permission`, `Question`, `Subagent`, `Between agents`, `Tasks`, a tool's kind. | Most cards, ToolCall |
+| **Card** | A bordered, softly filled box. Highlighted (attention colour) while it waits for the user. | Plan, SessionMessage, Approval (while it waits), Question. A ToolCall is not a card: it is one quiet line (see [the weight of a turn's parts](#the-weight-of-a-turns-parts)). Nor is a Subagent: its timeline hangs from its row on a guide line, so its cards are never inside another card. |
+| **Fold** | A one-line summary that opens to show more. Closed by default. | Thought, ToolGroup, Compaction, Fallback, Activity's tasks. Subagent is open by default. A ToolCall folds its output the same way, but opens by itself while it runs. |
 | **Code block** | Monospaced text in a bordered box, wrapping long lines. | ToolCall output, Terminal, Fallback, Markdown code |
 | **Chip** | A small rounded name. | Attachments, background work |
 | **Meter** | A thin bar, full to a percentage. Attention colour from 80%. | Usage |
 | **Notice** | A line across the view with a tone (*wait*, *act*, *bad*) and maybe one button. | AgentStatus, ConnectionStatus, OpenElsewhere |
 | **Problem** | A line in the error colour, under the control that failed. | SettingsBar, Composer, SessionRow, OpenElsewhere |
+
+### The weight of a turn's parts
+
+What the agent **said** is what the user came for; what it **did and thought** on the way is there to be looked into. A set draws the two so that they cannot be mistaken:
+
+- AssistantMessage is the strongest text of a turn: the primary colour, the largest size.
+- ToolCall, ToolGroup, Thought and an Approval that has its answer are quiet: one line each, secondary colour, smaller, no card and no fill, with the same mark on those that open.
+- What a finished turn leaves on screen is the user's message, a few quiet lines, and the answer. Output is on screen only while it is being produced, or when the user opens it.
 
 Colours a set needs, at least: text, secondary text, background, soft background (cards), raised and sunken surfaces (the user's messages and menus; code, diffs and fields), line (borders), accent (primary buttons, links, focus), ok, bad, running, and attention (waiting for the user, warnings). Terminal output needs 16 more (ANSI 0 to 15), in both themes.
 
@@ -88,7 +97,7 @@ How each `target` of the timeline is drawn.
 | `userMessage` | [UserMessage](#usermessage) |
 | `agentMessage` | [AssistantMessage](#assistantmessage) |
 | `agentThought` | [Thought](#thought) |
-| `toolCall` | [ToolCall](#toolcall) |
+| `toolCall` | [ToolCall](#toolcall), inside a [ToolGroup](#toolgroup) when it is one of several finished calls in a row |
 | `terminal` | [Terminal](#terminal), unless a tool call already shows it |
 | `plan` | [Plan](#plan) |
 | `subagent` | [Subagent](#subagent) |
@@ -145,7 +154,9 @@ How each `target` of the timeline is drawn.
 
 **Out:** "Show earlier" draws `pageSize` more. Counted from the end, so items that arrive do not push older ones out.
 
-**Rules:** one row per timeline entry, each found in `collections` (or `requests`). Rows off screen should cost nothing to draw. A terminal that a tool call points at is drawn in the tool call, not again on its own.
+**Rules:** one row per timeline entry, each found in `collections` (or `requests`), except that finished tool calls in a row share one, a [ToolGroup](#toolgroup). Rows off screen should cost nothing to draw. A terminal that a tool call points at is drawn in the tool call, not again on its own.
+
+**Running:** the Timeline tells each ToolCall whether it runs. A call runs when its status is `pending` or `in_progress` and either the turn is not `idle` or the call is in `values.state.background`. A call left `in_progress` by a turn that was cut short is over.
 
 ---
 
@@ -171,7 +182,7 @@ Each item component takes the item (JSON as the SDK holds it) and, where the use
 |---|---|
 | `item.content` | Text blocks; their text joined is Markdown |
 
-**Draws:** the text through [Markdown](#markdown), or through the app's renderer if it gave one.
+**Draws:** the text through [Markdown](#markdown), or through the app's renderer if it gave one. The strongest text of the turn (see [the weight of a turn's parts](#the-weight-of-a-turns-parts)).
 
 ### Thought
 
@@ -180,7 +191,7 @@ Each item component takes the item (JSON as the SDK holds it) and, where the use
 | In | `item.content`, Markdown |
 |---|---|
 
-**Draws:** a Fold titled "Thinking", closed. Secondary colour.
+**Draws:** a Fold titled "Thinking", closed. Secondary colour, and the same quiet line as a ToolCall.
 
 ### ToolCall
 
@@ -190,13 +201,40 @@ Each item component takes the item (JSON as the SDK holds it) and, where the use
 |---|---|
 | `item.kind` | `read`, `edit`, `delete`, `move`, `search`, `execute`, `think`, `fetch`, `switch_mode`, `other` (as a Label; falls back to `item.name`) |
 | `item.title` | What it did, such as a path or a command; monospaced, one line |
-| `item.status` | `pending`, `in_progress`, `completed`, `failed` (also `cancelled`), as a Badge |
+| `item.status` | `pending`, `in_progress`, `completed`, `failed` (also `cancelled`). A Badge, except `completed`: a call that went well says nothing more |
 | `item.content` | A list of: `{ type: "content", content }` text output; `{ type: "diff", … }` a [Diff](#diff); `{ type: "terminal", terminalId }` a [Terminal](#terminal) |
 | `terminal(id)` | Finds a terminal item by id, for the last kind |
+| `running` | Whether the call still runs. From the Timeline; on its own, a ToolCall goes by its status |
+| `chosen`, `onToggle` | What the user chose, open or closed, and the call that changes it. The Timeline keeps it by the call's id, because a call changes rows when it ends and joins a group; on its own, a ToolCall keeps it itself |
 
-**Draws:** a Card with kind, title and status on one line, then each content block below.
+**Draws:** one quiet line with kind, title and status (not a Card), and under it, when open, each content block.
 
-**Related:** contains Terminal and Diff. Approvals often ask about a tool call just before it runs.
+**States:**
+- **Running:** open. The output is in view while it is produced, and so is the diff an approval asks about.
+- **Over** (completed, failed, cancelled): closed. Only the line stays.
+- **Toggled:** the line opens and closes the output, and says which it is to assistive technology. Once the user has pressed it, their choice stays: a call they opened does not close when it ends, and one they closed does not open again.
+- **Nothing to show** (no content, or only a terminal that is not found): the line alone, and it is not a control.
+
+**Related:** contains Terminal and Diff. Approvals often ask about a tool call just before it runs. Finished calls in a row are drawn in a [ToolGroup](#toolgroup).
+
+### ToolGroup
+
+**For:** several tool calls that are over and followed one another, as one line instead of one each.
+
+| In | |
+|---|---|
+| `calls` | The tool call items, in order |
+| children | The rows of the group: each call, and what came between two of them |
+
+**Draws:** a Fold, closed: "N tool calls", and " · M failed" in the bad tone when some failed or were cancelled. It opens to its rows on a guide line, each call still closed and opened on its own.
+
+**What is grouped** (the Timeline decides, from the current state, in order):
+- A call that is over joins the group being built. A group needs two calls; one alone is drawn as a plain ToolCall.
+- An Approval that has its answer goes into the group of the call it follows, whether or not another call comes after. A Thought goes in only when it lies **between** two calls; one that follows the last call stays outside, on its own row, and so does an answered approval behind it.
+- Anything else ends the group: a message, a plan, a subagent, a question, an approval still waiting, an item of an unknown kind. So does a call that still runs, which is drawn on its own so that its output is seen. When it ends, it joins the calls before it.
+- What draws nothing (a cursor, a terminal its tool call shows) is passed over and ends nothing.
+
+A group is known by its first row, so one the user opened stays open while calls are added to it.
 
 ### Terminal
 
@@ -285,6 +323,8 @@ Each item component takes the item (JSON as the SDK holds it) and, where the use
 | `onChoose(optionId)` | → `actions.approve(requestId, optionId)` |
 
 **States:** waiting (highlighted Card, one button per option, in the agent's order); answered (the chosen option's name); cancelled ("Cancelled"). The answer may come from another app.
+
+**Draws, once it has its answer:** no longer a Card but one quiet line, like the [ToolCall](#toolcall) it was about: the label, the title on one line, the answer. It lines up with the tool calls' titles, and goes into a [ToolGroup](#toolgroup) with the call it follows.
 
 ### Question
 
@@ -509,7 +549,7 @@ What a chat can do, as the app gives it. Each is optional; without it, its contr
 | ChatView | `ChatView` (+ `useSession`) | `ChatView`, `LiveChatView` | `ChatView` (an entity), `live_chat` |
 | StatusBar | `StatusBar` | `StatusBar` | `status::status_bar` |
 | Timeline | `Timeline` | `SessionTimeline` | `timeline`, `timeline_row` |
-| UserMessage … Fallback | `UserMessage`, `AssistantMessage`, `Thought`, `ToolCall`, `Terminal`, `Diff`, `Plan`, `Subagent`, `SessionMessage`, `Compaction`, `Approval`, `Question`, `Fallback` | the same with `View` after (`DiffView` for Diff) | functions of `items`, in snake case (`items::tool_call`); `diff::diff` for Diff |
+| UserMessage … Fallback | `UserMessage`, `AssistantMessage`, `Thought`, `ToolCall`, `ToolGroup`, `Terminal`, `Diff`, `Plan`, `Subagent`, `SessionMessage`, `Compaction`, `Approval`, `Question`, `Fallback` | the same with `View` after (`DiffView` for Diff) | functions of `items`, in snake case (`items::tool_call`); `diff::diff` for Diff |
 | Markdown | `Markdown` | `MarkdownText` | `markdown::markdown` |
 | AnsiText | `AnsiText` | `AnsiText` | `parts::ansi_text` |
 | Usage | `Usage` | `UsageView` | `status::usage` |

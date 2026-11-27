@@ -110,6 +110,53 @@ struct CodeBlock: View {
     }
 }
 
+/// The quiet line of what the agent did or thought: a chevron and a few words, in the secondary
+/// colour, that opens what is under it. Without `toggle` it is not a control and has no chevron.
+struct FoldLine<Words: View>: View {
+    let open: Bool
+    /// What assistive technology reads for the line.
+    let label: String
+    var toggle: (() -> Void)?
+    @ViewBuilder var words: Words
+    @Environment(\.archipelTheme) private var theme
+    var body: some View {
+        let line = HStack(alignment: .center, spacing: 8) {
+            Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold))
+                .rotationEffect(.degrees(open ? 90 : 0))
+                .frame(width: 10)
+                .opacity(toggle == nil ? 0 : 1)
+                .accessibilityHidden(true)
+            words
+            Spacer(minLength: 0)
+        }
+        .font(theme.fonts.secondary).foregroundStyle(theme.colors.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        if let toggle {
+            Button(action: toggle) { line }
+                .buttonStyle(.plain)
+                .accessibilityLabel(label)
+                .accessibilityValue(open ? "expanded" : "collapsed")
+        } else {
+            line
+        }
+    }
+}
+
+/// What a fold line opened: under it, hanging from a guide line.
+struct FoldBody<Content: View>: View {
+    var spacing: CGFloat = 6
+    @ViewBuilder var content: Content
+    @Environment(\.archipelTheme) private var theme
+    var body: some View {
+        VStack(alignment: .leading, spacing: spacing) { content }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 13)
+            .overlay(alignment: .leading) { Rectangle().fill(theme.colors.line).frame(width: 1) }
+            .padding(.leading, 4)
+    }
+}
+
 /// The mark before a plan entry or a todo: a tick when done, a dot while in progress, a ring before.
 struct PlanMark: View {
     let status: String
@@ -162,12 +209,16 @@ public struct AssistantMessageView: View {
     let item: JSON
     @Environment(\.agentText) private var render
     public init(item: JSON) { self.item = item }
+    @Environment(\.archipelTheme) private var theme
     public var body: some View {
+        // The strongest text of a turn: the body font in the text colour. What the agent did
+        // and thought is drawn smaller and in the secondary colour.
         render(contentText(item["content"])).frame(maxWidth: .infinity, alignment: .leading)
+            .font(theme.fonts.body).foregroundStyle(theme.colors.text)
     }
 }
 
-/// Reasoning, folded by default.
+/// Reasoning, folded by default: the same quiet line as a tool call.
 public struct ThoughtView: View {
     let item: JSON
     @State private var open = false
@@ -179,11 +230,16 @@ public struct ThoughtView: View {
         _open = State(initialValue: open)
     }
     public var body: some View {
-        DisclosureGroup("Thinking", isExpanded: $open) {
-            render(contentText(item["content"]).trimmingCharacters(in: .whitespacesAndNewlines))
-                .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 4) {
+            FoldLine(open: open, label: "Thinking", toggle: { open.toggle() }) { Text("Thinking") }
+            if open {
+                FoldBody {
+                    render(contentText(item["content"]).trimmingCharacters(in: .whitespacesAndNewlines))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(theme.fonts.secondary).foregroundStyle(theme.colors.secondary)
+            }
         }
-        .font(theme.fonts.secondary).foregroundStyle(theme.colors.secondary)
     }
 }
 
@@ -209,35 +265,111 @@ public struct TerminalView: View {
     }
 }
 
-/// A tool call: its title and status, and what it produced. `terminal` finds a terminal by id,
-/// for calls whose content points at one.
+/// Whether a tool call is still going, by its own status.
+public func toolRunning(_ item: JSON) -> Bool {
+    ["", "pending", "in_progress"].contains(item["status"]?.string ?? "")
+}
+
+func toolFailed(_ item: JSON) -> Bool {
+    ["failed", "cancelled"].contains(item["status"]?.string ?? "")
+}
+
+/// A tool call: one quiet line with its kind, title and status, and under it what it produced.
+/// The output shows while the call runs and folds away when it is over; the line opens and
+/// closes it, and what the user chose stays. `terminal` finds a terminal by id, for calls whose
+/// content points at one. `running` is the call's own status unless the caller knows better
+/// (a call left `in_progress` by a turn that was cut short is not running).
 public struct ToolCallView: View {
     let item: JSON
+    var running: Bool
     var terminal: (String) -> JSON? = { _ in nil }
+    /// What the user chose, once they pressed the line. Kept here only when the call is used
+    /// alone: a timeline keeps it itself (`choice`), because a call changes rows when it ends.
+    @State private var own: Bool?
+    var choice: Binding<Bool?>?
     @Environment(\.archipelTheme) private var theme
-    public init(item: JSON, terminal: @escaping (String) -> JSON? = { _ in nil }) {
+    /// `open`: the user's choice from the start, for a picture of that state. `choice`: where
+    /// the user's choice is kept, when the caller keeps it.
+    public init(
+        item: JSON, running: Bool? = nil, open: Bool? = nil, choice: Binding<Bool?>? = nil,
+        terminal: @escaping (String) -> JSON? = { _ in nil }
+    ) {
         self.item = item
+        self.running = running ?? toolRunning(item)
+        self.choice = choice
         self.terminal = terminal
+        _own = State(initialValue: open)
+    }
+
+    /// The content blocks that draw something.
+    private var blocks: [JSON] {
+        (item["content"]?.array ?? []).filter { block in
+            switch block["type"]?.string {
+            case "terminal": return block["terminalId"]?.string.flatMap(terminal) != nil
+            case "diff": return true
+            default: return !contentText(block).isEmpty
+            }
+        }
+    }
+
+    public var body: some View {
+        let blocks = blocks
+        let status = item["status"]?.string ?? "pending"
+        let kind = item["kind"]?.string ?? item["name"]?.string ?? "tool"
+        let title = item["title"]?.string ?? item["name"]?.string ?? ""
+        let chosen = choice ?? $own
+        let open = !blocks.isEmpty && (chosen.wrappedValue ?? running)
+        // A call that went well says nothing more: only what runs or went wrong is marked.
+        let said = status == "completed" ? "" : ", " + status.replacingOccurrences(of: "_", with: " ")
+        VStack(alignment: .leading, spacing: 4) {
+            FoldLine(open: open, label: "\(kind), \(title)\(said)", toggle: blocks.isEmpty ? nil : { chosen.wrappedValue = !open }) {
+                Label2(text: kind)
+                Text(title).font(theme.fonts.mono).lineLimit(1)
+                    .foregroundStyle(toolRunning(item) ? theme.colors.text : theme.colors.secondary)
+                    .layoutPriority(-1)
+                if status != "completed" { Badge(text: status, tone: toolFailed(item) ? .bad : .running) }
+            }
+            if open {
+                FoldBody {
+                    ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                        switch block["type"]?.string {
+                        case "terminal":
+                            if let found = block["terminalId"]?.string.flatMap(terminal) { TerminalView(item: found) }
+                        case "diff":
+                            DiffView(block: block)
+                        default:
+                            CodeBlock(text: contentText(block))
+                        }
+                    }
+                }
+                .font(theme.fonts.body).foregroundStyle(theme.colors.text)
+            }
+        }
+    }
+}
+
+/// Finished tool calls that followed one another, as one line: how many, and how many failed.
+/// It opens to the calls (and what came between them), each still folded.
+public struct ToolGroupView<Rows: View>: View {
+    let calls: [JSON]
+    @ViewBuilder var rows: Rows
+    @State private var open: Bool
+    @Environment(\.archipelTheme) private var theme
+    /// `open`: shown unfolded at first.
+    public init(calls: [JSON], open: Bool = false, @ViewBuilder rows: () -> Rows) {
+        self.calls = calls
+        self.rows = rows()
+        _open = State(initialValue: open)
     }
     public var body: some View {
-        Card {
-            HStack(alignment: .firstTextBaseline) {
-                Label2(text: item["kind"]?.string ?? item["name"]?.string ?? "tool")
-                Text(item["title"]?.string ?? item["name"]?.string ?? "").font(theme.fonts.mono).lineLimit(1)
-                Spacer()
-                Badge(text: item["status"]?.string ?? "pending")
+        let failed = calls.filter(toolFailed).count
+        let count = "\(calls.count) tool calls"
+        let wrong = failed > 0 ? " · \(failed) failed" : ""
+        VStack(alignment: .leading, spacing: 6) {
+            FoldLine(open: open, label: count + wrong, toggle: { open.toggle() }) {
+                Text(count) + Text(wrong).foregroundColor(theme.colors.bad)
             }
-            ForEach(Array((item["content"]?.array ?? []).enumerated()), id: \.offset) { _, block in
-                switch block["type"]?.string {
-                case "terminal":
-                    if let found = block["terminalId"]?.string.flatMap(terminal) { TerminalView(item: found) }
-                case "diff":
-                    DiffView(block: block)
-                default:
-                    let body = contentText(block)
-                    if !body.isEmpty { CodeBlock(text: body) }
-                }
-            }
+            if open { FoldBody { rows } }
         }
     }
 }
@@ -324,7 +456,8 @@ public struct CompactionView: View {
     }
 }
 
-/// An approval: the question and its options. Once answered it shows which option was taken.
+/// An approval: the question and its options, in a card that waits for the user. Once answered
+/// it is one quiet line, like a tool call, that says which option was taken.
 public struct ApprovalView: View {
     let request: Request
     var choose: (String) -> Void = { _ in }
@@ -335,14 +468,19 @@ public struct ApprovalView: View {
     }
     public var body: some View {
         let options = request.params["options"]?.array ?? []
-        Card(highlighted: request.outcome == nil) {
-            LabelledTitle(label: "Permission", title: request.params["title"]?.string ?? "")
-            if let outcome = request.outcome {
-                let chosen = outcome.at("outcome.optionId")?.string
-                let name = options.first { $0["optionId"]?.string == chosen }?["name"]?.string
-                Text(outcome.at("outcome.outcome")?.string == "cancelled" ? "Cancelled" : (name ?? chosen ?? ""))
-                    .foregroundStyle(theme.colors.secondary)
-            } else {
+        let title = request.params["title"]?.string ?? ""
+        if let outcome = request.outcome {
+            let chosen = outcome.at("outcome.optionId")?.string
+            let name = options.first { $0["optionId"]?.string == chosen }?["name"]?.string
+            let answer = outcome.at("outcome.outcome")?.string == "cancelled" ? "Cancelled" : (name ?? chosen ?? "")
+            FoldLine(open: false, label: "Permission, \(title), \(answer)") {
+                Label2(text: "Permission")
+                Text(title).lineLimit(1).layoutPriority(-1)
+                Text(answer).lineLimit(1)
+            }
+        } else {
+            Card(highlighted: true) {
+                LabelledTitle(label: "Permission", title: title)
                 HStack {
                     // The first option is the one most often taken.
                     ForEach(Array(options.enumerated()), id: \.offset) { index, option in

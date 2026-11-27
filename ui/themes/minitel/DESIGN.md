@@ -193,7 +193,7 @@ Cool slate neutrals from Minitel's Theme.swift, one periwinkle accent for action
 
 ### Neutral
 - **Ground** (bg): the page and the terminal behind it. Session rows rest on it.
-- **Card Slate** (soft): every bordered card (tool call, plan, request, session message, notice, activity). A subagent is not a card: its row carries the chevron, label, title and badge, and its timeline hangs below on a 1px edge-colour guide line indented 7px, so cards never nest, hovered and selected session rows, table headers.
+- **Card Slate** (soft): every bordered card (plan, a request that waits, a question, session message, notice, activity). A tool call is not a card, nor an approval that has its answer: they are quiet lines, so that the agent's own text is the strongest thing in a turn. A subagent is not a card either: its row carries the chevron, label, title and badge, and its timeline hangs below on a 1px edge-colour guide line indented 7px, so cards never nest, hovered and selected session rows, table headers.
 - **Raised Slate** (raised): the user's message, buttons, chips, the command menu, inline code.
 - **Well** (sunken): anything the user reads as raw output or types into: code blocks, terminal output, diffs, inputs, the composer.
 - **Hairline** (line): every 1px border and divider, the meter's track.
@@ -289,7 +289,7 @@ Icons are authored SVG on a 16 by 16 grid, drawn at 16px with a 1.4 stroke, roun
 - Rows rest on the ground with a transparent border; hover and focus lift them to Card Slate; the selected row is Card Slate with an Amethyst border. Rename and delete appear on hover or focus (always on touch screens) as 32px icon buttons over a gradient into the row colour.
 
 ### Timeline items (signature)
-- **Tool call:** a head row of label, mono title (ellipsis) and badge, then output in a Well code block. Diffs are tables in mono 15px with 16% green or coral row tints, signs at 70% tone, muted line numbers.
+- **Tool call:** one muted 15px line, no card: chevron, label, mono title (ellipsis), and a badge unless it completed. Its output, in a Well code block, sits under the line, in from the chevron, while the call runs or when the line is pressed; the title turns to the text colour while it runs and on hover. Finished calls in a row fold into one line of the same kind, "N tool calls" (and " · M failed" in Coral), which opens to them. An approval that has its answer is such a line too, without a chevron: label, title, answer. Diffs are tables in mono 15px with 16% green or coral row tints, signs at 70% tone, muted line numbers.
 - **Thought and compaction:** muted 15px behind a chevron, no card.
 - **Plan:** steps with authored marks; the in-progress step is bold with a purple dot; done steps are muted and struck through in Edge.
 

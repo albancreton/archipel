@@ -28,7 +28,10 @@ pub mod settings;
 pub mod status;
 pub mod theme;
 
-pub use chat::{ChatActions, ChatView, ItemViews, timeline, timeline_row};
+pub use chat::{
+    ChatActions, ChatView, ItemViews, TimelineRow, timeline, timeline_row, timeline_row_of,
+    timeline_rows,
+};
 pub use composer::{Accepts, Attachment, Command, Composer, Mention};
 pub use input::{FieldEvent, TextField};
 pub use sessions::{SessionList, SessionListEvent, SessionSummary, session_row};

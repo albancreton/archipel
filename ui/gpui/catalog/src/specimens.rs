@@ -143,6 +143,18 @@ fn tool(status: &str, content: Option<Value>) -> Value {
     item
 }
 
+/// Three calls that are over, one of them failed, for the ToolGroup specimens.
+fn group_calls() -> Vec<Value> {
+    vec![
+        tool(
+            "completed",
+            Some(output("pub fn list(&self) -> Vec<Summary> {")),
+        ),
+        json!({ "toolCallId": "g", "name": "Grep", "kind": "search", "title": "Search \"sort_by\" in crates", "status": "completed", "content": output("crates/archipel-server/src/sessions.rs:41") }),
+        json!({ "toolCallId": "x", "name": "Read", "kind": "read", "title": "crates/archipel-server/src/session.rs", "status": "failed", "content": output("File does not exist: crates/archipel-server/src/session.rs") }),
+    ]
+}
+
 fn output(body: &str) -> Value {
     json!([{ "type": "content", "content": { "type": "text", "text": body } }])
 }
@@ -441,6 +453,9 @@ pub fn sections(window: &mut Window, cx: &mut App) -> Vec<Section> {
         "cat/compaction-open",
         "cat/fallback-open",
         "cat/activity-open/tasks",
+        "cat/t6",
+        "cat/t7",
+        "cat/g2",
     ] {
         memory::set_flag(cx, key, true);
     }
@@ -498,33 +513,58 @@ pub fn sections(window: &mut Window, cx: &mut App) -> Vec<Section> {
         Section {
             id: "tools",
             title: "Tool calls",
-            intro: "A tool call has a kind, a title, a status badge and what it produced: text, a diff, or a terminal.",
+            intro: "A tool call is one quiet line: its kind, its title, and a badge unless it went well. What it produced (text, a diff, a terminal) shows while it runs and folds away when it is over; the line opens and closes it. Finished calls in a row are one group.",
             specimens: vec![
-                specimen("ToolCall · pending", "items::tool_call(key, &item, find_terminal, cx)", |_, cx| items::tool_call("cat/t1", &tool("pending", None), |_| None, cx)),
-                specimen("ToolCall · in progress", "items::tool_call(key, &item, find_terminal, cx)", |_, cx| items::tool_call("cat/t2", &tool("in_progress", None), |_| None, cx)),
-                specimen("ToolCall · completed, with output", "items::tool_call(key, &item, find_terminal, cx)", |_, cx| {
+                specimen("ToolCall · pending", "items::tool_call(key, &item, running, find_terminal, cx)", |_, cx| items::tool_call("cat/t1", &tool("pending", None), true, |_| None, cx)),
+                specimen("ToolCall · running, with its output", "items::tool_call(key, &item, true, |id| terminals.get(id), cx)", |_, cx| {
+                    let item = json!({ "toolCallId": "r", "name": "Bash", "kind": "execute", "title": "cargo test --workspace", "status": "in_progress",
+                        "content": [{ "type": "terminal", "terminalId": "running" }] });
+                    let terminals = terminals();
+                    items::tool_call("cat/t2", &item, true, |id| terminals.get(id), cx)
+                })
+                .note("Open by itself while it runs."),
+                specimen("ToolCall · completed", "items::tool_call(key, &item, false, find_terminal, cx)", |_, cx| {
                     let content = output("pub fn list(&self) -> Vec<Summary> {\n    let mut sessions = …;\n    sessions.sort_by(|a, b| a.created_at.cmp(&b.created_at));");
-                    items::tool_call("cat/t3", &tool("completed", Some(content)), |_| None, cx)
+                    items::tool_call("cat/t3", &tool("completed", Some(content)), false, |_| None, cx)
+                })
+                .note("Closed once it is over, with no badge. Press the line to see what it produced."),
+                specimen("ToolCall · failed", "items::tool_call(key, &item, false, find_terminal, cx)", |_, cx| {
+                    items::tool_call("cat/t4", &tool("failed", Some(output("File does not exist: crates/archipel-server/src/session.rs"))), false, |_| None, cx)
                 }),
-                specimen("ToolCall · failed", "items::tool_call(key, &item, find_terminal, cx)", |_, cx| {
-                    items::tool_call("cat/t4", &tool("failed", Some(output("File does not exist: crates/archipel-server/src/session.rs"))), |_| None, cx)
-                }),
-                specimen("ToolCall · cancelled", "items::tool_call(key, &item, find_terminal, cx)", |_, cx| {
-                    items::tool_call("cat/t5", &json!({ "toolCallId": "s", "name": "Grep", "kind": "search", "title": "Search \"sort_by\" in crates", "status": "cancelled" }), |_| None, cx)
-                }),
-                specimen("ToolCall · with a diff", "items::tool_call(key, &item, find_terminal, cx)", |_, cx| {
+                specimen("ToolCall · cancelled, nothing to show", "items::tool_call(key, &item, false, find_terminal, cx)", |_, cx| {
+                    items::tool_call("cat/t5", &json!({ "toolCallId": "s", "name": "Grep", "kind": "search", "title": "Search \"sort_by\" in crates", "status": "cancelled" }), false, |_| None, cx)
+                })
+                .note("With nothing to show, the line is not a control."),
+                specimen("ToolCall · with a diff, opened", "items::tool_call(key, &item, false, find_terminal, cx)", |_, cx| {
                     let item = json!({ "toolCallId": "e", "name": "Edit", "kind": "edit", "title": "Edit crates/archipel-server/src/sessions.rs", "status": "completed",
                         "content": [{ "type": "diff", "changes": [{ "path": "src/sessions.rs", "operation": "modify" }], "patch": { "text": PATCH } }] });
-                    items::tool_call("cat/t6", &item, |_| None, cx)
+                    items::tool_call("cat/t6", &item, false, |_| None, cx)
                 })
                 .wide(),
-                specimen("ToolCall · with a terminal", "items::tool_call(key, &item, |id| terminals.get(id), cx)", |_, cx| {
+                specimen("ToolCall · with a terminal, opened", "items::tool_call(key, &item, false, |id| terminals.get(id), cx)", |_, cx| {
                     let item = json!({ "toolCallId": "t", "name": "Bash", "kind": "execute", "title": "cargo test -p archipel-server sessions", "status": "failed",
                         "content": [{ "type": "terminal", "terminalId": "failed" }] });
                     let terminals = terminals();
-                    items::tool_call("cat/t7", &item, |id| terminals.get(id), cx)
+                    items::tool_call("cat/t7", &item, false, |id| terminals.get(id), cx)
                 })
                 .wide(),
+                specimen("ToolGroup · closed", "items::tool_group(key, &calls, cx, rows)", |_, cx| {
+                    let calls = group_calls();
+                    items::tool_group("cat/g1", &calls.iter().collect::<Vec<_>>(), cx, Vec::new)
+                })
+                .note("Finished calls that followed one another, as one line."),
+                specimen("ToolGroup · open", "items::tool_group(key, &calls, cx, rows)", |window, cx| {
+                    let calls = group_calls();
+                    let thought = items::thought("cat/g2/thought", &json!({ "content": text("The order is set in sessions.rs.") }), window, cx).into_any_element();
+                    let mut rows: Vec<gpui::AnyElement> = calls
+                        .iter()
+                        .enumerate()
+                        .map(|(index, call)| items::tool_call(&format!("cat/g2/{index}"), call, false, |_| None, cx).into_any_element())
+                        .collect();
+                    rows.insert(1, thought);
+                    items::tool_group("cat/g2", &calls.iter().collect::<Vec<_>>(), cx, || rows)
+                })
+                .note("Each call is still closed, and opens on its own. A thought between two calls is in the group."),
             ],
         },
         Section {

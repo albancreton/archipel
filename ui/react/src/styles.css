@@ -19,10 +19,32 @@
 .arc-user { align-self: flex-end; max-width: 85%; margin-left: auto; padding: 8px 12px; border-radius: 14px; background: var(--arc-accent); color: #fff; }
 .arc-row:has(.arc-user) { display: flex; }
 .arc-thought, .arc-compaction, .arc-fallback { color: var(--arc-muted); font-size: 13px; }
-.arc-thought summary, .arc-compaction summary, .arc-fallback summary, .arc-subagent summary { cursor: pointer; }
+/* What the agent said is the largest and darkest text of a turn. What it did and thought is small and muted. */
+.arc-assistant { font-size: 15px; line-height: 1.6; }
+.arc-row:has(> .arc-assistant) { margin: 4px 0; }
+.arc-thought summary, .arc-compaction summary, .arc-fallback summary, .arc-subagent summary, .arc-tool-group summary { cursor: pointer; }
 .arc-thought > div, .arc-compaction > div { margin-top: 4px; padding-left: 12px; border-left: 2px solid var(--arc-line); }
-.arc-tool, .arc-plan, .arc-request, .arc-session-message { border: 1px solid var(--arc-line); border-radius: 10px; padding: 8px 10px; background: var(--arc-soft); white-space: normal; }
-.arc-tool-head, .arc-terminal-command { display: flex; align-items: center; gap: 8px; }
+.arc-plan, .arc-request, .arc-session-message { border: 1px solid var(--arc-line); border-radius: 10px; padding: 8px 10px; background: var(--arc-soft); white-space: normal; }
+.arc-terminal-command { display: flex; align-items: center; gap: 8px; }
+/* A tool call is one quiet line, not a card. The line is a button when there is output to open. */
+.arc-tool, .arc-tool-group, .arc-approved { white-space: normal; color: var(--arc-muted); font-size: 13px; }
+/* An approval that has its answer is a line of the same kind, in from where a chevron would be. */
+.arc-approved { display: flex; align-items: center; gap: 8px; padding-left: 21px; }
+.arc-approved .arc-request-title { flex: 1; min-width: 0; font-size: inherit; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arc-chat .arc-tool .arc-tool-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 0; border: 0; border-radius: 4px; background: none; color: inherit; font: inherit; text-align: left; }
+.arc-chat .arc-tool button.arc-tool-head { cursor: pointer; }
+/* One chevron for everything that opens in a turn's work: a call, a group of calls, a thought. */
+.arc-tool-head::before, .arc-tool-group > summary::before, .arc-thought > summary::before { content: ""; flex: none; display: inline-block; width: 5px; height: 5px; margin: 0 4px 0 2px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); transition: transform 120ms ease-out; }
+div.arc-tool-head::before { visibility: hidden; }
+.arc-tool-head[aria-expanded="true"]::before, .arc-tool-group[open] > summary::before, .arc-thought[open] > summary::before { transform: rotate(45deg); }
+.arc-tool-group > summary, .arc-thought > summary { display: flex; align-items: center; gap: 8px; list-style: none; }
+.arc-tool-group > summary::-webkit-details-marker, .arc-thought > summary::-webkit-details-marker { display: none; }
+.arc-tool-head:hover .arc-tool-title, .arc-tool-group > summary:hover, .arc-thought > summary:hover, .arc-tool-pending .arc-tool-title, .arc-tool-in_progress .arc-tool-title { color: var(--arc-fg); }
+/* What a call produced, and the calls of a group, hang from their line on a guide. */
+.arc-tool-body, .arc-tool-group-body { margin: 4px 0 2px 4px; padding-left: 13px; border-left: 1px solid var(--arc-line); }
+.arc-tool-body { color: var(--arc-fg); }
+.arc-tool-body > :first-child, .arc-tool-body > .arc-diff > :first-child { margin-top: 0; }
+.arc-tool-group-body { display: flex; flex-direction: column; gap: 4px; }
 .arc-tool-kind, .arc-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--arc-muted); }
 .arc-tool-title { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .arc-terminal-command code { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

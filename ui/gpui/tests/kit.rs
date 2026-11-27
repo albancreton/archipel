@@ -3,9 +3,12 @@
 
 use archipel_core::state::{Conversation, Request};
 use archipel_core::transcript::Transcript;
+use archipel_gpui::chat::inline_terminals;
 use archipel_gpui::sessions::{SessionList, SessionListEvent, SessionSummary};
 use archipel_gpui::settings::{Setting, SettingValue, settings_bar};
-use archipel_gpui::{ChatActions, ChatView, Composer, ItemViews, items, memory, timeline};
+use archipel_gpui::{
+    ChatActions, ChatView, Composer, ItemViews, TimelineRow, items, memory, timeline, timeline_rows,
+};
 use archipel_schema::rules::RuleSet;
 use gpui::{
     Focusable as _, Modifiers, Task, TestAppContext, VisualTestContext, div, point, prelude::*, px,
@@ -132,6 +135,266 @@ fn a_fold_opens_when_pressed(cx: &mut TestAppContext) {
     assert_eq!(
         cx.debug_bounds("fold-test").map(|bounds| bounds.origin),
         Some(closed.origin)
+    );
+}
+
+/// The rows of the conversation's first session, each as its kinds: one for an entry, several
+/// for a group.
+fn row_kinds(conversation: &Conversation) -> Vec<Vec<String>> {
+    let (_, state) = conversation.root().expect("a session");
+    timeline_rows(state, &inline_terminals(state))
+        .into_iter()
+        .map(|row| match row {
+            TimelineRow::Item(entry) => vec![entry.target],
+            TimelineRow::Group(entries) => entries.into_iter().map(|entry| entry.target).collect(),
+        })
+        .collect()
+}
+
+/// What the line of a group says: how many calls, and how many failed.
+type Title = (String, Option<String>);
+
+/// The groups among the rows, and what the line of each says.
+fn groups(conversation: &Conversation) -> Vec<(Vec<String>, Title)> {
+    let (_, state) = conversation.root().expect("a session");
+    timeline_rows(state, &inline_terminals(state))
+        .into_iter()
+        .filter_map(|row| match row {
+            TimelineRow::Group(entries) => {
+                let calls: Vec<&Value> = entries
+                    .iter()
+                    .filter(|entry| entry.target == "toolCall")
+                    .filter_map(|entry| state.item(entry))
+                    .collect();
+                let title = items::tool_group_title(&calls);
+                Some((
+                    entries.into_iter().map(|entry| entry.target).collect(),
+                    title,
+                ))
+            }
+            TimelineRow::Item(_) => None,
+        })
+        .collect()
+}
+
+/// A window that draws the whole timeline of the conversation's first session.
+fn drawn<'a>(cx: &'a mut TestAppContext, conversation: &Conversation) -> &'a mut VisualTestContext {
+    let id = conversation.root().expect("a session").0.clone();
+    let conversation = conversation.clone();
+    host(cx, move |window, cx| {
+        let state = &conversation.sessions[&id];
+        div().w(px(760.0)).child(timeline(
+            &conversation,
+            &id,
+            state,
+            &ChatActions::default(),
+            &ItemViews::new(),
+            window,
+            cx,
+        ))
+    })
+}
+
+fn leak(selector: String) -> &'static str {
+    Box::leak(selector.into_boxed_str())
+}
+
+#[gpui::test]
+fn finished_tool_calls_fold_into_one_group_and_a_call_shows_its_output_only_while_it_runs(
+    cx: &mut TestAppContext,
+) {
+    cx.update(archipel_gpui::init);
+    // Recorded: Read, a command, a thought, Edit (with a diff), its approval, then the answer.
+    let mut conversation = recorded("claude-v2/files");
+    let session = conversation.root().expect("a session").0.clone();
+    let strs = |kinds: &[&str]| {
+        kinds
+            .iter()
+            .map(|kind| (*kind).to_owned())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        groups(&conversation),
+        [(
+            strs(&[
+                "toolCall",
+                "toolCall",
+                "agentThought",
+                "toolCall",
+                "request"
+            ]),
+            ("3 tool calls".to_owned(), None)
+        )],
+        "the thought between two calls and the answered approval after one are in the group"
+    );
+    let edit = {
+        let (_, state) = conversation.root().expect("a session");
+        state.collections["toolCall"]
+            .iter()
+            .find(|(_, tool)| tool["kind"] == "edit")
+            .map(|(id, _)| id.clone())
+            .expect("an edit")
+    };
+    let output = leak(format!("{session}/toolCall/{edit}/output"));
+    {
+        let window = drawn(cx, &conversation);
+        assert!(
+            window.debug_bounds(output).is_none(),
+            "what the calls produced is folded away"
+        );
+    }
+
+    // The edit is still going: it leaves the group and shows its diff.
+    let set = |conversation: &mut Conversation, status: &str, turn: &str| {
+        let state = conversation.session_mut(&session);
+        state
+            .collections
+            .get_mut("toolCall")
+            .and_then(|tools| tools.get_mut(&edit))
+            .expect("the edit")["status"] = json!(status);
+        state.values.get_mut("state").expect("a turn")["state"] = json!(turn);
+    };
+    set(&mut conversation, "in_progress", "running");
+    assert_eq!(
+        row_kinds(&conversation)[1..],
+        [
+            strs(&["toolCall", "toolCall"]),
+            strs(&["agentThought"]),
+            strs(&["toolCall"]),
+            strs(&["request"]),
+            strs(&["agentMessage"]),
+        ],
+        "the thought after the group's last call is on its own again"
+    );
+    {
+        let window = drawn(cx, &conversation);
+        assert!(
+            window.debug_bounds(output).is_some(),
+            "a running call shows its diff"
+        );
+    }
+
+    // A call left as going by a turn that was cut short is over, and one that failed is counted.
+    set(&mut conversation, "in_progress", "idle");
+    assert_eq!(groups(&conversation)[0].1.0, "3 tool calls");
+    set(&mut conversation, "failed", "idle");
+    assert_eq!(
+        groups(&conversation)[0].1,
+        ("3 tool calls".to_owned(), Some(" · 1 failed".to_owned()))
+    );
+}
+
+#[gpui::test]
+fn one_tool_call_alone_is_not_a_group(_: &mut TestAppContext) {
+    assert!(groups(&recorded("claude-v2/command_output")).is_empty());
+}
+
+#[gpui::test]
+fn an_answered_approval_goes_into_the_group_of_the_call_it_follows(_: &mut TestAppContext) {
+    let conversation = recorded("claude-v2/plan");
+    let found = groups(&conversation);
+    let calls = |kinds: &[String]| kinds.iter().filter(|kind| *kind == "toolCall").count();
+    let approvals = |kinds: &[String]| kinds.iter().filter(|kind| *kind == "request").count();
+    let (first, last) = (
+        found.first().expect("a group"),
+        found.last().expect("a group"),
+    );
+    assert_eq!((calls(&first.0), approvals(&first.0)), (4, 1));
+    assert_eq!((calls(&last.0), approvals(&last.0)), (2, 2));
+    assert_eq!(found.len(), 2);
+    // The first group's approval is the plan's.
+    let (_, state) = conversation.root().expect("a session");
+    let rows = timeline_rows(state, &inline_terminals(state));
+    let asked: Vec<&str> = rows
+        .iter()
+        .find_map(|row| match row {
+            TimelineRow::Group(entries) => Some(entries),
+            TimelineRow::Item(_) => None,
+        })
+        .expect("a group")
+        .iter()
+        .filter(|entry| entry.target == "request")
+        .filter_map(|entry| state.requests.get(&entry.id)?.params["title"].as_str())
+        .collect();
+    assert_eq!(asked, ["Ready to code?"]);
+}
+
+#[gpui::test]
+fn a_tool_call_and_a_group_open_and_close_when_pressed(cx: &mut TestAppContext) {
+    cx.update(archipel_gpui::init);
+    let call = |status: &str, content: Value| json!({ "kind": "read", "title": "a.rs", "status": status, "content": content });
+    let said =
+        json!([{ "type": "content", "content": { "type": "text", "text": "fn main() {}" } }]);
+    let (done, going, bare) = (
+        call("completed", said.clone()),
+        call("in_progress", said),
+        call("completed", json!([])),
+    );
+    {
+        let cx = host(cx, move |_, cx| {
+            div()
+                .w(px(600.0))
+                .child(items::tool_call("done", &done, false, |_| None, cx))
+                .child(items::tool_call("going", &going, true, |_| None, cx))
+                .child(items::tool_call("bare", &bare, false, |_| None, cx))
+        });
+        // GPUI keeps the bounds of what it drew before, so what closed is seen by what moved up.
+        let top = |cx: &mut VisualTestContext, selector: &'static str| {
+            cx.debug_bounds(selector).expect(selector).origin.y
+        };
+        assert!(cx.debug_bounds("done/output").is_none(), "over: closed");
+        assert!(cx.debug_bounds("going/output").is_some(), "running: open");
+        let (going, bare) = (top(cx, "going"), top(cx, "bare"));
+        press(cx, "done");
+        assert!(cx.debug_bounds("done/output").is_some());
+        assert!(
+            top(cx, "going") > going,
+            "the output pushes the next call down"
+        );
+        press(cx, "done");
+        assert_eq!(top(cx, "going"), going, "pressed again, it is closed");
+        // What the user chose stays: a call they closed does not open again while it runs.
+        press(cx, "going");
+        assert!(top(cx, "bare") < bare);
+        assert!(!cx.update(|_, cx| memory::flag(cx, "going", true)));
+        // With nothing to show, the line is not a control.
+        press(cx, "bare");
+        assert!(cx.update(|_, cx| !memory::flag(cx, "bare", false)));
+        assert!(cx.debug_bounds("bare/output").is_none());
+    }
+
+    // A group opens to its calls, each still closed, and each opens on its own.
+    let conversation = recorded("claude-v2/files");
+    let (session, state) = conversation.root().expect("a session");
+    let first = state
+        .timeline
+        .iter()
+        .find(|entry| entry.target == "toolCall")
+        .expect("a call")
+        .id
+        .clone();
+    let group = leak(format!("{session}/toolGroup/{first}"));
+    let member = leak(format!("{session}/toolCall/{first}"));
+    let output = leak(format!("{session}/toolCall/{first}/output"));
+    let cx = drawn(cx, &conversation);
+    assert!(cx.debug_bounds(group).is_some(), "the group is drawn");
+    assert!(
+        cx.debug_bounds(member).is_none(),
+        "closed: its calls are not"
+    );
+    press(cx, group);
+    assert!(cx.debug_bounds(member).is_some());
+    assert!(cx.debug_bounds(output).is_none());
+    press(cx, member);
+    assert!(cx.debug_bounds(output).is_some());
+    let open = cx.debug_bounds(group).expect("the group").origin.y;
+    press(cx, group);
+    assert!(!cx.update(|_, cx| memory::flag(cx, group, true)));
+    // The timeline's rows are under one another from the top, so the group does not move; what
+    // was under it does.
+    assert_eq!(
+        cx.debug_bounds(group).map(|bounds| bounds.origin.y),
+        Some(open)
     );
 }
 

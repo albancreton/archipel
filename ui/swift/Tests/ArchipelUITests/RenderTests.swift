@@ -48,6 +48,72 @@ final class RenderTests: XCTestCase {
         }
     }
 
+    /// The rows of a timeline, as words: a kind per row, and a group as its rows in brackets.
+    private func rows(_ conversation: Conversation) throws -> [String] {
+        let state = try XCTUnwrap(conversation.root)
+        return SessionTimeline(conversation: conversation, state: state).rows.map { row in
+            switch row {
+            case .item(let ref): return ref.target
+            case .group(let refs): return "[" + refs.map(\.target).joined(separator: " ") + "]"
+            }
+        }
+    }
+
+    /// A copy of the root session with one field of an item, or of the turn, set.
+    private func setting(_ conversation: Conversation, tool id: String? = nil, status: String? = nil, turn: String? = nil) throws -> Conversation {
+        var changed = conversation
+        let root = try XCTUnwrap(conversation.rootId)
+        if let id, let status, var item = changed.sessions[root]?.collections["toolCall"]?[id]?.object {
+            item["status"] = .string(status)
+            changed.sessions[root]?.collections["toolCall"]?[id] = .object(item)
+        }
+        if let turn, var value = changed.sessions[root]?.values["state"]?.object {
+            value["state"] = .string(turn)
+            changed.sessions[root]?.values["state"] = .object(value)
+        }
+        return changed
+    }
+
+    func testFinishedToolCallsAreOneGroupAndARunningCallStaysOut() throws {
+        // Recorded: Read, a command, a thought, Edit (with a diff), its approval, then the answer.
+        let done = try conversation("claude-v2/files")
+        XCTAssertEqual(try rows(done), ["userMessage", "[toolCall toolCall agentThought toolCall request]", "agentMessage"])
+        let state = try XCTUnwrap(done.root)
+        let rowIds = SessionTimeline(conversation: done, state: state).rows.map(\.id)
+        XCTAssertEqual(Set(rowIds).count, rowIds.count)
+        let first = try XCTUnwrap(state.timeline.first { $0.target == "toolCall" })
+        XCTAssertEqual(rowIds[1], "group:toolCall:\(first.id)", "a group is known by its first row")
+
+        // The edit is still going: it leaves the group, and the thought before it is on its own again.
+        let edit = try XCTUnwrap(state.collections["toolCall"]?.first { $0.value["kind"]?.string == "edit" }?.key)
+        let going = try setting(done, tool: edit, status: "in_progress", turn: "running")
+        XCTAssertEqual(try rows(going), ["userMessage", "[toolCall toolCall]", "agentThought", "toolCall", "request", "agentMessage"])
+        let timeline = SessionTimeline(conversation: going, state: try XCTUnwrap(going.root))
+        XCTAssertTrue(timeline.running(edit, try XCTUnwrap(going.root?.collections["toolCall"]?[edit])))
+
+        // A call left as going by a turn that was cut short is over.
+        let cut = try setting(done, tool: edit, status: "in_progress", turn: "idle")
+        XCTAssertEqual(try rows(cut), try rows(done))
+        XCTAssertFalse(SessionTimeline(conversation: cut, state: try XCTUnwrap(cut.root)).running(edit, try XCTUnwrap(cut.root?.collections["toolCall"]?[edit])))
+
+        // One call alone is not a group.
+        XCTAssertFalse(try rows(conversation("claude-v2/command_output")).contains { $0.hasPrefix("[") })
+    }
+
+    func testAnAnsweredApprovalGoesWithTheCallItFollows() throws {
+        // Recorded: a thought, four calls and the approval of the last, the plan, a thought,
+        // two calls and two approvals, the answer.
+        let rows = try rows(conversation("claude-v2/plan"))
+        XCTAssertEqual(rows.filter { $0.hasPrefix("[") }, ["[toolCall toolCall toolCall toolCall request]", "[toolCall toolCall request request]"])
+        XCTAssertEqual(rows.filter { !$0.hasPrefix("[") }, ["userMessage", "agentThought", "plan", "agentThought", "agentMessage"])
+
+        // An approval still waiting ends the group and stays in view.
+        var waiting = try conversation("claude-v2/files")
+        let root = try XCTUnwrap(waiting.rootId)
+        for key in waiting.sessions[root]!.requests.keys { waiting.sessions[root]!.requests[key]!.outcome = nil }
+        XCTAssertEqual(try self.rows(waiting), ["userMessage", "[toolCall toolCall agentThought toolCall]", "request", "agentMessage"])
+    }
+
     /// The notice a chat shows when another process has the session open, with the fork button.
     func testASessionOpenElsewhereIsDrawnWithTheFork() throws {
         let conversation = try conversation("claude-v2/simple")

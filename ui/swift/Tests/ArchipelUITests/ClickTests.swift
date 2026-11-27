@@ -33,7 +33,8 @@ final class ClickTests: XCTestCase {
         actions.approve = { try? calls.note("\($0):\($1)") }
         let conversation = try waiting("claude-v2/approval_denied")
         let screen = Screen(height: 700) { ChatView(conversation: conversation, actions: actions) }
-        XCTAssertEqual([screen.buttons.first, screen.buttons.last], ["Yes", "No"])
+        // The tool call's line and the thought are buttons too; the options are the last ones.
+        XCTAssertEqual(screen.buttons.filter { ["Yes", "No"].contains($0) }, ["Yes", "No"], "\(screen.buttons)")
         XCTAssertEqual(calls.made, [], "nothing is chosen by drawing")
         screen.press("No")
         XCTAssertEqual(calls.made, ["0:reject"])
@@ -183,6 +184,95 @@ final class ClickTests: XCTestCase {
         XCTAssertTrue(agents.shows("Pi is not installed"))
         agents.press("Try again")
         XCTAssertEqual(calls.made, ["retry"])
+    }
+
+    func testAToolCallShowsItsOutputWhileItRunsAndTheLineOpensAndClosesIt() throws {
+        let output: JSON = [["type": "content", "content": ["type": "text", "text": "what the call produced"]]]
+        let done = Screen { ToolCallView(item: ["kind": "read", "title": "notes.md", "status": "completed", "content": output]) }
+        XCTAssertFalse(done.shows("what the call produced"), "folded once it is over")
+        XCTAssertFalse(done.shows("completed"), "a call that went well has no badge")
+        done.press("read, notes.md")
+        XCTAssertTrue(done.shows("what the call produced"), "\(done.texts)")
+        done.press("read, notes.md")
+        XCTAssertFalse(done.shows("what the call produced"))
+
+        let going = Screen { ToolCallView(item: ["kind": "read", "title": "notes.md", "status": "in_progress", "content": output]) }
+        XCTAssertTrue(going.shows("what the call produced"), "in view while it runs")
+        XCTAssertTrue(going.shows("in progress"))
+        going.press("read, notes.md, in progress")
+        XCTAssertFalse(going.shows("what the call produced"))
+
+        // The timeline knows better than the status, and a call with nothing to show is not a control.
+        let cut = Screen { ToolCallView(item: ["kind": "read", "title": "notes.md", "status": "in_progress", "content": output], running: false) }
+        XCTAssertFalse(cut.shows("what the call produced"))
+        let empty = Screen { ToolCallView(item: ["kind": "search", "title": "sort_by", "status": "failed"]) }
+        XCTAssertTrue(empty.shows("sort_by") && empty.shows("failed"), "\(empty.texts)")
+        XCTAssertEqual(empty.buttons, [])
+    }
+
+    func testAGroupOfToolCallsOpensToItsCalls() throws {
+        var conversation = try RenderTests().conversation("claude-v2/files")
+        let screen = Screen(height: 900) { ChatView(conversation: conversation) }
+        XCTAssertTrue(screen.buttons.contains("3 tool calls"), "\(screen.texts)")
+        XCTAssertFalse(screen.shows("Edit package.json"))
+        XCTAssertFalse(screen.shows("Thinking"))
+        screen.press("3 tool calls")
+        XCTAssertTrue(screen.shows("Edit package.json") && screen.shows("Thinking") && screen.shows("PERMISSION"), "\(screen.texts)")
+        // Each call is still folded, and opens on its own.
+        XCTAssertFalse(screen.texts.contains { $0.hasPrefix("modify") }, "\(screen.texts)")
+        screen.press(try XCTUnwrap(screen.buttons.first { $0.hasSuffix("Edit package.json") }))
+        screen.wait("the diff is shown") { screen.shows("\"version\"") }
+
+        // A failed call is counted on the group's line.
+        let root = try XCTUnwrap(conversation.rootId)
+        let edit = try XCTUnwrap(conversation.sessions[root]?.collections["toolCall"]?.first { $0.value["kind"]?.string == "edit" })
+        var item = try XCTUnwrap(edit.value.object)
+        item["status"] = "failed"
+        conversation.sessions[root]?.collections["toolCall"]?[edit.key] = .object(item)
+        let failed = Screen(height: 900) { ChatView(conversation: conversation) }
+        XCTAssertTrue(failed.buttons.contains("3 tool calls · 1 failed"), "\(failed.buttons)")
+    }
+
+    /// A conversation that changes under a view, as a live session does.
+    final class Live: ObservableObject {
+        @Published var conversation: Conversation
+        init(_ conversation: Conversation) { self.conversation = conversation }
+    }
+
+    struct LiveChat: View {
+        @ObservedObject var live: Live
+        var body: some View { ChatView(conversation: live.conversation) }
+    }
+
+    func testACallTheUserClosedAndOpenedStaysOpenWhenItEndsAndJoinsAGroup() throws {
+        let done = try RenderTests().conversation("claude-v2/files")
+        let root = try XCTUnwrap(done.rootId)
+        let edit = try XCTUnwrap(done.sessions[root]?.collections["toolCall"]?.first { $0.value["kind"]?.string == "edit" })
+        var going = done
+        var item = try XCTUnwrap(edit.value.object)
+        item["status"] = "in_progress"
+        going.sessions[root]?.collections["toolCall"]?[edit.key] = .object(item)
+        var turn = try XCTUnwrap(done.sessions[root]?.values["state"]?.object)
+        turn["state"] = "running"
+        going.sessions[root]?.values["state"] = .object(turn)
+
+        let live = Live(going)
+        let screen = Screen(height: 900) { LiveChat(live: live) }
+        let diff = { screen.shows("\"version\"") }
+        XCTAssertTrue(screen.buttons.contains("2 tool calls"), "\(screen.buttons)")
+        screen.wait("the running call shows its diff", until: diff)
+        let line = "edit, Edit package.json, in progress"
+        screen.press(line)
+        XCTAssertFalse(diff())
+        screen.press(line)
+        screen.wait("it is open again", until: diff)
+
+        // The call ends and moves into the group. Opened, the group shows it as the user left it.
+        live.conversation = done
+        screen.wait("the call joined the group") { screen.buttons.contains("3 tool calls") }
+        XCTAssertFalse(diff())
+        screen.press("3 tool calls")
+        screen.wait("the call is still open", until: diff)
     }
 
     func testASessionIsChosenFromTheListAndMoreAreAskedFor() throws {

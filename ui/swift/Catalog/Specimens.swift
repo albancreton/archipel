@@ -244,6 +244,23 @@ private func agent(_ id: String, _ name: String, _ readiness: String, _ detail: 
 @MainActor
 private func view(_ content: some View) -> AnyView { AnyView(content) }
 
+/// Three finished calls, one of them failed, with a thought and an answered approval between them.
+private let groupCalls: [JSON] = [
+    tool("completed", ["content": [["type": "content", "content": ["type": "text", "text": "pub fn list(&self) -> Vec<Summary> {"]]]]),
+    ["toolCallId": "s", "name": "Grep", "kind": "search", "title": "Search \"sort_by\" in crates", "status": "failed",
+     "content": [["type": "content", "content": ["type": "text", "text": "No such directory: crates"]]]],
+    ["toolCallId": "e", "name": "Edit", "kind": "edit", "title": "Edit crates/archipel-server/src/sessions.rs", "status": "completed",
+     "content": [["type": "diff", "changes": [["path": "src/sessions.rs", "operation": "modify"]], "patch": ["text": .string(patch)]]]],
+]
+
+@MainActor @ViewBuilder private var groupRows: some View {
+    ToolCallView(item: groupCalls[0])
+    ThoughtView(item: ["content": text("The list is sorted on the daemon side.")])
+    ToolCallView(item: groupCalls[1])
+    ToolCallView(item: groupCalls[2])
+    ApprovalView(request: request("session/request_permission", permissionParams, outcome: ["outcome": ["outcome": "selected", "optionId": "allow-once"]]))
+}
+
 @MainActor
 let catalog: [CatalogSection] = [
     CatalogSection(id: "messages", title: "Messages", intro: "What the user and the agent say. The agent's text is Markdown, drawn as SwiftUI views.", specimens: [
@@ -274,10 +291,16 @@ let catalog: [CatalogSection] = [
             view(SessionMessageView(item: ["content": text("Read package.json and reply with only the value of its name field.")]))
         },
     ]),
-    CatalogSection(id: "tools", title: "Tool calls", intro: "A tool call has a kind, a title, a status badge and what it produced: text, a diff, or a terminal.", specimens: [
+    CatalogSection(id: "tools", title: "Tool calls", intro: "A tool call is one quiet line: a kind, a title, and a badge unless it went well. What it produced (text, a diff, a terminal) shows while it runs and folds away when it is over; the line opens it again. Finished calls in a row become one group.", specimens: [
         Specimen(name: "ToolCall · pending", code: "ToolCallView(item: item)") { view(ToolCallView(item: tool("pending"))) },
         Specimen(name: "ToolCall · in progress", code: "ToolCallView(item: item)") { view(ToolCallView(item: tool("in_progress"))) },
-        Specimen(name: "ToolCall · completed, with output", code: "ToolCallView(item: item)") {
+        Specimen(name: "ToolCall · running, with output", code: "ToolCallView(item: item)", note: "Open while it runs.") {
+            view(ToolCallView(item: tool("in_progress", ["content": [["type": "content", "content": ["type": "text", "text": "pub fn list(&self) -> Vec<Summary> {\n    let mut sessions = …;\n    sessions.sort_by(|a, b| a.created_at.cmp(&b.created_at));"]]]])))
+        },
+        Specimen(name: "ToolCall · completed, opened", code: "ToolCallView(item: item, open: true)", note: "Pressed by the user: their choice stays.") {
+            view(ToolCallView(item: tool("completed", ["content": [["type": "content", "content": ["type": "text", "text": "pub fn list(&self) -> Vec<Summary> {\n    let mut sessions = …;\n    sessions.sort_by(|a, b| a.created_at.cmp(&b.created_at));"]]]]), open: true))
+        },
+        Specimen(name: "ToolCall · completed, with output", code: "ToolCallView(item: item)", note: "Closed once it is over.") {
             view(ToolCallView(item: tool("completed", ["content": [["type": "content", "content": ["type": "text", "text": "pub fn list(&self) -> Vec<Summary> {\n    let mut sessions = …;\n    sessions.sort_by(|a, b| a.created_at.cmp(&b.created_at));"]]]])))
         },
         Specimen(name: "ToolCall · failed", code: "ToolCallView(item: item)") {
@@ -287,12 +310,18 @@ let catalog: [CatalogSection] = [
             view(ToolCallView(item: ["toolCallId": "s", "name": "Grep", "kind": "search", "title": "Search \"sort_by\" in crates", "status": "cancelled"]))
         },
         Specimen(name: "ToolCall · with a diff", code: "ToolCallView(item: item)", wide: true, width: 900) {
-            view(ToolCallView(item: ["toolCallId": "e", "name": "Edit", "kind": "edit", "title": "Edit crates/archipel-server/src/sessions.rs", "status": "completed",
+            view(ToolCallView(item: ["toolCallId": "e", "name": "Edit", "kind": "edit", "title": "Edit crates/archipel-server/src/sessions.rs", "status": "in_progress",
                                      "content": [["type": "diff", "changes": [["path": "src/sessions.rs", "operation": "modify"]], "patch": ["text": .string(patch)]]]]))
         },
         Specimen(name: "ToolCall · with a terminal", code: "ToolCallView(item: item) { terminals[$0] }", wide: true, width: 900) {
-            view(ToolCallView(item: ["toolCallId": "t", "name": "Bash", "kind": "execute", "title": "cargo test -p archipel-server sessions", "status": "failed",
+            view(ToolCallView(item: ["toolCallId": "t", "name": "Bash", "kind": "execute", "title": "cargo test -p archipel-server sessions", "status": "in_progress",
                                      "content": [["type": "terminal", "terminalId": "failed"]]]) { terminals[$0] })
+        },
+        Specimen(name: "ToolGroup · folded", code: "ToolGroupView(calls: calls) { rows }", note: "Finished calls that followed one another.") {
+            view(ToolGroupView(calls: groupCalls) { groupRows })
+        },
+        Specimen(name: "ToolGroup · open", code: "ToolGroupView(calls: calls, open: true) { rows }", note: "Each call is still folded, and opens on its own.") {
+            view(ToolGroupView(calls: groupCalls, open: true) { groupRows })
         },
     ]),
     CatalogSection(id: "output", title: "Terminal and diffs", intro: "Command output keeps its colours (the theme's 16 terminal colours). Diffs are per file, with line numbers and folded context.", specimens: [

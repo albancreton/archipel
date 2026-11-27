@@ -73,6 +73,9 @@ public struct SessionTimeline: View {
     let state: SessionState
     var actions = ChatActions()
     var custom: ItemViews = [:]
+    /// Which tool calls the user opened or closed, by id. Kept here and not in the call's view:
+    /// a call changes rows when it ends (it moves into a group), and must stay as the user left it.
+    @State private var chosen: [String: Bool] = [:]
     @Environment(\.archipelTheme) private var theme
 
     public init(conversation: Conversation, state: SessionState, actions: ChatActions = ChatActions(), custom: ItemViews = [:]) {
@@ -82,16 +85,88 @@ public struct SessionTimeline: View {
         self.custom = custom
     }
 
-    public var body: some View {
-        // A terminal that a tool call shows is not drawn a second time.
-        let inline = Set((state.collections["toolCall"] ?? [:]).values.flatMap { tool in
+    /// One row of the timeline: an item, or finished tool calls that followed one another
+    /// together with what came between them.
+    enum Row: Hashable, Identifiable {
+        case item(ItemRef)
+        case group([ItemRef])
+        /// A group is known by its first row, so one the user opened stays open while it grows.
+        var id: String {
+            switch self {
+            case .item(let ref): return "\(ref.target):\(ref.id)"
+            case .group(let refs): return "group:\(refs[0].target):\(refs[0].id)"
+            }
+        }
+    }
+
+    /// The terminals that a tool call shows: they are not drawn a second time.
+    private var inline: Set<String> {
+        Set((state.collections["toolCall"] ?? [:]).values.flatMap { tool in
             (tool["content"]?.array ?? []).compactMap { $0["terminalId"]?.string }
         })
+    }
+
+    /// Whether a tool call runs. A call still marked as going is only running while the turn
+    /// is, or in the background after it.
+    func running(_ id: String, _ item: JSON) -> Bool {
+        guard toolRunning(item) else { return false }
+        guard let turn = state.values["state"] else { return true }
+        return turn["state"]?.string != "idle" || (turn["background"]?.array ?? []).contains { $0["toolCallId"]?.string == id }
+    }
+
+    /// The timeline's rows. Finished tool calls that follow one another are one group. A thought
+    /// between two of them goes in with them, and so does an answered approval that follows
+    /// one of them; anything else ends the group, and so does a call that still runs, which
+    /// stays in view on its own.
+    var rows: [Row] {
+        let inline = inline
+        var rows: [Row] = []
+        var group: [ItemRef] = []
+        var calls = 0
+        var after: [ItemRef] = [] // what followed the group's last call, until another call takes it in
+        func close() {
+            if calls > 1 { rows.append(.group(group)) } else { rows += group.map(Row.item) }
+            rows += after.map(Row.item)
+            (group, calls, after) = ([], 0, [])
+        }
+        for ref in state.timeline {
+            let request = ref.target == SessionState.requestTarget ? state.requests[ref.id] : nil
+            let item = request == nil && ref.target != SessionState.requestTarget ? state.item(ref) : nil
+            // What draws nothing (a cursor, a terminal its tool call shows) does not end a group.
+            if request == nil && item == nil { continue }
+            if item != nil, custom[ref.target] == nil, ref.target == "cursor" || (ref.target == "terminal" && inline.contains(ref.id)) { continue }
+            let answered = request?.method == "session/request_permission" && request?.outcome != nil
+            if ref.target == "toolCall", let item, !running(ref.id, item) {
+                group += after + [ref]
+                calls += 1
+                after = []
+            } else if !group.isEmpty, answered, after.isEmpty {
+                // An approval that has its answer belongs to the call it follows.
+                group.append(ref)
+            } else if !group.isEmpty, ref.target == "agentThought" || answered {
+                after.append(ref)
+            } else {
+                close()
+                rows.append(.item(ref))
+            }
+        }
+        close()
+        return rows
+    }
+
+    public var body: some View {
+        let inline = inline
         // Lazy: inside a scroll view only the rows on screen are built, so a long session
         // opens as quickly as a short one.
         LazyVStack(alignment: .leading, spacing: theme.rowSpacing) {
-            ForEach(state.timeline, id: \.self) { ref in
-                row(ref, inline: inline)
+            ForEach(rows) { row in
+                switch row {
+                case .item(let ref): self.row(ref, inline: inline)
+                case .group(let refs):
+                    ToolGroupView(calls: refs.filter { $0.target == "toolCall" }.compactMap { state.item($0) }) {
+                        ForEach(refs, id: \.self) { self.row($0, inline: inline) }
+                    }
+                }
             }
         }
     }
@@ -114,7 +189,7 @@ public struct SessionTimeline: View {
                 case "userMessage": UserMessageView(item: item)
                 case "agentMessage": AssistantMessageView(item: item)
                 case "agentThought": ThoughtView(item: item)
-                case "toolCall": ToolCallView(item: item) { state.collections["terminal"]?[$0] }
+                case "toolCall": ToolCallView(item: item, running: running(ref.id, item), choice: Binding(get: { chosen[ref.id] }, set: { chosen[ref.id] = $0 })) { state.collections["terminal"]?[$0] }
                 case "terminal": if !inline.contains(ref.id) { TerminalView(item: item) }
                 case "plan": PlanView(item: item)
                 case "sessionMessage": SessionMessageView(item: item)

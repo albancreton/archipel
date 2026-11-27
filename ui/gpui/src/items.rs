@@ -10,8 +10,8 @@ use crate::input::TextField;
 use crate::markdown::markdown;
 use crate::memory;
 use crate::parts::{
-    MenuChoice, MenuGroup, badge, button, card, code_block, fold, label, menu, plan_mark,
-    terminal_block,
+    Icon, MenuChoice, MenuGroup, badge, button, card, code_block, fold, guided, guided_fold, icon,
+    label, menu, plan_mark, terminal_block,
 };
 use crate::theme::theme;
 use archipel_core::state::Request;
@@ -130,18 +130,21 @@ pub fn user_message(item: &Value, cx: &App) -> Div {
     div().flex().w_full().justify_end().child(bubble)
 }
 
-/// What the agent said, as Markdown.
+/// What the agent said, as Markdown: the strongest text of a turn, in the primary colour and
+/// the largest size, so that it stands out from what the agent did and thought.
 pub fn assistant_message(key: &str, item: &Value, window: &Window, cx: &App) -> Div {
+    let theme = theme(cx);
     markdown(
         key,
         &content_text(item.get("content")),
-        theme(cx).colors.text,
+        theme.colors.text,
         window,
         cx,
     )
+    .text_size(px(theme.text.answer))
 }
 
-/// The agent's reasoning: a fold titled "Thinking", closed.
+/// The agent's reasoning: a fold titled "Thinking", closed. The same quiet line as a tool call.
 pub fn thought(key: &str, item: &Value, window: &Window, cx: &App) -> Div {
     let theme = theme(cx);
     fold(key, "Thinking", false, cx, || {
@@ -205,56 +208,166 @@ pub fn terminal(item: &Value, cx: &App) -> Div {
         })
 }
 
-/// Something the agent did with a tool: kind, title and status on one line, then what it
-/// produced. `find_terminal` finds a terminal item by id, for calls whose content points at one.
+/// Whether a tool call is still going, by its own status.
+#[must_use]
+pub fn tool_running(item: &Value) -> bool {
+    matches!(text(item, "status"), "" | "pending" | "in_progress")
+}
+
+/// Whether a tool call failed or was cancelled.
+#[must_use]
+pub fn tool_failed(item: &Value) -> bool {
+    matches!(text(item, "status"), "failed" | "cancelled")
+}
+
+/// Something the agent did with a tool: one quiet line with its kind, title and status (not a
+/// card), and under it what it produced. The output shows while the call runs and folds away
+/// when it is over; the line opens and closes it, and what the user chose stays, remembered
+/// under `key`. A call with nothing to show is the line alone, and it is not a control.
+///
+/// `running` is whether the call still runs: [`tool_running`] for a call on its own, or what the
+/// timeline knows (a call left `in_progress` by a turn that was cut short is over).
+/// `find_terminal` finds a terminal item by id, for calls whose content points at one.
 pub fn tool_call<'a>(
     key: &str,
     item: &Value,
+    running: bool,
     find_terminal: impl Fn(&str) -> Option<&'a Value>,
     cx: &App,
 ) -> Div {
     let theme = theme(cx);
     let name = |field: &str| Some(text(item, field)).filter(|name| !name.is_empty());
     let status = name("status").unwrap_or("pending");
-    let mut card = card(false, cx).child(
-        div()
-            .flex()
-            .items_center()
-            .gap(px(10.0))
-            .w_full()
-            .child(label(name("kind").or(name("name")).unwrap_or("tool"), cx))
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .truncate()
-                    .font_family(theme.text.mono_family.clone())
-                    .text_size(px(theme.text.mono))
-                    .child(shared(name("title").or(name("name")).unwrap_or(""))),
-            )
-            .child(badge(status, None, cx)),
-    );
     let blocks = item
         .get("content")
         .and_then(Value::as_array)
         .map_or(&[][..], Vec::as_slice);
+    let shows = |block: &Value| match text(block, "type") {
+        "terminal" => find_terminal(text(block, "terminalId")).is_some(),
+        "diff" => true,
+        _ => !content_text(Some(block)).is_empty(),
+    };
+    let has_output = blocks.iter().any(shows);
+    let is_open = has_output && memory::flag(cx, key, running);
+    let mark = if !has_output {
+        // Keeps the kind under the kinds of the calls that open.
+        div().flex_none().size(px(12.0)).into_any_element()
+    } else {
+        icon(
+            if is_open {
+                Icon::ChevronDown
+            } else {
+                Icon::ChevronRight
+            },
+            12.0,
+            theme.colors.secondary,
+        )
+        .into_any_element()
+    };
+    let id: SharedString = key.to_owned().into();
+    let selector = key.to_owned();
+    let mut line = div()
+        .id(id.clone())
+        .debug_selector(move || selector)
+        .flex()
+        .items_center()
+        .gap(px(6.0))
+        .w_full()
+        .text_size(px(theme.text.secondary))
+        .text_color(theme.colors.secondary)
+        .child(mark)
+        .child(label(name("kind").or(name("name")).unwrap_or("tool"), cx))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .truncate()
+                .font_family(theme.text.mono_family.clone())
+                .text_size(px(theme.text.mono))
+                // What runs is read as it goes; what is over steps back.
+                .when(running, |title| title.text_color(theme.colors.text))
+                .child(shared(name("title").or(name("name")).unwrap_or(""))),
+        )
+        // A call that went well says nothing more: only what runs or went wrong is marked.
+        .when(status != "completed", |line| {
+            line.child(badge(status, None, cx))
+        });
+    if has_output {
+        line = line
+            .cursor_pointer()
+            .hover(|line| line.text_color(theme.colors.text))
+            .on_click(move |_, _, cx| memory::set_flag(cx, &id, !is_open));
+    }
+    let column = div().flex().flex_col().w_full().child(line);
+    if !is_open {
+        return column;
+    }
+    let mut body = div().flex().flex_col().gap(px(6.0)).w_full();
     for (index, block) in blocks.iter().enumerate() {
         match text(block, "type") {
             "terminal" => {
                 if let Some(found) = find_terminal(text(block, "terminalId")) {
-                    card = card.child(div().pt(px(4.0)).child(terminal(found, cx)));
+                    body = body.child(terminal(found, cx));
                 }
             }
-            "diff" => card = card.child(diff(&format!("{key}/diff{index}"), block, cx)),
+            "diff" => body = body.child(diff(&format!("{key}/diff{index}"), block, cx)),
             _ => {
-                let body = content_text(Some(block));
-                if !body.is_empty() {
-                    card = card.child(code_block(&body, cx));
+                let said = content_text(Some(block));
+                if !said.is_empty() {
+                    body = body.child(code_block(&said, cx));
                 }
             }
         }
     }
-    card
+    let selector = format!("{key}/output");
+    column.child(guided(
+        body.debug_selector(move || selector)
+            .text_color(theme.colors.text),
+        cx,
+    ))
+}
+
+/// What a group of tool calls says: how many, and how many failed or were cancelled (" · M
+/// failed", or nothing when none did).
+#[must_use]
+pub fn tool_group_title(calls: &[&Value]) -> (String, Option<String>) {
+    let failed = calls.iter().filter(|call| tool_failed(call)).count();
+    (
+        format!("{} tool calls", calls.len()),
+        (failed > 0).then(|| format!(" · {failed} failed")),
+    )
+}
+
+/// Finished tool calls that followed one another, as one line: a fold, closed, that opens to
+/// its `rows` (each call, and what came between two of them) on a guide line. Whether it is open
+/// is remembered under `key`.
+pub fn tool_group(
+    key: &str,
+    calls: &[&Value],
+    cx: &App,
+    rows: impl FnOnce() -> Vec<AnyElement>,
+) -> Div {
+    let theme = theme(cx);
+    let (count, failed) = tool_group_title(calls);
+    let title = div()
+        .flex()
+        .child(SharedString::from(count))
+        .when_some(failed, |title, failed| {
+            title.child(
+                div()
+                    .text_color(theme.colors.bad)
+                    .child(SharedString::from(failed)),
+            )
+        });
+    guided_fold(key, title, false, cx, || {
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .w_full()
+            .children(rows())
+            .into_any_element()
+    })
 }
 
 /// One entry of a plan or a todo list, with its mark.
@@ -392,8 +505,9 @@ pub type Choose = Rc<dyn Fn(&str, &mut Window, &mut App)>;
 /// Called with the form's content, or `None` when the user skips the question.
 pub type Answer = Rc<dyn Fn(Option<Value>, &mut Window, &mut App)>;
 
-/// An approval: what the agent wants to do and its options. Once answered it shows which option
-/// was taken; the answer may come from another app.
+/// An approval: what the agent wants to do and its options, on a highlighted card while it
+/// waits. Once answered it is one quiet line like a tool call: the label, the title and which
+/// option was taken; the answer may come from another app.
 pub fn approval(key: &str, request: &Request, choose: Option<Choose>, cx: &App) -> Div {
     let theme = theme(cx);
     let options = request
@@ -401,13 +515,6 @@ pub fn approval(key: &str, request: &Request, choose: Option<Choose>, cx: &App) 
         .get("options")
         .and_then(Value::as_array)
         .map_or(&[][..], Vec::as_slice);
-    let card = card(request.outcome.is_none(), cx).child(labelled(
-        "Permission",
-        text(&request.params, "title"),
-        theme.text.request_title,
-        FontWeight::SEMIBOLD,
-        cx,
-    ));
     if let Some(outcome) = &request.outcome {
         let chosen = outcome
             .pointer("/outcome/optionId")
@@ -422,8 +529,34 @@ pub fn approval(key: &str, request: &Request, choose: Option<Choose>, cx: &App) 
                     .find(|option| text(option, "optionId") == chosen)
                     .map_or(chosen, |option| text(option, "name"))
             };
-        return card.child(div().text_color(theme.colors.secondary).child(shared(said)));
+        let selector = format!("{key}/answered");
+        return div()
+            .debug_selector(move || selector)
+            .flex()
+            .items_center()
+            .gap(px(6.0))
+            .w_full()
+            .text_size(px(theme.text.secondary))
+            .text_color(theme.colors.secondary)
+            // No chevron: its space is left empty, so the title is under the tool calls' titles.
+            .child(div().flex_none().size(px(12.0)))
+            .child(label("Permission", cx))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .truncate()
+                    .child(shared(text(&request.params, "title"))),
+            )
+            .child(div().flex_none().child(shared(said)));
     }
+    let card = card(true, cx).child(labelled(
+        "Permission",
+        text(&request.params, "title"),
+        theme.text.request_title,
+        FontWeight::SEMIBOLD,
+        cx,
+    ));
     let mut row = div().flex().flex_wrap().gap(px(8.0)).pt(px(4.0));
     for (index, option) in options.iter().enumerate() {
         // The first option is the one most often taken.

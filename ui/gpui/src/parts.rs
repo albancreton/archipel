@@ -172,6 +172,41 @@ pub fn fold(
     cx: &App,
     body: impl FnOnce() -> AnyElement,
 ) -> Div {
+    fold_as(key, title, open, false, cx, body)
+}
+
+/// A fold whose body hangs from its summary on a guide line: what a tool call produced, the
+/// calls of a group.
+pub fn guided_fold(
+    key: &str,
+    title: impl IntoElement,
+    open: bool,
+    cx: &App,
+    body: impl FnOnce() -> AnyElement,
+) -> Div {
+    fold_as(key, title, open, true, cx, body)
+}
+
+/// What is under an open fold or an open tool call, on a guide line.
+pub(crate) fn guided(body: impl IntoElement, cx: &App) -> Div {
+    div().pt(px(4.0)).pb(px(2.0)).w_full().child(
+        div()
+            .ml(px(5.0))
+            .pl(px(12.0))
+            .border_l_1()
+            .border_color(theme(cx).colors.line)
+            .child(body),
+    )
+}
+
+fn fold_as(
+    key: &str,
+    title: impl IntoElement,
+    open: bool,
+    guide: bool,
+    cx: &App,
+    body: impl FnOnce() -> AnyElement,
+) -> Div {
     let theme = theme(cx);
     let is_open = memory::flag(cx, key, open);
     let key: SharedString = key.to_owned().into();
@@ -203,7 +238,11 @@ pub fn fold(
         .w_full()
         .child(summary)
         .when(is_open, |fold| {
-            fold.child(div().pt(px(6.0)).pl(px(18.0)).child(body()))
+            if guide {
+                fold.child(guided(body(), cx))
+            } else {
+                fold.child(div().pt(px(6.0)).pl(px(18.0)).child(body()))
+            }
         })
 }
 

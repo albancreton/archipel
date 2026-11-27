@@ -50,6 +50,8 @@ pub fn minitel(dark: bool) -> Theme {
         // Nothing small: body 16, code and secondary 15, labels, badges and details 14.
         text: Type {
             body: 16.0,
+            // The answer is the body at full strength; what the agent did and thought is 15 and muted.
+            answer: 16.0,
             secondary: 15.0,
             title: 18.0,
             request_title: 17.0,
@@ -90,6 +92,7 @@ mod tests {
         assert!(dark.dark && !minitel(false).dark);
         let sizes = [
             dark.text.body,
+            dark.text.answer,
             dark.text.secondary,
             dark.text.title,
             dark.text.request_title,
@@ -101,6 +104,7 @@ mod tests {
             dark.text.label,
         ];
         assert!(sizes.iter().all(|size| *size >= 14.0));
+        assert!(dark.text.answer > dark.text.secondary && dark.text.answer >= dark.text.body);
         assert_ne!(dark.colors.attention, dark.colors.running);
         assert_eq!(dark.badge, BadgeStyle::Tinted);
     }

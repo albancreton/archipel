@@ -33,7 +33,7 @@ pub struct Colors {
     pub secondary: Hsla,
     /// Behind the chat and the session list.
     pub background: Hsla,
-    /// Cards: tool calls, plans, requests, messages between agents.
+    /// Cards: plans, requests, messages between agents.
     pub card: Hsla,
     /// Chips, menus, buttons that are not the primary one.
     pub raised: Hsla,
@@ -61,6 +61,8 @@ pub struct Colors {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Type {
     pub body: f32,
+    /// What the agent said: the largest text of a turn, never under `body`.
+    pub answer: f32,
     /// Folds, notices, the activity line.
     pub secondary: f32,
     /// The session's title, and a request's.
@@ -168,6 +170,7 @@ impl Theme {
             },
             text: Type {
                 body: 14.0,
+                answer: 15.0,
                 secondary: 13.0,
                 title: 15.0,
                 request_title: 14.0,

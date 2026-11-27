@@ -164,32 +164,75 @@ export function Diff({ block }: { block: Json }) {
   );
 }
 
+/** Whether a tool call is still going, by its own status. */
+export const toolRunning = (item: Json): boolean => ["", "pending", "in_progress"].includes(text(item, "status"));
+const toolFailed = (item: Json): boolean => ["failed", "cancelled"].includes(text(item, "status"));
+
 /**
- * A tool call: its title and status, and what it produced. `terminal` finds a terminal by id,
- * for calls whose content points at one.
+ * A tool call: one quiet line with its kind, title and status, and under it what it produced.
+ * The output shows while the call runs and folds away when it is over; the line opens and
+ * closes it, and what the user chose stays. `terminal` finds a terminal by id, for calls whose
+ * content points at one. `running` is the call's own status unless the caller knows better
+ * (a call left `in_progress` by a turn that was cut short is not running). `chosen` and
+ * `onToggle` let the caller keep what the user chose, so that it outlives the component: the
+ * Timeline does, because a call moves into a group when it ends.
  */
-export function ToolCall({ item, terminal }: { item: Json; terminal?: (id: string) => Json | undefined }) {
+export function ToolCall({ item, terminal, running = toolRunning(item), chosen: kept, onToggle }: {
+  item: Json;
+  terminal?: (id: string) => Json | undefined;
+  running?: boolean;
+  /** What the user chose, open or closed, if they did. */
+  chosen?: boolean;
+  onToggle?: (open: boolean) => void;
+}) {
   const status = text(item, "status") || "pending";
+  const [own, setOwn] = useState<boolean | null>(null);
+  const chosen = onToggle ? kept ?? null : own;
+  const setChosen = onToggle ?? setOwn;
+  const blocks = list(item, "content").map((block, at) => {
+    const type = text(block, "type");
+    if (type === "terminal") {
+      const found = terminal?.(text(block, "terminalId"));
+      return found ? <Terminal key={at} item={found} /> : null;
+    }
+    if (type === "diff") return <Diff key={at} block={block} />;
+    const body = contentText(block);
+    return body ? <pre key={at} className="arc-tool-output">{body}</pre> : null;
+  }).filter(Boolean);
+  const open = blocks.length > 0 && (chosen ?? running);
+  const head = (
+    <>
+      <span className="arc-tool-kind">{text(item, "kind") || text(item, "name") || "tool"}</span>
+      <span className="arc-tool-title">{text(item, "title") || text(item, "name")}</span>
+      {/* A call that went well says nothing more: only what runs or went wrong is marked. */}
+      {status !== "completed" && (
+        <span className={`arc-badge arc-${toolFailed(item) ? "failed" : "running"}`}>{status.replace("_", " ")}</span>
+      )}
+    </>
+  );
   return (
     <div className={`arc-item arc-tool arc-tool-${status}`}>
-      <div className="arc-tool-head">
-        <span className="arc-tool-kind">{text(item, "kind") || text(item, "name") || "tool"}</span>
-        <span className="arc-tool-title">{text(item, "title") || text(item, "name")}</span>
-        <span className={`arc-badge arc-${status === "completed" ? "ok" : status === "failed" || status === "cancelled" ? "failed" : "running"}`}>
-          {status.replace("_", " ")}
-        </span>
-      </div>
-      {list(item, "content").map((block, at) => {
-        const type = text(block, "type");
-        if (type === "terminal") {
-          const found = terminal?.(text(block, "terminalId"));
-          return found ? <Terminal key={at} item={found} /> : null;
-        }
-        if (type === "diff") return <Diff key={at} block={block} />;
-        const body = contentText(block);
-        return body ? <pre key={at} className="arc-tool-output">{body}</pre> : null;
-      })}
+      {blocks.length > 0
+        ? <button type="button" className="arc-tool-head" aria-expanded={open} onClick={() => setChosen(!open)}>{head}</button>
+        : <div className="arc-tool-head">{head}</div>}
+      {open && <div className="arc-tool-body">{blocks}</div>}
     </div>
+  );
+}
+
+/**
+ * Finished tool calls that followed one another, as one line: how many, and how many failed.
+ * It opens to the calls (and what came between them), each still folded.
+ */
+export function ToolGroup({ calls, children }: { calls: Json[]; children?: ReactNode }) {
+  const failed = calls.filter(toolFailed).length;
+  return (
+    <details className="arc-item arc-tool-group">
+      <summary>
+        {calls.length} tool calls{failed > 0 && <span className="arc-failed"> · {failed} failed</span>}
+      </summary>
+      <div className="arc-tool-group-body">{children}</div>
+    </details>
   );
 }
 
@@ -256,30 +299,36 @@ export function Compaction({ item }: { item: Json }) {
   );
 }
 
-/** An approval: the question and its options. Once answered it shows which option was taken. */
+/**
+ * An approval: the question and its options, in a card that stands out while it waits. Once
+ * answered it is one quiet line, like the tool call it was about, with the option taken.
+ */
 export function Approval({ request, onChoose }: { request: Request; onChoose?: (optionId: string) => void }) {
   const options = list(request.params, "options");
   const outcome = isObject(request.outcome) ? request.outcome["outcome"] : undefined;
   const chosen = isObject(outcome) ? text(outcome, "optionId") : "";
   const cancelled = isObject(outcome) && outcome["outcome"] === "cancelled";
+  if (request.outcome !== null) {
+    return (
+      <div className="arc-item arc-approved">
+        <span className="arc-label">Permission</span>
+        <span className="arc-request-title">{text(request.params, "title")}</span>
+        <span className="arc-answer">{cancelled ? "Cancelled" : (text(options.find((option) => text(option, "optionId") === chosen), "name") || chosen)}</span>
+      </div>
+    );
+  }
   return (
-    <div className={`arc-item arc-request ${request.outcome === null ? "arc-pending" : ""}`}>
+    <div className="arc-item arc-request arc-pending">
       <div className="arc-request-head">
         <span className="arc-label">Permission</span> <span className="arc-request-title">{text(request.params, "title")}</span>
       </div>
-      {request.outcome === null ? (
-        <div className="arc-options">
-          {options.map((option) => (
-            <button key={text(option, "optionId")} type="button" onClick={() => onChoose?.(text(option, "optionId"))}>
-              {text(option, "name")}
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="arc-answer">
-          {cancelled ? "Cancelled" : (text(options.find((option) => text(option, "optionId") === chosen), "name") || chosen)}
-        </div>
-      )}
+      <div className="arc-options">
+        {options.map((option) => (
+          <button key={text(option, "optionId")} type="button" onClick={() => onChoose?.(text(option, "optionId"))}>
+            {text(option, "name")}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

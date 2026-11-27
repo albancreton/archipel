@@ -7,7 +7,7 @@ import { RenderText } from "./markdown.tsx";
 import { SettingsBar, settingsOf } from "./settings.tsx";
 import { Activity, Usage } from "./status.tsx";
 import {
-  Approval, AssistantMessage, Compaction, Fallback, Plan, Question, SessionMessage, Subagent, Terminal, Thought, ToolCall, UserMessage,
+  Approval, AssistantMessage, Compaction, Fallback, Plan, Question, SessionMessage, Subagent, Terminal, Thought, ToolCall, ToolGroup, UserMessage, toolRunning,
 } from "./items.tsx";
 
 /** What the user can do. Leave one out and its control is not drawn or does nothing. */
@@ -58,6 +58,8 @@ export interface TimelineProps {
 /** The items of one session, in order. A subagent's session is drawn inside its item. */
 export function Timeline({ conversation, state, actions, components, pageSize = 200 }: TimelineProps) {
   const [shown, setShown] = useState(pageSize);
+  // Which tool calls the user opened or closed. Kept here: a call changes rows when it ends.
+  const [chosen, setChosen] = useState<ReadonlyMap<string, boolean>>(new Map());
   // Counted from the end, so items that arrive do not push older ones out.
   const first = Math.max(0, state.timeline.length - shown);
   // A terminal that a tool call shows is not drawn a second time.
@@ -70,6 +72,11 @@ export function Timeline({ conversation, state, actions, components, pageSize = 
     }
   }
   const terminal = (id: string) => state.collections.get("terminal")?.get(id);
+  // A call still marked as going is only running while the turn is, or in the background after it.
+  const turn = state.values.get("state") as JsonObject | undefined;
+  const background = new Set((Array.isArray(turn?.["background"]) ? turn["background"] : []).map((work) => (work as JsonObject | null)?.["toolCallId"]));
+  const running = (id: string, item: Json) =>
+    toolRunning(item) && (turn === undefined || turn["state"] !== "idle" || background.has(id));
 
   const draw = (target: string, id: string): ReactNode => {
     if (target === "request") {
@@ -89,7 +96,7 @@ export function Timeline({ conversation, state, actions, components, pageSize = 
       case "userMessage": return <UserMessage item={item} />;
       case "agentMessage": return <AssistantMessage item={item} />;
       case "agentThought": return <Thought item={item} />;
-      case "toolCall": return <ToolCall item={item} terminal={terminal} />;
+      case "toolCall": return <ToolCall item={item} terminal={terminal} running={running(id, item)} chosen={chosen.get(id)} onToggle={(open) => setChosen(new Map(chosen).set(id, open))} />;
       case "terminal": return inline.has(id) ? null : <div className="arc-item"><Terminal item={item} /></div>;
       case "plan": return <Plan item={item} />;
       case "sessionMessage": return <SessionMessage item={item} />;
@@ -108,6 +115,48 @@ export function Timeline({ conversation, state, actions, components, pageSize = 
     }
   };
 
+  // Finished tool calls that follow one another are drawn as one group. An answered approval
+  // goes in with the call it follows, and a thought between two calls with them; anything
+  // else ends the group, and so does a call that still runs, which stays in view on its own.
+  interface Row { key: string; drawn: ReactNode; call?: Json }
+  const rows: ReactNode[] = [];
+  let group: Row[] = [];
+  let after: Row[] = []; // what followed the group's last call, until another call takes it in
+  const row = ({ key, drawn }: Row) => <div key={key} className="arc-row">{drawn}</div>;
+  const close = () => {
+    const calls = group.flatMap((entry) => (entry.call === undefined ? [] : [entry.call]));
+    if (calls.length > 1) {
+      rows.push(
+        <div key={`group:${group[0]!.key}`} className="arc-row">
+          <ToolGroup calls={calls}>{group.map(({ key, drawn }) => <div key={key}>{drawn}</div>)}</ToolGroup>
+        </div>,
+      );
+    } else rows.push(...group.map(row));
+    rows.push(...after.map(row));
+    group = [];
+    after = [];
+  };
+  for (const { target, id } of state.timeline.slice(first)) {
+    const drawn = draw(target, id);
+    // What draws nothing (a cursor, a terminal its tool call shows) does not end a group.
+    if (!drawn) continue;
+    const entry: Row = { key: `${target}:${id}`, drawn };
+    const item = state.collections.get(target)?.get(id);
+    const request = target === "request" ? state.requests.get(id) : undefined;
+    if (target === "toolCall" && item !== undefined && !running(id, item)) {
+      group.push(...after, { ...entry, call: item });
+      after = [];
+    } else if (group.length > 0 && request?.method === "session/request_permission" && request.outcome !== null) {
+      (after.length > 0 ? after : group).push(entry);
+    } else if (group.length > 0 && target === "agentThought") {
+      after.push(entry);
+    } else {
+      close();
+      rows.push(row(entry));
+    }
+  }
+  close();
+
   return (
     <div className="arc-timeline">
       {first > 0 && (
@@ -115,10 +164,7 @@ export function Timeline({ conversation, state, actions, components, pageSize = 
           Show earlier ({first} more)
         </button>
       )}
-      {state.timeline.slice(first).map((ref) => {
-        const drawn = draw(ref.target, ref.id);
-        return drawn && <div key={`${ref.target}:${ref.id}`} className="arc-row">{drawn}</div>;
-      })}
+      {rows}
     </div>
   );
 }

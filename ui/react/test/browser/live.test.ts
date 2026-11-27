@@ -50,7 +50,7 @@ test("a turn with an approval: the user allows the command and the agent finishe
     assert.equal(await page.getByRole("button", { name: "Stop" }).count(), 1);
 
     await approval.getByRole("button", { name: "Yes", exact: true }).click();
-    await page.locator(".arc-request .arc-answer", { hasText: "Yes" }).waitFor();
+    await page.locator(".arc-approved .arc-answer", { hasText: "Yes" }).waitFor();
     await page.locator(".arc-status .arc-badge", { hasText: "idle" }).waitFor();
     assert.equal(await page.locator(".arc-pending").count(), 0);
     assert.match((await page.locator(".arc-assistant").last().textContent())!, /done/i);

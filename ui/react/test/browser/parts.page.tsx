@@ -6,6 +6,7 @@ import { Conversation, type Json, type SessionSummary } from "@archipel/client";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import denied from "../../../../testdata/states/claude-v2/approval_denied.json" with { type: "json" };
+import filesState from "../../../../testdata/states/claude-v2/files.json" with { type: "json" };
 import question from "../../../../testdata/states/claude-v2/question.json" with { type: "json" };
 import simple from "../../../../testdata/states/claude-v2/simple.json" with { type: "json" };
 import thinking from "../../../../testdata/states/claude-v2/thinking.json" with { type: "json" };
@@ -60,6 +61,25 @@ function Long() {
   return <ChatView conversation={conversation} />;
 }
 
+/** Two finished calls and one that runs; "Finish" ends it, as the agent would. */
+function Tools() {
+  const [conversation] = useState(() => {
+    const made = load(filesState);
+    const [, state] = made.root()!;
+    (state.values.get("state") as { state: string }).state = "running";
+    for (const tool of state.collections.get("toolCall")!.values()) if ((tool as { kind: string }).kind === "edit") (tool as { status: string }).status = "in_progress";
+    return made;
+  });
+  const [, draw] = useState(0);
+  const finish = () => {
+    const [, state] = conversation.root()!;
+    (state.values.get("state") as { state: string }).state = "idle";
+    for (const tool of state.collections.get("toolCall")!.values()) (tool as { status: string }).status = "completed";
+    draw((count) => count + 1);
+  };
+  return <><ChatView conversation={conversation} /><button type="button" onClick={finish}>Finish</button></>;
+}
+
 function Fork() {
   const [forked, setForked] = useState(false);
   return forked ? <p>On the copy</p> : <OpenElsewhere holder={{ pid: 4242 }} onFork={() => call("fork")().then(() => setForked(true))} />;
@@ -93,6 +113,7 @@ const parts: Record<string, () => React.ReactNode> = {
   approval: () => <Waiting state={denied} title="approval" />,
   question: () => <Waiting state={question} title="question" />,
   long: () => <Long />,
+  tools: () => <Tools />,
   thinking: () => <ChatView conversation={load(thinking)} />,
   diff: () => <Diff block={{ type: "diff", patch: { text: patch }, changes: [{ path: "long.txt", operation: "modify" }] }} />,
   fork: () => <Fork />,
